@@ -373,6 +373,46 @@ export default function App() {
   }
   function cancelRes(id) { requireAuth(() => { setReservations((p) => p.filter((r) => r.id !== id)); setForm(null); setDetail(null); showToast("예약을 삭제했어요."); }, "일정을 삭제하려면 로그인이 필요해요."); }
 
+  function completeRes(r) {
+    requireAuth(() => {
+      if (r.date !== keyOf(today)) {
+        showToast("오늘 일정만 즉시 완료할 수 있어요.");
+        return;
+      }
+      const nowM = now.getHours() * 60 + now.getMinutes();
+      const startM = toMin(r.start);
+      const endM = toMin(r.end);
+      if (nowM < startM) {
+        showToast("아직 시작하지 않은 회의입니다.");
+        return;
+      }
+      if (nowM >= endM) {
+        showToast("이미 종료된 회의입니다.");
+        return;
+      }
+      const newEnd = Math.max(startM + 10, Math.ceil(nowM / STEP) * STEP);
+      setReservations((p) => p.map((x) => (x.id === r.id ? { ...x, end: toHHMM(newEnd) } : x)));
+      showToast("회의를 완료 처리했어요.");
+    }, "회의를 완료하려면 로그인이 필요해요.");
+  }
+
+  function extendRes(r, mins) {
+    requireAuth(() => {
+      const endM = toMin(r.end);
+      const newEndM = endM + mins;
+      if (newEndM > DAY_END) {
+        showToast("운영 시간이 초과되어 연장할 수 없어요.");
+        return;
+      }
+      if (overlaps(r.roomId, r.date, toHHMM(endM), toHHMM(newEndM), r.id)) {
+        showToast("다음 예약과 겹쳐 연장할 수 없어요.");
+        return;
+      }
+      setReservations((p) => p.map((x) => (x.id === r.id ? { ...x, end: toHHMM(newEndM) } : x)));
+      showToast(`회의를 ${mins}분 연장했어요.`);
+    }, "회의를 연장하려면 로그인이 필요해요.");
+  }
+
   function openPicker() { setTemp([...(form.attendees || [])]); setPickerOpen(true); }
   const toggleTemp = (id) => setTemp((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   const addTemp = (id) => setTemp((p) => (id && !p.includes(id) ? [...p, id] : p));
@@ -567,7 +607,15 @@ export default function App() {
                       <div className="flex items-center gap-2"><span className="truncate text-[15px] font-medium">{r.title}</span>{r.repeat && <span className="inline-flex shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium" style={{ background: PASTEL.yellow.bg, color: PASTEL.yellow.text }}><Repeat size={10} />매주</span>}</div>
                       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium" style={{ color: C.muted }}><span className="flex items-center gap-1"><Building2 size={12} />{rm.name}</span><span className="flex items-center gap-1"><Clock size={12} />{fmtK(d)} {r.start}~{r.end}</span><span className="flex items-center gap-1"><Users size={12} />{r.attendees.length}명</span></div>
                     </div>
-                    <div className="flex shrink-0 gap-2">
+                    <div className="flex shrink-0 flex-wrap gap-1.5 justify-end sm:flex-nowrap sm:gap-2">
+                      <select onChange={(e) => { if (e.target.value) { extendRes(r, parseInt(e.target.value)); e.target.value = ""; } }} className="lift rounded-lg border px-2 py-1.5 text-xs font-medium outline-none cursor-pointer" style={{ borderColor: C.border, color: C.ink, background: "transparent" }}>
+                        <option value="">연장하기</option>
+                        <option value="5">+ 5분</option>
+                        <option value="10">+ 10분</option>
+                        <option value="15">+ 15분</option>
+                        <option value="30">+ 30분</option>
+                      </select>
+                      <button onClick={() => completeRes(r)} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, color: C.ink }}>지금 완료</button>
                       <button onClick={() => { setRoomId(r.roomId); setAnchor(d); openEdit(r); setSection("book"); }} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, color: C.muted }}>수정</button>
                       <button onClick={() => cancelRes(r.id)} className="lift flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-medium" style={{ background: PASTEL.red.bg, color: PASTEL.red.text }}><Trash2 size={13} /></button>
                     </div>
