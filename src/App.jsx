@@ -137,13 +137,12 @@ function genDash(year, month, roomFilter, reservations) {
           const dObj = daily[rd - 1];
           if (dObj) {
             const durationMin = toMin(r.end) - toMin(r.start);
-            const durationHours = durationMin / 60;
             if (r.roomId === "big") {
               dObj.big += 1;
-              big += durationHours;
+              big += durationMin;
             } else if (r.roomId === "small") {
               dObj.small += 1;
-              small += durationHours;
+              small += durationMin;
             }
             dObj.total += 1;
           }
@@ -153,18 +152,18 @@ function genDash(year, month, roomFilter, reservations) {
   }
 
   const total = daily.reduce((acc, curr) => acc + curr.total, 0);
-  const totalHours = Math.round(big + small);
+  const totalMin = Math.round(big + small);
   const mostUsed = big > small ? "큰 회의실" : small > big ? "작은 회의실" : "-";
   const leastUsed = big > small ? "작은 회의실" : small > big ? "큰 회의실" : "-";
   return { 
     days, 
     daily, 
     total, 
-    totalHours, 
+    totalMin, 
     mostUsed, 
     leastUsed, 
-    mostHours: Math.round(big), 
-    leastHours: Math.round(small)
+    mostMin: Math.round(big), 
+    leastMin: Math.round(small)
   };
 }
 const HEAT = ["var(--heat-0)", "var(--heat-1)", "var(--heat-2)", "var(--heat-3)", "var(--heat-4)"];
@@ -214,9 +213,9 @@ function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations }) {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="총 회의실 예약 수" value={`${data.total}건`} delay={0} />
-        <StatCard label="총 회의실 사용 시간" value={`${data.totalHours}시간`} delay={40} />
-        <StatCard label="가장 많이 사용된 회의실" sub={`${data.mostHours}시간`} value={data.mostUsed} delay={80} />
-        <StatCard label="가장 적게 사용된 회의실" sub={`${data.leastHours}시간`} value={data.leastUsed} delay={120} />
+        <StatCard label="총 회의실 사용 시간" value={`${data.totalMin}분`} delay={40} />
+        <StatCard label="가장 많이 사용된 회의실" sub={`${data.mostMin}분`} value={data.mostUsed} delay={80} />
+        <StatCard label="가장 적게 사용된 회의실" sub={`${data.leastMin}분`} value={data.leastUsed} delay={120} />
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -231,11 +230,31 @@ function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations }) {
             {heatCells.map((c, i) => {
               const inM = c.getMonth() === month.getMonth();
               const v = inM ? (dailyByDate[c.getDate()]?.total || 0) : 0;
-              return <div key={i} className="aspect-square rounded-lg" title={inM ? `${c.getDate()}일 · ${v}건` : ""} style={{ background: inM ? heatColor(v, maxTotal) : "transparent", border: inM ? `1px solid ${C.line}` : "none" }} />;
+              return (
+                <div 
+                  key={i} 
+                  className="aspect-square rounded-lg flex flex-col justify-between p-1.5 text-center transition-all" 
+                  title={inM ? `${c.getDate()}일 · ${v}건` : ""} 
+                  style={{ 
+                    background: inM ? "var(--bg-input)" : "transparent", 
+                    border: inM ? `1px solid ${C.border}` : "none",
+                    minHeight: "48px"
+                  }}
+                >
+                  {inM ? (
+                    <>
+                      <span className="text-[9px] font-semibold block text-left" style={{ color: C.faint }}>{c.getDate()}</span>
+                      <span className="text-[11px] font-bold block" style={{ color: v > 0 ? "var(--ink-deep)" : C.faint }}>
+                        {v > 0 ? `${v}건` : "-"}
+                      </span>
+                    </>
+                  ) : null}
+                </div>
+              );
             })}
           </div>
-          <div className="mt-3 flex items-center justify-end gap-1.5 text-[10px] font-medium" style={{ color: C.faint }}>
-            적음 {HEAT.map((h, i) => <span key={i} className="h-3 w-3 rounded-sm" style={{ background: h, border: `1px solid ${C.line}` }} />)} 많음
+          <div className="mt-3 flex items-center justify-end text-[10px] font-medium" style={{ color: C.faint }}>
+            * 각 날짜별로 실제 등록된 예약 건수(건)를 보여줍니다.
           </div>
         </div>
 
@@ -614,7 +633,7 @@ export default function App() {
   const gridStart = addDays(first, -first.getDay());
   const cells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
 
-  const NAV = [["book", "예약", CalendarDays], ["mine", "내 예약", List], ["dash", "대시보드", LayoutDashboard]];
+  const NAV = [["book", "예약", CalendarDays], ["mine", "내 예약", List]];
 
   return (
     <div style={{ background: C.bg, color: C.text, minHeight: "100vh" }} className="w-full flex flex-col">
@@ -656,8 +675,18 @@ export default function App() {
             </button>
             {user ? (
               <div className="flex items-center gap-2">
-                <Avatar label={user.slice(0, 2)} size={34} />
-                <button onClick={() => setUser(null)} title="로그아웃" className="lift grid h-9 w-9 place-items-center rounded-[4px] border" style={{ borderColor: C.border, color: C.muted }}><LogOut size={15} /></button>
+                <button 
+                  onClick={() => setSection("mypage")} 
+                  className="lift flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-semibold transition-all hover:border-black dark:hover:border-white"
+                  style={{ 
+                    borderColor: section === "mypage" ? C.ink : C.border, 
+                    background: section === "mypage" ? "var(--bg-quaternary)" : "transparent"
+                  }}
+                >
+                  <Avatar label={user.slice(0, 2)} size={24} solid={section === "mypage"} />
+                  <span style={{ color: C.text }}>{user}님</span>
+                </button>
+                <button onClick={() => { setUser(null); if (section === "mypage" || section === "dash") setSection("book"); }} title="로그아웃" className="lift grid h-9 w-9 place-items-center rounded-[4px] border" style={{ borderColor: C.border, color: C.muted }}><LogOut size={15} /></button>
               </div>
             ) : (
               <button onClick={() => requireAuth(() => {}, "로그인")} className="lift flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium" style={{ background: C.ink, color: "var(--bg)", boxShadow: "0 1px 2px rgba(0,0,0,.05)" }}><LogIn size={15} /> 로그인</button>
@@ -784,13 +813,46 @@ export default function App() {
           </section>
         )}
 
-        {section === "dash" && (
+        {section === "mypage" && (
           !user ? (
             <div className="grid place-items-center rounded-lg border bg-white py-16 text-center" style={{ borderColor: C.border }}>
-              <Lock size={30} style={{ color: C.faint }} /><p className="mt-3 text-sm font-semibold" style={{ color: C.muted }}>로그인하면 대시보드를 볼 수 있어요</p>
-              <button onClick={() => requireAuth(() => setSection("dash"), "로그인하면 대시보드를 볼 수 있어요.")} className="lift mt-4 flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium" style={{ background: C.ink, color: "var(--bg)" }}><LogIn size={15} />로그인</button>
+              <Lock size={30} style={{ color: C.faint }} /><p className="mt-3 text-sm font-semibold" style={{ color: C.muted }}>로그인하면 마이페이지를 볼 수 있어요</p>
+              <button onClick={() => requireAuth(() => setSection("mypage"), "로그인하면 마이페이지를 볼 수 있어요.")} className="lift mt-4 flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium" style={{ background: C.ink, color: "var(--bg)" }}><LogIn size={15} />로그인</button>
             </div>
-          ) : <Dashboard month={dashMonth} setMonth={setDashMonth} roomF={dashRoom} setRoomF={setDashRoom} now={now} reservations={reservations} />
+          ) : (
+            <div className="space-y-6">
+              {/* 프로필 요약 카드 */}
+              <div className="rise rounded-lg border bg-white p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4" style={{ borderColor: C.border }}>
+                <div className="flex items-center gap-4">
+                  <Avatar label={user.slice(0, 2)} size={54} solid />
+                  <div>
+                    <h2 className="text-lg font-bold flex items-center gap-2">
+                      {user}님 마이페이지
+                      {MEMBERS.find(m => m.name === user) && (
+                        <TeamTag team={MEMBERS.find(m => m.name === user).team} />
+                      )}
+                    </h2>
+                    <p className="text-xs mt-1" style={{ color: C.faint }}>
+                      {MEMBERS.find(m => m.name === user) ? `${MEMBERS.find(m => m.name === user).role} · foundfounded 멤버` : "foundfounded 멤버"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setSection("mine")} className="lift rounded-lg border px-4 py-2.5 text-xs font-semibold" style={{ borderColor: C.border, color: C.muted }}>
+                    내 예약 내역
+                  </button>
+                  <button onClick={() => { setUser(null); setSection("book"); }} className="lift rounded-lg border px-4 py-2.5 text-xs font-semibold" style={{ borderColor: C.border, color: PASTEL.red.text }}>
+                    로그아웃
+                  </button>
+                </div>
+              </div>
+
+              {/* 회의실 사용 현황 대시보드 */}
+              <div className="pt-2">
+                <Dashboard month={dashMonth} setMonth={setDashMonth} roomF={dashRoom} setRoomF={setDashRoom} now={now} reservations={reservations} />
+              </div>
+            </div>
+          )
         )}
       </main>
 
