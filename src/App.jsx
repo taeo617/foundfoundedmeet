@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from "firebase/firestore";
-import { db } from "./firebase";
+import { db, isFirebaseConfigured } from "./firebase";
 import {
   Calendar, CalendarDays, Clock, Users, Monitor, Video, Plus, X, Check,
   CheckCircle2, Repeat, AlertCircle, ChevronLeft, ChevronRight, Trash2,
@@ -298,9 +298,20 @@ export default function App() {
   const [view, setView] = useState("calendar");
   const [anchor, setAnchor] = useState(() => dayOnly(new Date()));
   const [roomId, setRoomId] = useState("big");
-  const [reservations, setReservations] = useState([]);
+  const [reservations, setReservations] = useState(() => {
+    if (!isFirebaseConfigured) {
+      try {
+        const local = localStorage.getItem("reservations");
+        return local ? JSON.parse(local) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  });
   
   useEffect(() => {
+    if (!isFirebaseConfigured) return;
     const unsub = onSnapshot(collection(db, "reservations"), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setReservations(data);
@@ -309,6 +320,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!isFirebaseConfigured) return;
     const localRes = localStorage.getItem("reservations");
     const migrated = localStorage.getItem("firestore_migrated");
     if (localRes && !migrated) {
@@ -327,6 +339,12 @@ export default function App() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    if (!isFirebaseConfigured) {
+      localStorage.setItem("reservations", JSON.stringify(reservations));
+    }
+  }, [reservations]);
 
   const [form, setForm] = useState(null);
   const [errs, setErrs] = useState({});
@@ -414,29 +432,47 @@ export default function App() {
     setErrs(e);
     if (Object.keys(e).length) return;
     
-    try {
-      if (f.id) { 
-        await updateDoc(doc(db, "reservations", f.id), { ...f, title: f.title.trim() });
-        showToast("예약을 수정했어요."); 
-      } else { 
+    if (isFirebaseConfigured) {
+      try {
+        if (f.id) { 
+          await updateDoc(doc(db, "reservations", f.id), { ...f, title: f.title.trim() });
+          showToast("예약을 수정했어요."); 
+        } else { 
+          const newId = nid();
+          await setDoc(doc(db, "reservations", newId), { ...f, id: newId, title: f.title.trim(), owner: user });
+          showToast("예약이 완료됐어요."); 
+        }
+        setForm(null);
+      } catch (err) {
+        console.error(err);
+        showToast("오류가 발생했습니다.");
+      }
+    } else {
+      if (f.id) {
+        setReservations((prev) => prev.map((r) => r.id === f.id ? { ...f, title: f.title.trim() } : r));
+        showToast("예약을 수정했어요.");
+      } else {
         const newId = nid();
-        await setDoc(doc(db, "reservations", newId), { ...f, id: newId, title: f.title.trim(), owner: user });
-        showToast("예약이 완료됐어요."); 
+        const newRes = { ...f, id: newId, title: f.title.trim(), owner: user };
+        setReservations((prev) => [...prev, newRes]);
+        showToast("예약이 완료됐어요.");
       }
       setForm(null);
-    } catch (err) {
-      console.error(err);
-      showToast("오류가 발생했습니다.");
     }
   }
   function cancelRes(id) { 
     requireAuth(async () => { 
-      try {
-        await deleteDoc(doc(db, "reservations", id));
-        setForm(null); setDetail(null); showToast("예약을 삭제했어요."); 
-      } catch (err) {
-        console.error(err);
-        showToast("오류가 발생했습니다.");
+      if (isFirebaseConfigured) {
+        try {
+          await deleteDoc(doc(db, "reservations", id));
+          setForm(null); setDetail(null); showToast("예약을 삭제했어요."); 
+        } catch (err) {
+          console.error(err);
+          showToast("오류가 발생했습니다.");
+        }
+      } else {
+        setReservations((prev) => prev.filter((r) => r.id !== id));
+        setForm(null); setDetail(null); showToast("예약을 삭제했어요.");
       }
     }, "일정을 삭제하려면 로그인이 필요해요."); 
   }
@@ -459,12 +495,18 @@ export default function App() {
         return;
       }
       const newEnd = Math.max(startM + 10, Math.ceil(nowM / STEP) * STEP);
-      updateDoc(doc(db, "reservations", r.id), { end: toHHMM(newEnd) }).then(() => {
+      
+      if (isFirebaseConfigured) {
+        updateDoc(doc(db, "reservations", r.id), { end: toHHMM(newEnd) }).then(() => {
+          showToast("회의를 완료 처리했어요.");
+        }).catch(err => {
+          console.error(err);
+          showToast("오류가 발생했습니다.");
+        });
+      } else {
+        setReservations((prev) => prev.map((item) => item.id === r.id ? { ...item, end: toHHMM(newEnd) } : item));
         showToast("회의를 완료 처리했어요.");
-      }).catch(err => {
-        console.error(err);
-        showToast("오류가 발생했습니다.");
-      });
+      }
     }, "회의를 완료하려면 로그인이 필요해요.");
   }
 
@@ -480,12 +522,18 @@ export default function App() {
         showToast("다음 예약과 겹쳐 연장할 수 없어요.");
         return;
       }
-      updateDoc(doc(db, "reservations", r.id), { end: toHHMM(newEndM) }).then(() => {
+      
+      if (isFirebaseConfigured) {
+        updateDoc(doc(db, "reservations", r.id), { end: toHHMM(newEndM) }).then(() => {
+          showToast(`회의를 ${mins}분 연장했어요.`);
+        }).catch(err => {
+          console.error(err);
+          showToast("오류가 발생했습니다.");
+        });
+      } else {
+        setReservations((prev) => prev.map((item) => item.id === r.id ? { ...item, end: toHHMM(newEndM) } : item));
         showToast(`회의를 ${mins}분 연장했어요.`);
-      }).catch(err => {
-        console.error(err);
-        showToast("오류가 발생했습니다.");
-      });
+      }
     }, "회의를 연장하려면 로그인이 필요해요.");
   }
 

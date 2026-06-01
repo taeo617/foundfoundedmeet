@@ -15,8 +15,21 @@ const firebaseConfig = {
   appId: "YOUR_APP_ID"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Check if actual configuration is provided
+export const isFirebaseConfigured = 
+  firebaseConfig.projectId && 
+  firebaseConfig.projectId !== "YOUR_PROJECT_ID";
 
-// Initialize Cloud Firestore and get a reference to the service
-export const db = getFirestore(app);
+let db = null;
+
+if (isFirebaseConfigured) {
+  try {
+    const app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+  } catch (err) {
+    console.error("Firebase initialization failed:", err);
+  }
+}
+
+export { db };
+
