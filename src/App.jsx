@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from "firebase/firestore";
+import { db } from "./firebase";
 import {
   Calendar, CalendarDays, Clock, Users, Monitor, Video, Plus, X, Check,
   CheckCircle2, Repeat, AlertCircle, ChevronLeft, ChevronRight, Trash2,
@@ -296,17 +298,16 @@ export default function App() {
   const [view, setView] = useState("calendar");
   const [anchor, setAnchor] = useState(() => dayOnly(new Date()));
   const [roomId, setRoomId] = useState("big");
-  const [reservations, setReservations] = useState(() => {
-    try {
-      const saved = localStorage.getItem("reservations");
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [reservations, setReservations] = useState([]);
+  
   useEffect(() => {
-    localStorage.setItem("reservations", JSON.stringify(reservations));
-  }, [reservations]);
+    const unsub = onSnapshot(collection(db, "reservations"), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setReservations(data);
+    });
+    return () => unsub();
+  }, []);
+
   const [form, setForm] = useState(null);
   const [errs, setErrs] = useState({});
   const [detail, setDetail] = useState(null);
@@ -358,7 +359,7 @@ export default function App() {
   const tryCreate = (rid, sm, date) => requireAuth(() => openCreate(rid, sm, date), "일정을 추가하려면 로그인이 필요해요.");
   const openEdit = (r) => { setErrs({}); setForm({ ...r, attendees: [...r.attendees] }); };
 
-  function saveForm() {
+  async function saveForm() {
     const f = form; const e = {};
     if (!f.title.trim()) e.title = "회의 제목을 입력해주세요.";
     if (toMin(f.end) <= toMin(f.start)) e.time = "종료 시간은 시작 시간보다 늦어야 해요.";
@@ -367,11 +368,33 @@ export default function App() {
     if (f.attendees.length > ROOMS.find((r) => r.id === f.roomId).capacity) e.att = "참석 인원이 회의실 정원을 초과했어요.";
     setErrs(e);
     if (Object.keys(e).length) return;
-    if (f.id) { setReservations((p) => p.map((r) => (r.id === f.id ? { ...r, ...f, title: f.title.trim() } : r))); showToast("예약을 수정했어요."); }
-    else { setReservations((p) => [...p, { ...f, id: nid(), title: f.title.trim(), owner: user }]); showToast("예약이 완료됐어요."); }
-    setForm(null);
+    
+    try {
+      if (f.id) { 
+        await updateDoc(doc(db, "reservations", f.id), { ...f, title: f.title.trim() });
+        showToast("예약을 수정했어요."); 
+      } else { 
+        const newId = nid();
+        await setDoc(doc(db, "reservations", newId), { ...f, id: newId, title: f.title.trim(), owner: user });
+        showToast("예약이 완료됐어요."); 
+      }
+      setForm(null);
+    } catch (err) {
+      console.error(err);
+      showToast("오류가 발생했습니다.");
+    }
   }
-  function cancelRes(id) { requireAuth(() => { setReservations((p) => p.filter((r) => r.id !== id)); setForm(null); setDetail(null); showToast("예약을 삭제했어요."); }, "일정을 삭제하려면 로그인이 필요해요."); }
+  function cancelRes(id) { 
+    requireAuth(async () => { 
+      try {
+        await deleteDoc(doc(db, "reservations", id));
+        setForm(null); setDetail(null); showToast("예약을 삭제했어요."); 
+      } catch (err) {
+        console.error(err);
+        showToast("오류가 발생했습니다.");
+      }
+    }, "일정을 삭제하려면 로그인이 필요해요."); 
+  }
 
   function completeRes(r) {
     requireAuth(() => {
@@ -391,8 +414,12 @@ export default function App() {
         return;
       }
       const newEnd = Math.max(startM + 10, Math.ceil(nowM / STEP) * STEP);
-      setReservations((p) => p.map((x) => (x.id === r.id ? { ...x, end: toHHMM(newEnd) } : x)));
-      showToast("회의를 완료 처리했어요.");
+      updateDoc(doc(db, "reservations", r.id), { end: toHHMM(newEnd) }).then(() => {
+        showToast("회의를 완료 처리했어요.");
+      }).catch(err => {
+        console.error(err);
+        showToast("오류가 발생했습니다.");
+      });
     }, "회의를 완료하려면 로그인이 필요해요.");
   }
 
@@ -408,8 +435,12 @@ export default function App() {
         showToast("다음 예약과 겹쳐 연장할 수 없어요.");
         return;
       }
-      setReservations((p) => p.map((x) => (x.id === r.id ? { ...x, end: toHHMM(newEndM) } : x)));
-      showToast(`회의를 ${mins}분 연장했어요.`);
+      updateDoc(doc(db, "reservations", r.id), { end: toHHMM(newEndM) }).then(() => {
+        showToast(`회의를 ${mins}분 연장했어요.`);
+      }).catch(err => {
+        console.error(err);
+        showToast("오류가 발생했습니다.");
+      });
     }, "회의를 연장하려면 로그인이 필요해요.");
   }
 
@@ -626,7 +657,14 @@ export default function App() {
           </section>
         )}
 
-        {section === "dash" && <Dashboard month={dashMonth} setMonth={setDashMonth} roomF={dashRoom} setRoomF={setDashRoom} now={now} reservations={reservations} />}
+        {section === "dash" && (
+          !user ? (
+            <div className="grid place-items-center rounded-lg border bg-white py-16 text-center" style={{ borderColor: C.border }}>
+              <Lock size={30} style={{ color: C.faint }} /><p className="mt-3 text-sm font-semibold" style={{ color: C.muted }}>로그인하면 대시보드를 볼 수 있어요</p>
+              <button onClick={() => requireAuth(() => setSection("dash"), "로그인하면 대시보드를 볼 수 있어요.")} className="lift mt-4 flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium" style={{ background: C.ink, color: "var(--bg)" }}><LogIn size={15} />로그인</button>
+            </div>
+          ) : <Dashboard month={dashMonth} setMonth={setDashMonth} roomF={dashRoom} setRoomF={setDashRoom} now={now} reservations={reservations} />
+        )}
       </main>
 
       {/* ===== mobile bottom nav ===== */}
