@@ -458,10 +458,21 @@ export default function App() {
   const [dayEventsDate, setDayEventsDate] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [profiles, setProfiles] = useState(() => {
+    const defaultProfiles = {
+      "도영": "/avatar_doyoung.png",
+      "혜경": "/avatar_hyekyung.png",
+      "지민": "/avatar_jimin.png",
+      "수현": "/avatar_suhyun.png",
+      "보아": "/avatar_boa.png",
+      "oxo": "/avatar_boa.png"
+    };
     try {
       const x = localStorage.getItem("profile_images");
-      return x ? JSON.parse(x) : {};
-    } catch { return {}; }
+      const saved = x ? JSON.parse(x) : {};
+      return { ...defaultProfiles, ...saved };
+    } catch { 
+      return defaultProfiles; 
+    }
   });
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const fileInputRef = useRef(null);
