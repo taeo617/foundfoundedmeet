@@ -71,7 +71,7 @@ const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); r
 const dayOnly = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const sameDay = (a, b) => keyOf(a) === keyOf(b);
 const TIMES = Array.from({ length: SLOTS + 1 }, (_, i) => toHHMM(DAY_START + i * STEP));
-let UID = 100; const nid = () => `r${UID++}`;
+let UID = 100; const nid = () => `r_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
 
 /* ===================== shared atoms ===================== */
 function TeamTag({ team }) {
@@ -346,6 +346,26 @@ export default function App() {
     }
   }, [reservations]);
 
+  useEffect(() => {
+    if (!isFirebaseConfigured && reservations.length > 0) {
+      const seenIds = new Set();
+      let hasDuplicates = false;
+      const updated = reservations.map((r) => {
+        if (!r.id || seenIds.has(r.id)) {
+          hasDuplicates = true;
+          return { ...r, id: nid() };
+        }
+        seenIds.add(r.id);
+        return r;
+      });
+
+      if (hasDuplicates) {
+        setReservations(updated);
+        showToast("중복 등록된 예약을 안전하게 개별 분리하여 복구했습니다.");
+      }
+    }
+  }, []);
+
   const [form, setForm] = useState(null);
   const [errs, setErrs] = useState({});
   const [detail, setDetail] = useState(null);
@@ -359,6 +379,7 @@ export default function App() {
   const [dashMonth, setDashMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [dashRoom, setDashRoom] = useState("all");
   const [dayEventsDate, setDayEventsDate] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const timelineScrollRef = useRef(null);
 
   useEffect(() => {
@@ -423,6 +444,7 @@ export default function App() {
   const openEdit = (r) => { setErrs({}); setForm({ ...r, attendees: [...r.attendees] }); };
 
   async function saveForm() {
+    if (isSubmitting) return;
     const f = form; const e = {};
     if (!f.title.trim()) e.title = "회의 제목을 입력해주세요.";
     if (toMin(f.end) <= toMin(f.start)) e.time = "종료 시간은 시작 시간보다 늦어야 해요.";
@@ -432,6 +454,7 @@ export default function App() {
     setErrs(e);
     if (Object.keys(e).length) return;
     
+    setIsSubmitting(true);
     if (isFirebaseConfigured) {
       try {
         if (f.id) { 
@@ -446,18 +469,27 @@ export default function App() {
       } catch (err) {
         console.error(err);
         showToast("오류가 발생했습니다.");
+      } finally {
+        setIsSubmitting(false);
       }
     } else {
-      if (f.id) {
-        setReservations((prev) => prev.map((r) => r.id === f.id ? { ...f, title: f.title.trim() } : r));
-        showToast("예약을 수정했어요.");
-      } else {
-        const newId = nid();
-        const newRes = { ...f, id: newId, title: f.title.trim(), owner: user };
-        setReservations((prev) => [...prev, newRes]);
-        showToast("예약이 완료됐어요.");
+      try {
+        if (f.id) {
+          setReservations((prev) => prev.map((r) => r.id === f.id ? { ...f, title: f.title.trim() } : r));
+          showToast("예약을 수정했어요.");
+        } else {
+          const newId = nid();
+          const newRes = { ...f, id: newId, title: f.title.trim(), owner: user };
+          setReservations((prev) => [...prev, newRes]);
+          showToast("예약이 완료됐어요.");
+        }
+        setForm(null);
+      } catch (err) {
+        console.error(err);
+        showToast("오류가 발생했습니다.");
+      } finally {
+        setIsSubmitting(false);
       }
-      setForm(null);
     }
   }
   function cancelRes(id) { 
@@ -849,7 +881,20 @@ export default function App() {
               <div className="mt-6 flex gap-2.5">
                 {form.id && <button onClick={() => cancelRes(form.id)} className="lift rounded-lg px-4 py-3 text-sm font-medium" style={{ background: PASTEL.red.bg, color: PASTEL.red.text }}><Trash2 size={15} /></button>}
                 <button onClick={() => setForm(null)} className="lift flex-1 rounded-lg border py-3 text-sm font-medium" style={{ borderColor: C.border, color: C.muted }}>취소</button>
-                <button onClick={saveForm} className="lift flex flex-[2] items-center justify-center gap-1.5 rounded-lg py-3 text-sm font-medium" style={{ background: "#2383E2", color: "#fff", boxShadow: "0 1px 2px rgba(0,0,0,.05)" }}><Check size={16} /> {form.id ? "수정 완료" : "지금 예약하기"}</button>
+                <button 
+                  onClick={saveForm} 
+                  disabled={isSubmitting}
+                  className="lift flex flex-[2] items-center justify-center gap-1.5 rounded-lg py-3 text-sm font-medium" 
+                  style={{ 
+                    background: isSubmitting ? "#a0aec0" : "#2383E2", 
+                    color: "#fff", 
+                    boxShadow: "0 1px 2px rgba(0,0,0,.05)",
+                    cursor: isSubmitting ? "not-allowed" : "pointer",
+                    opacity: isSubmitting ? 0.7 : 1
+                  }}
+                >
+                  <Check size={16} /> {isSubmitting ? "처리 중..." : (form.id ? "수정 완료" : "지금 예약하기")}
+                </button>
               </div>
             </div>
           </div>
