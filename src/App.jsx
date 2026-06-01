@@ -346,8 +346,9 @@ export default function App() {
     }
   }, [reservations]);
 
+  const isMigratedRef = useRef(false);
   useEffect(() => {
-    if (!isFirebaseConfigured && reservations.length > 0) {
+    if (!isFirebaseConfigured && reservations.length > 0 && !isMigratedRef.current) {
       const seenIds = new Set();
       let hasDuplicates = false;
       const updated = reservations.map((r) => {
@@ -360,11 +361,12 @@ export default function App() {
       });
 
       if (hasDuplicates) {
+        isMigratedRef.current = true;
         setReservations(updated);
         showToast("중복 등록된 예약을 안전하게 개별 분리하여 복구했습니다.");
       }
     }
-  }, []);
+  }, [reservations]);
 
   const [form, setForm] = useState(null);
   const [errs, setErrs] = useState({});
