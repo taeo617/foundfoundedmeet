@@ -96,7 +96,14 @@ function Avatar({ label, size = 36, solid = false }) {
 /* ===================== login modal ===================== */
 function LoginModal({ message, onClose, onLogin }) {
   const [name, setName] = useState(""); const [pw, setPw] = useState(""); const [err, setErr] = useState("");
-  const submit = () => { if (!name.trim()) return setErr("이름을 입력해주세요."); if (pw !== "3377") return setErr("비밀번호가 올바르지 않아요."); onLogin(name.trim()); };
+  const submit = () => { 
+    const trimmedName = name.trim();
+    if (!trimmedName) return setErr("이름을 입력해주세요."); 
+    const memberExists = MEMBERS.some((m) => m.name === trimmedName);
+    if (!memberExists) return setErr("등록되지 않은 멤버 이름입니다. 등록된 이름으로 로그인해 주세요.");
+    if (pw !== "3377") return setErr("비밀번호가 올바르지 않아요."); 
+    onLogin(trimmedName); 
+  };
   return (
     <div className="ov fixed inset-0 z-[70] flex items-end justify-center p-0 sm:items-center sm:p-4" style={{ background: "rgba(20,20,20,.5)" }} onClick={onClose}>
       <div className="sheet w-full rounded-t-lg bg-white p-6 sm:max-w-sm sm:rounded-lg" style={{ boxShadow: "0 -4px 12px rgba(0,0,0,.08)" }} onClick={(e) => e.stopPropagation()}>
@@ -441,7 +448,13 @@ export default function App() {
   function doLogin(name) { setReservations((p) => p.map((r) => (r.owner === "나" ? { ...r, owner: name } : r))); setUser(name); setAuthOpen(false); }
   useEffect(() => { if (user && authPending) { const p = authPending; setAuthPending(null); p(); } }, [user]); // eslint-disable-line
 
-  const myRes = useMemo(() => reservations.filter((r) => r.owner === user).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start)), [reservations, user]);
+  const myRes = useMemo(() => {
+    if (!user) return [];
+    const meId = MEMBERS.find((m) => m.name === user)?.id;
+    return reservations.filter((r) => {
+      return r.owner === user || (meId && r.attendees && r.attendees.includes(meId));
+    }).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+  }, [reservations, user]);
   const byDate = useMemo(() => { const m = {}; reservations.forEach((r) => { (m[r.date] ||= []).push(r); }); return m; }, [reservations]);
 
   function roomStatus(rid) {
