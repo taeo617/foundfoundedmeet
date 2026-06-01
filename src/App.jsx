@@ -89,8 +89,57 @@ function StatusPill({ kind, text }) {
 function Wordmark({ size = 18 }) {
   return <span className="tracking-tight" style={{ fontSize: size, color: C.ink, lineHeight: 1 }}><span style={{ fontWeight: 500, color: C.text }}>found</span><span style={{ fontWeight: 600 }}>founded</span></span>;
 }
-function Avatar({ label, size = 36, solid = false }) {
-  return <span className="grid shrink-0 place-items-center rounded-full font-medium" style={{ width: size, height: size, fontSize: size * 0.36, background: solid ? "var(--bg-avatar)" : "var(--bg-input)", border: `1px solid ${C.border}`, color: C.muted }}>{label}</span>;
+function Avatar({ name, label, size = 36, solid = false, onClick, className, style }) {
+  const [img, setImg] = useState(null);
+  
+  const loadImg = () => {
+    try {
+      const x = localStorage.getItem("profile_images");
+      const p = x ? JSON.parse(x) : {};
+      setImg(name ? p[name] : null);
+    } catch {
+      setImg(null);
+    }
+  };
+
+  useEffect(() => {
+    loadImg();
+    const handler = () => loadImg();
+    window.addEventListener("profile_updated", handler);
+    return () => window.removeEventListener("profile_updated", handler);
+  }, [name]);
+
+  if (img) {
+    return (
+      <img 
+        src={img} 
+        alt={name} 
+        onClick={onClick}
+        className={`shrink-0 rounded-full object-cover ${className || ""}`} 
+        style={{ width: size, height: size, border: `1px solid ${C.border}`, cursor: onClick ? "pointer" : "default", ...style }} 
+      />
+    );
+  }
+  
+  const lbl = label || (name ? name.slice(0, 2) : "");
+  return (
+    <span 
+      onClick={onClick}
+      className={`grid shrink-0 place-items-center rounded-full font-medium ${className || ""}`} 
+      style={{ 
+        width: size, 
+        height: size, 
+        fontSize: size * 0.36, 
+        background: solid ? "var(--bg-avatar)" : "var(--bg-input)", 
+        border: `1px solid ${C.border}`, 
+        color: C.muted,
+        cursor: onClick ? "pointer" : "default",
+        ...style 
+      }}
+    >
+      {lbl}
+    </span>
+  );
 }
 
 /* ===================== login modal ===================== */
@@ -408,6 +457,53 @@ export default function App() {
   const [dashRoom, setDashRoom] = useState("all");
   const [dayEventsDate, setDayEventsDate] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [profiles, setProfiles] = useState(() => {
+    try {
+      const x = localStorage.getItem("profile_images");
+      return x ? JSON.parse(x) : {};
+    } catch { return {}; }
+  });
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const size = 120;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        const minDim = Math.min(img.width, img.height);
+        const sx = (img.width - minDim) / 2;
+        const sy = (img.height - minDim) / 2;
+        ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        const updated = { ...profiles, [user]: dataUrl };
+        setProfiles(updated);
+        localStorage.setItem("profile_images", JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent("profile_updated"));
+        showToast("프로필 이미지를 등록했습니다.");
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDeleteProfileImage = () => {
+    const updated = { ...profiles };
+    delete updated[user];
+    setProfiles(updated);
+    localStorage.setItem("profile_images", JSON.stringify(updated));
+    setShowProfileMenu(false);
+    window.dispatchEvent(new CustomEvent("profile_updated"));
+    showToast("프로필 이미지를 삭제했습니다.");
+  };
+
   const timelineScrollRef = useRef(null);
 
   useEffect(() => {
@@ -710,7 +806,7 @@ export default function App() {
                     background: section === "mypage" ? "var(--bg-quaternary)" : "transparent"
                   }}
                 >
-                  <Avatar label={user.slice(0, 2)} size={24} solid={section === "mypage"} />
+                  <Avatar name={user} size={24} solid={section === "mypage"} />
                   <span style={{ color: C.text }}>{user}님</span>
                 </button>
                 <button onClick={() => { setUser(null); if (section === "mypage" || section === "dash") setSection("book"); }} title="로그아웃" className="lift grid h-9 w-9 place-items-center rounded-[4px] border" style={{ borderColor: C.border, color: C.muted }}><LogOut size={15} /></button>
@@ -801,7 +897,18 @@ export default function App() {
 
         {section === "mine" && (
           <section>
-            <h2 className="mb-4 text-lg font-medium">내 예약</h2>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-medium">내 예약</h2>
+              {user && (
+                <button 
+                  onClick={() => setSection("book")} 
+                  className="lift flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs font-semibold"
+                  style={{ borderColor: C.border, color: C.muted }}
+                >
+                  <Plus size={14} /> 회의실 예약하기
+                </button>
+              )}
+            </div>
             {!user ? (
               <div className="grid place-items-center rounded-lg border bg-white py-16 text-center" style={{ borderColor: C.border }}>
                 <Lock size={30} style={{ color: C.faint }} /><p className="mt-3 text-sm font-semibold" style={{ color: C.muted }}>로그인하면 내 예약을 볼 수 있어요</p>
@@ -855,7 +962,13 @@ export default function App() {
               {/* 프로필 요약 카드 */}
               <div className="rise rounded-lg border bg-white p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4" style={{ borderColor: C.border }}>
                 <div className="flex items-center gap-4">
-                  <Avatar label={user.slice(0, 2)} size={54} solid />
+                  <div className="relative group cursor-pointer shrink-0" onClick={() => setShowProfileMenu(true)} title="프로필 설정">
+                    <Avatar name={user} size={54} solid />
+                    <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="text-[10px] text-white font-bold">편집</span>
+                    </div>
+                  </div>
+                  <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
                   <div>
                     <h2 className="text-lg font-bold flex items-center gap-2">
                       {user}님 마이페이지
@@ -1037,7 +1150,7 @@ export default function App() {
                         <div key={m.id} draggable onDragStart={(e) => { e.dataTransfer.setData("text/plain", m.id); e.dataTransfer.effectAllowed = "copy"; }} onClick={() => toggleTemp(m.id)}
                           className="mrow mb-1 flex items-center gap-2.5 rounded-lg border px-2.5 py-2" style={{ borderColor: on ? C.ink : "transparent", background: on ? C.yellowSoft : "transparent" }}>
                           <GripVertical size={14} style={{ color: C.faint }} className="hidden sm:block" />
-                          <Avatar label={m.name.slice(0, 1)} size={32} />
+                          <Avatar name={m.name} size={32} />
                           <div className="min-w-0 flex-1"><div className="flex items-center gap-1.5"><TeamTag team={m.team} /><span className="truncate text-sm font-medium">{m.name}님{me ? " (나)" : ""}</span></div><div className="text-[11px]" style={{ color: C.faint }}>{m.role}</div></div>
                           <span className="grid h-5 w-5 shrink-0 place-items-center rounded-lg border" style={on ? { background: C.ink, borderColor: C.ink } : { borderColor: C.border }}>{on && <Check size={13} color={C.yellow} />}</span>
                         </div>
@@ -1150,6 +1263,41 @@ export default function App() {
 
       {/* ===== Login modal ===== */}
       {authOpen && <LoginModal message={authMsg} onClose={() => { setAuthOpen(false); setAuthPending(null); }} onLogin={doLogin} />}
+
+      {/* ===== Profile Image Edit Menu ===== */}
+      {showProfileMenu && (
+        <div className="ov fixed inset-0 z-[80] flex items-center justify-center p-4" style={{ background: "rgba(20,20,20,.5)" }} onClick={() => setShowProfileMenu(false)}>
+          <div className="sheet w-full max-w-xs rounded-lg bg-white p-5 flex flex-col" style={{ boxShadow: "0 4px 12px rgba(0,0,0,.12)" }} onClick={(e) => e.stopPropagation()}>
+            <h4 className="text-[14px] font-semibold text-center mb-4">프로필 이미지 설정</h4>
+            <div className="flex flex-col gap-2">
+              <button 
+                onClick={() => {
+                  setShowProfileMenu(false);
+                  fileInputRef.current?.click();
+                }}
+                className="lift rounded-lg border py-2.5 text-xs font-semibold text-center w-full"
+                style={{ borderColor: C.border, color: C.ink }}
+              >
+                프로필 이미지 추가하기
+              </button>
+              <button 
+                onClick={handleDeleteProfileImage}
+                className="lift rounded-lg border py-2.5 text-xs font-semibold text-center w-full"
+                style={{ borderColor: C.border, color: PASTEL.red.text }}
+              >
+                프로필 이미지 삭제하기
+              </button>
+              <button 
+                onClick={() => setShowProfileMenu(false)}
+                className="lift mt-2 rounded-lg py-2.5 text-xs font-semibold text-center w-full text-gray-500"
+                style={{ background: "var(--bg-input)" }}
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ===== Toast ===== */}
       {toast && <div className="tdrop fixed left-1/2 top-5 z-[80] flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium" style={{ background: C.ink, color: "var(--bg)", boxShadow: "0 4px 12px rgba(0,0,0,.15)" }}><CheckCircle2 size={16} style={{ color: "var(--yellow)" }} /> {toast}</div>}
