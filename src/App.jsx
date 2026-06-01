@@ -442,6 +442,15 @@ export default function App() {
 
   const getMeId = () => { const u = userRef.current; const m = MEMBERS.find((x) => u && (x.name.includes(u) || u.includes(x.name))); return m ? m.id : null; };
   const isMine = (r) => !!user && r.owner === user;
+  const canEdit = (r) => {
+    if (!user) return false;
+    if (r.owner === user) return true;
+    const meId = MEMBERS.find((m) => m.name === user)?.id;
+    return !!(meId && r.attendees && r.attendees.includes(meId));
+  };
+  const canDelete = (r) => {
+    return !!user && r.owner === user;
+  };
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(null), 2600); };
 
   function requireAuth(fn, msg) { if (userRef.current) return fn(); setAuthMsg(msg || "계속하려면 로그인이 필요해요."); setAuthPending(() => fn); setAuthOpen(true); }
@@ -527,6 +536,11 @@ export default function App() {
     }
   }
   function cancelRes(id) { 
+    const target = reservations.find((x) => x.id === id);
+    if (target && !canDelete(target)) {
+      showToast("예약 등록자 본인만 일정을 삭제할 수 있어요.");
+      return;
+    }
     requireAuth(async () => { 
       if (isFirebaseConfigured) {
         try {
@@ -608,7 +622,7 @@ export default function App() {
   const addTemp = (id) => setTemp((p) => (id && !p.includes(id) ? [...p, id] : p));
   function donePicker() { setForm((f) => ({ ...f, attendees: [...temp] })); setErrs((e) => ({ ...e, att: undefined })); setPickerOpen(false); }
 
-  const onBlockClick = (r) => (isMine(r) ? openEdit(r) : setDetail(r));
+  const onBlockClick = (r) => (canEdit(r) ? openEdit(r) : setDetail(r));
 
   /* ----- timeline renderers ----- */
   const Gutter = () => (
@@ -816,8 +830,12 @@ export default function App() {
                         <option value="30">+ 30분</option>
                       </select>
                       <button onClick={() => completeRes(r)} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, color: C.ink }}>지금 완료</button>
-                      <button onClick={() => { setRoomId(r.roomId); setAnchor(d); openEdit(r); }} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, color: C.muted }}>수정</button>
-                      <button onClick={() => cancelRes(r.id)} className="lift flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-medium" style={{ background: PASTEL.red.bg, color: PASTEL.red.text }}><Trash2 size={13} /></button>
+                      {canEdit(r) && (
+                        <button onClick={() => { setRoomId(r.roomId); setAnchor(d); openEdit(r); }} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, color: C.muted }}>수정</button>
+                      )}
+                      {canDelete(r) && (
+                        <button onClick={() => cancelRes(r.id)} className="lift flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-medium" style={{ background: PASTEL.red.bg, color: PASTEL.red.text }}><Trash2 size={13} /></button>
+                      )}
                     </div>
                   </div>
                 ); })}
@@ -862,7 +880,7 @@ export default function App() {
 
               {/* 회의실 사용 현황 대시보드 */}
               <div className="pt-2">
-                <Dashboard month={dashMonth} setMonth={setDashMonth} roomF={dashRoom} setRoomF={setDashRoom} now={now} reservations={reservations} />
+                <Dashboard month={dashMonth} setMonth={setDashMonth} roomF={dashRoom} setRoomF={setDashRoom} now={now} reservations={myRes} />
               </div>
             </div>
           )
@@ -956,7 +974,9 @@ export default function App() {
                 </div>
               </div>
               <div className="mt-6 flex gap-2.5">
-                {form.id && <button onClick={() => cancelRes(form.id)} className="lift rounded-lg px-4 py-3 text-sm font-medium" style={{ background: PASTEL.red.bg, color: PASTEL.red.text }}><Trash2 size={15} /></button>}
+                {form.id && canDelete(form) && (
+                  <button onClick={() => cancelRes(form.id)} className="lift rounded-lg px-4 py-3 text-sm font-medium" style={{ background: PASTEL.red.bg, color: PASTEL.red.text }}><Trash2 size={15} /></button>
+                )}
                 <button onClick={() => setForm(null)} className="lift flex-1 rounded-lg border py-3 text-sm font-medium" style={{ borderColor: C.border, color: C.muted }}>취소</button>
                 <button 
                   onClick={saveForm} 
@@ -1115,14 +1135,15 @@ export default function App() {
               <DetailRow icon={Users} label="참석자" value={detail.attendees.length ? detail.attendees.map(memLabel).join(", ") : "없음"} />
               <DetailRow icon={User} label="등록자" value={`${detail.owner}님`} />
             </div>
-            {isMine(detail) ? (
-              <div className="mt-4 flex gap-2.5">
-                <button onClick={() => { const d = detail; setDetail(null); setRoomId(d.roomId); openEdit(d); setSection("book"); }} className="lift flex-1 rounded-lg border py-3 text-sm font-medium" style={{ background: C.ink, borderColor: C.ink, color: "var(--bg)" }}>수정</button>
-                <button onClick={() => cancelRes(detail.id)} className="lift flex-1 rounded-lg py-3 text-sm font-medium" style={{ background: PASTEL.red.bg, color: PASTEL.red.text }}>삭제</button>
-              </div>
-            ) : (
-              <button onClick={() => setDetail(null)} className="lift mt-4 w-full rounded-lg border py-3 text-sm font-medium" style={{ borderColor: C.border, color: C.muted }}>닫기</button>
-            )}
+            <div className="mt-6 flex gap-2 justify-end">
+              {canEdit(detail) && (
+                <button onClick={() => { const d = detail; setDetail(null); setRoomId(d.roomId); openEdit(d); }} className="lift rounded-lg border px-4 py-2 text-xs font-semibold" style={{ background: C.ink, borderColor: C.ink, color: "var(--bg)" }}>수정</button>
+              )}
+              {canDelete(detail) && (
+                <button onClick={() => cancelRes(detail.id)} className="lift rounded-lg px-4 py-2 text-xs font-semibold" style={{ background: PASTEL.red.bg, color: PASTEL.red.text }}>삭제</button>
+              )}
+              <button onClick={() => setDetail(null)} className="lift rounded-lg border px-4 py-2 text-xs font-semibold" style={{ borderColor: C.border, color: C.muted }}>닫기</button>
+            </div>
           </div>
         </div>
       )}
