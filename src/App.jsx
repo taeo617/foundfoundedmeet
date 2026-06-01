@@ -189,7 +189,7 @@ function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations }) {
   const dailyByDate = {}; data.daily.forEach((x) => { dailyByDate[x.d] = x; });
 
   // bar chart geometry
-  const barW = 22, gap = 8, chartH = 170, padB = 22, padT = 8;
+  const barW = 22, gap = 8, chartH = 190, padB = 24, padT = 20;
   const innerW = data.days * barW + (data.days - 1) * gap;
   const scale = (chartH - padB - padT) / maxTotal;
 
@@ -803,7 +803,7 @@ export default function App() {
                         <option value="30">+ 30분</option>
                       </select>
                       <button onClick={() => completeRes(r)} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, color: C.ink }}>지금 완료</button>
-                      <button onClick={() => { setRoomId(r.roomId); setAnchor(d); openEdit(r); setSection("book"); }} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, color: C.muted }}>수정</button>
+                      <button onClick={() => { setRoomId(r.roomId); setAnchor(d); openEdit(r); }} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, color: C.muted }}>수정</button>
                       <button onClick={() => cancelRes(r.id)} className="lift flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-medium" style={{ background: PASTEL.red.bg, color: PASTEL.red.text }}><Trash2 size={13} /></button>
                     </div>
                   </div>
