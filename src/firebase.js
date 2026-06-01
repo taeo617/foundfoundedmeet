@@ -7,12 +7,13 @@ import { getFirestore } from "firebase/firestore";
 // 3. Add a Web App to get your configuration object
 // 4. Enable Firestore Database in Test Mode or configure proper rules
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyALsGTWeB1MUfkXQOsHuA4E2wVOh9tZ_iI",
+  authDomain: "foundfounded-7cd3e.firebaseapp.com",
+  projectId: "foundfounded-7cd3e",
+  storageBucket: "foundfounded-7cd3e.firebasestorage.app",
+  messagingSenderId: "705068371976",
+  appId: "1:705068371976:web:546b664ff9b87d99eac1bd",
+  measurementId: "G-G0DR5QJZY0"
 };
 
 // Check if actual configuration is provided
