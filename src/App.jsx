@@ -5,8 +5,10 @@ import {
   Calendar, CalendarDays, Clock, Users, Monitor, Video, Plus, X, Check,
   CheckCircle2, Repeat, AlertCircle, ChevronLeft, ChevronRight, Trash2,
   Building2, List, LogOut, Lock, User, UserPlus, GripVertical, LogIn,
-  LayoutDashboard, HelpCircle, Sun, Moon,
+  LayoutDashboard, HelpCircle, Sun, Moon, Download, FileText,
 } from "lucide-react";
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
 
 /* ===================== design tokens ===================== */
 const C = {
@@ -366,6 +368,444 @@ function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations }) {
       </div>
       <p className="mt-3 text-[11px]" style={{ color: C.faint }}>* 대시보드 지표는 해당 월의 이용 현황을 집계해 보여줍니다.</p>
     </section>
+  );
+}
+
+/* ===================== my calendar & report ===================== */
+function MyCalendarReport({ user, reservations, now, showToast, profiles, onBlockClick }) {
+  const [mode, setMode] = useState("month"); // "week" or "month"
+  const [anchor, setAnchor] = useState(() => dayOnly(new Date()));
+  const [isExporting, setIsExporting] = useState(false);
+  const reportRef = useRef(null);
+
+  const activeStart = useMemo(() => {
+    if (mode === "week") {
+      const x = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
+      const day = x.getDay();
+      x.setDate(x.getDate() - day);
+      return x;
+    } else {
+      return new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+    }
+  }, [mode, anchor]);
+
+  const activeEnd = useMemo(() => {
+    if (mode === "week") {
+      return addDays(activeStart, 6);
+    } else {
+      return new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+    }
+  }, [mode, activeStart]);
+
+  const days = useMemo(() => {
+    if (mode === "week") {
+      return Array.from({ length: 7 }, (_, i) => addDays(activeStart, i));
+    } else {
+      const gridStart = addDays(activeStart, -activeStart.getDay());
+      return Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
+    }
+  }, [mode, activeStart]);
+
+  const periodReservations = useMemo(() => {
+    const s = activeStart;
+    const e = new Date(activeEnd.getFullYear(), activeEnd.getMonth(), activeEnd.getDate(), 23, 59, 59);
+    return reservations.filter((r) => {
+      const [ry, rm, rd] = r.date.split("-").map(Number);
+      const rDate = new Date(ry, rm - 1, rd);
+      return rDate >= s && rDate <= e;
+    });
+  }, [reservations, activeStart, activeEnd]);
+
+  const stats = useMemo(() => {
+    let bigMin = 0;
+    let smallMin = 0;
+    periodReservations.forEach((r) => {
+      const duration = toMin(r.end) - toMin(r.start);
+      if (r.roomId === "big") bigMin += duration;
+      else if (r.roomId === "small") smallMin += duration;
+    });
+    const totalMin = bigMin + smallMin;
+    const totalHours = Math.floor(totalMin / 60);
+    const totalMins = totalMin % 60;
+    const bigCount = periodReservations.filter((r) => r.roomId === "big").length;
+    const smallCount = periodReservations.filter((r) => r.roomId === "small").length;
+    let primaryRoom = "-";
+    if (bigCount > smallCount) primaryRoom = `큰 회의실 (${bigCount}회)`;
+    else if (smallCount > bigCount) primaryRoom = `작은 회의실 (${smallCount}회)`;
+    else if (bigCount > 0) primaryRoom = `동일 비율 (${bigCount}회)`;
+
+    return {
+      count: periodReservations.length,
+      hours: totalHours,
+      mins: totalMins,
+      primaryRoom,
+      bigHours: Math.round((bigMin / 60) * 10) / 10,
+      smallHours: Math.round((smallMin / 60) * 10) / 10,
+    };
+  }, [periodReservations]);
+
+  const handleExportPDF = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    showToast("PDF 리포트를 생성하고 있습니다. 잠시만 기다려 주세요...");
+
+    await new Promise((r) => setTimeout(r, 600));
+
+    const element = reportRef.current;
+    if (!element) {
+      showToast("에러: 출력 대상을 찾을 수 없습니다.");
+      setIsExporting(false);
+      return;
+    }
+
+    element.classList.add("pdf-exporting");
+
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+      const imgWidth = 210;
+      const pageHeight = 297;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      const pdf = new jsPDF("p", "mm", "a4");
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      const rangeStr = mode === "week"
+        ? `${activeStart.getFullYear()}-${pad(activeStart.getMonth() + 1)}-${pad(activeStart.getDate())}_주간`
+        : `${anchor.getFullYear()}-${pad(anchor.getMonth() + 1)}_월간`;
+
+      pdf.save(`${user}_회의실_사용내역_${rangeStr}.pdf`);
+      showToast("PDF 리포트를 성공적으로 다운로드했습니다!");
+    } catch (err) {
+      console.error(err);
+      showToast("PDF 생성 중 오류가 발생했습니다.");
+    } finally {
+      element.classList.remove("pdf-exporting");
+      setIsExporting(false);
+    }
+  };
+
+  const memberInfo = MEMBERS.find((m) => m.name === user);
+
+  return (
+    <div className="space-y-5">
+      {/* 캘린더 모드 선택 및 헬퍼 버튼들 */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pdf-hide">
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-lg border bg-white p-1" style={{ borderColor: C.border }}>
+            <button
+              onClick={() => { setMode("week"); setAnchor(dayOnly(new Date())); }}
+              className="rounded-lg px-4 py-1.5 text-xs font-semibold transition-all cursor-pointer"
+              style={mode === "week" ? { background: C.ink, color: "var(--bg)" } : { color: C.muted }}
+            >
+              주간 일정
+            </button>
+            <button
+              onClick={() => { setMode("month"); setAnchor(dayOnly(new Date())); }}
+              className="rounded-lg px-4 py-1.5 text-xs font-semibold transition-all cursor-pointer"
+              style={mode === "month" ? { background: C.ink, color: "var(--bg)" } : { color: C.muted }}
+            >
+              월간 일정
+            </button>
+          </div>
+          <button
+            onClick={() => setAnchor(dayOnly(new Date()))}
+            className="lift rounded-lg border bg-white px-3 py-1.5 text-xs font-semibold cursor-pointer"
+            style={{ borderColor: C.border, color: C.muted }}
+          >
+            오늘
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* 네비게이션 */}
+          <div className="flex items-center rounded-lg border bg-white" style={{ borderColor: C.border }}>
+            <button
+              onClick={() => {
+                if (mode === "week") setAnchor(addDays(anchor, -7));
+                else setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1));
+              }}
+              className="lift grid h-9 w-9 place-items-center rounded-l-lg border-r cursor-pointer"
+              style={{ color: C.muted, borderColor: C.border }}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <div className="px-3 text-xs font-semibold text-gray-700 min-w-[120px] text-center">
+              {mode === "week" ? (
+                <span>
+                  {activeStart.getMonth() + 1}월 {activeStart.getDate()}일 ~ {activeEnd.getMonth() + 1}월 {activeEnd.getDate()}일
+                </span>
+              ) : (
+                <span>
+                  {anchor.getFullYear()}년 {anchor.getMonth() + 1}월
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => {
+                if (mode === "week") setAnchor(addDays(anchor, 7));
+                else setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1));
+              }}
+              className="lift grid h-9 w-9 place-items-center rounded-r-lg border-l cursor-pointer"
+              style={{ color: C.muted, borderColor: C.border }}
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+
+          <button
+            onClick={handleExportPDF}
+            disabled={isExporting}
+            className="lift flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs font-semibold text-white transition-all shadow-sm active:scale-95 cursor-pointer"
+            style={{ background: C.ink, borderColor: C.ink }}
+          >
+            <Download size={13} />
+            <span>PDF 저장</span>
+          </button>
+        </div>
+      </div>
+
+      {/* PDF 변환 가능한 메인 영역 */}
+      <div 
+        ref={reportRef} 
+        className="rise rounded-lg border bg-white p-6 shadow-sm overflow-hidden pdf-card" 
+        style={{ borderColor: C.border }}
+      >
+        {/* 리포트 헤더 */}
+        <div className="border-b pb-5 mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 pdf-border">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="tracking-tight text-lg font-extrabold pdf-title"><span className="font-semibold text-gray-900">found</span><span>founded</span></span>
+              <span className="text-[10px] font-bold bg-gray-100 text-gray-500 rounded px-1.5 py-0.5 border pdf-text-muted">사용 내역서</span>
+            </div>
+            <h1 className="text-md font-bold tracking-tight mt-1.5 pdf-title">
+              나의 회의실 사용 일정 ({mode === "week" ? "주간" : "월간"})
+            </h1>
+            <p className="text-[11px] text-gray-400 mt-1 pdf-text-muted">
+              조회 기간: {mode === "week" ? (
+                `${activeStart.getFullYear()}년 ${activeStart.getMonth() + 1}월 ${activeStart.getDate()}일 ~ ${activeEnd.getFullYear()}년 ${activeEnd.getMonth() + 1}월 ${activeEnd.getDate()}일`
+              ) : (
+                `${anchor.getFullYear()}년 ${anchor.getMonth() + 1}월`
+              )}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 bg-gray-50/50 rounded-xl p-2.5 border pdf-card">
+            <Avatar name={user} size={36} solid />
+            <div>
+              <div className="text-xs font-bold text-gray-800 flex items-center gap-1.5 pdf-title">
+                {user}님
+                {memberInfo && <TeamTag team={memberInfo.team} />}
+              </div>
+              <div className="text-[10px] text-gray-400 mt-0.5 pdf-text-muted">
+                {memberInfo ? `${memberInfo.role} · foundfounded` : "foundfounded 멤버"}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 통계 카드 행 */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="rounded-xl border bg-gray-50/30 p-4 pdf-card" style={{ borderColor: C.border }}>
+            <div className="flex items-center justify-between text-xs font-semibold text-gray-400 pdf-text-muted">
+              <span>총 회의실 예약</span>
+              <FileText size={14} className="text-gray-300" />
+            </div>
+            <div className="text-xl font-bold tracking-tight mt-2 text-gray-900 pdf-title">
+              {stats.count}건
+            </div>
+            <div className="text-[10px] text-gray-400 mt-1 pdf-text-faint">
+              해당 기간 내 등록 및 참석자로 지정된 일정
+            </div>
+          </div>
+
+          <div className="rounded-xl border bg-gray-50/30 p-4 pdf-card" style={{ borderColor: C.border }}>
+            <div className="flex items-center justify-between text-xs font-semibold text-gray-400 pdf-text-muted">
+              <span>총 사용 시간</span>
+              <Clock size={14} className="text-gray-300" />
+            </div>
+            <div className="text-xl font-bold tracking-tight mt-2 text-gray-900 pdf-title">
+              {stats.hours > 0 ? `${stats.hours}시간 ` : ""}{stats.mins}분
+            </div>
+            <div className="text-[10px] text-gray-400 mt-1 pdf-text-faint">
+              큰 회의실: {stats.bigHours}h · 작은 회의실: {stats.smallHours}h
+            </div>
+          </div>
+
+          <div className="rounded-xl border bg-gray-50/30 p-4 pdf-card" style={{ borderColor: C.border }}>
+            <div className="flex items-center justify-between text-xs font-semibold text-gray-400 pdf-text-muted">
+              <span>주로 사용한 회의실</span>
+              <Building2 size={14} className="text-gray-300" />
+            </div>
+            <div className="text-xl font-bold tracking-tight mt-2 text-gray-900 pdf-title">
+              {stats.primaryRoom}
+            </div>
+            <div className="text-[10px] text-gray-400 mt-1 pdf-text-faint">
+              사용 빈도가 가장 높은 회의 공간
+            </div>
+          </div>
+        </div>
+
+        {/* 일정 캘린더 그리드 */}
+        <div>
+          <h3 className="text-xs font-bold text-gray-500 mb-3 flex items-center gap-1.5 pdf-title">
+            <CalendarDays size={14} className="text-gray-400" />
+            {mode === "week" ? "주간 일정 내역" : "월간 일정 내역"}
+          </h3>
+
+          {mode === "week" ? (
+            /* 주간 캘린더 */
+            <div className="grid grid-cols-1 md:grid-cols-7 gap-2.5">
+              {days.map((day, idx) => {
+                const dayKey = keyOf(day);
+                const isDayToday = sameDay(day, dayOnly(new Date()));
+                const list = reservations.filter((r) => r.date === dayKey).sort((a, b) => toMin(a.start) - toMin(b.start));
+
+                return (
+                  <div 
+                    key={idx} 
+                    className={`rounded-xl border p-3 flex flex-col min-h-[160px] pdf-card transition-all ${
+                      isDayToday ? "border-yellow-400 bg-yellow-50/20 pdf-cell-active" : "bg-gray-50/10"
+                    }`}
+                    style={{ borderColor: isDayToday ? C.yellow : C.border }}
+                  >
+                    <div className="flex items-center justify-between border-b pb-1.5 mb-2 pdf-border">
+                      <span 
+                        className={`text-[12px] font-bold ${
+                          isDayToday ? "bg-yellow-400 text-yellow-950 px-1 rounded font-extrabold" : "text-gray-600 pdf-title"
+                        }`}
+                      >
+                        {day.getDate()}일
+                      </span>
+                      <span className="text-[10px] text-gray-400 font-semibold pdf-text-faint">
+                        {WEEK[day.getDay()]}
+                      </span>
+                    </div>
+
+                    <div className="flex-1 space-y-1.5">
+                      {list.length > 0 ? (
+                        list.map((r) => {
+                          const p = pal(r.color);
+                          const rm = ROOMS.find(x => x.id === r.roomId);
+                          return (
+                            <div 
+                              key={r.id} 
+                              onClick={() => onBlockClick(r)}
+                              className="rounded-lg p-2 border text-[11px] font-medium leading-tight shadow-sm cursor-pointer hover:opacity-90 active:scale-98 transition-all"
+                              style={{ background: p.bg, borderColor: p.line, color: p.text }}
+                            >
+                              <div className="flex items-center gap-1 font-bold truncate">
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: p.dot }} />
+                                <span className="truncate">{r.title}</span>
+                              </div>
+                              <div className="mt-1 text-[9px] flex items-center gap-1 opacity-80">
+                                <Clock size={8} /> {r.start} ~ {r.end}
+                              </div>
+                              <div className="text-[9px] flex items-center gap-1 mt-0.5 opacity-80">
+                                <Building2 size={8} /> {rm ? rm.name : r.roomId}
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center py-6 text-center border border-dashed border-gray-200 rounded-lg bg-white pdf-border">
+                          <span className="text-[10px] text-gray-400 font-medium pdf-text-faint">일정 없음</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* 월간 캘린더 */
+            <div className="grid grid-cols-7 overflow-hidden rounded-xl border pdf-border" style={{ borderColor: C.border, gridTemplateRows: "auto repeat(6, 1fr)" }}>
+              {WEEK.map((w, i) => (
+                <div 
+                  key={w} 
+                  className="border-b py-2 text-center text-[10px] font-bold pdf-border bg-gray-50/50" 
+                  style={{ 
+                    borderColor: C.border, 
+                    color: i === 0 ? "#C0392B" : i === 6 ? "#2A5DC7" : C.muted 
+                  }}
+                >
+                  {w}
+                </div>
+              ))}
+              {days.map((cell, i) => {
+                const inMonth = cell.getMonth() === anchor.getMonth();
+                const isCellToday = sameDay(cell, dayOnly(new Date()));
+                const list = reservations.filter((r) => r.date === keyOf(cell)).sort((a, b) => toMin(a.start) - toMin(b.start));
+
+                return (
+                  <div 
+                    key={i} 
+                    className={`border-b border-l p-1.5 min-h-[72px] flex flex-col transition-all ${
+                      !inMonth ? "bg-gray-100/30 opacity-40 pdf-cell-out" : isCellToday ? "bg-yellow-50/30 pdf-cell-active" : "bg-white pdf-cell-in"
+                    }`} 
+                    style={{ 
+                      borderColor: C.border,
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span 
+                        className={`text-[10px] font-semibold ${
+                          isCellToday 
+                            ? "bg-yellow-400 text-yellow-950 px-1 rounded font-extrabold" 
+                            : cell.getDay() === 0 ? "text-[#C0392B]" : cell.getDay() === 6 ? "text-[#2A5DC7]" : "text-gray-600 pdf-title"
+                        }`}
+                      >
+                        {cell.getDate()}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1 flex-1">
+                      {list.map((r) => {
+                        const p = pal(r.color);
+                        return (
+                          <div 
+                            key={r.id} 
+                            onClick={() => onBlockClick(r)}
+                            className="flex items-center gap-1 truncate rounded px-1 py-0.5 text-[9px] font-bold leading-none shadow-sm cursor-pointer hover:opacity-90 transition-all" 
+                            style={{ background: p.bg, color: p.text }}
+                            title={`${r.start}~${r.end} ${r.title}`}
+                          >
+                            <span className="h-1 w-1 shrink-0 rounded-full" style={{ background: p.dot }} />
+                            <span className="truncate">{r.start} {r.title}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-5 text-[9px] text-gray-400 border-t pt-3 flex items-center justify-between pdf-border pdf-text-faint">
+          <span>* 본 서류는 foundfounded 회의실 시스템에 의해 자동 발급된 예약 증빙용 내역서입니다.</span>
+          <span>출력 일시: {now.getFullYear()}년 {now.getMonth() + 1}월 {now.getDate()}일</span>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -797,7 +1237,50 @@ export default function App() {
         .rise{animation:rise .2s ease both;} @keyframes rise{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
         .tdrop{animation:tdrop .15s ease both;} @keyframes tdrop{from{opacity:0;}to{opacity:1;}}
         .sc::-webkit-scrollbar{width:6px;height:6px;} .sc::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
-        input,select,button{font-family:inherit;} select{appearance:none;-webkit-appearance:none;}`}</style>
+        input,select,button{font-family:inherit;} select{appearance:none;-webkit-appearance:none;}
+        /* PDF exporting style overrides */
+        .pdf-exporting {
+          background: #ffffff !important;
+          color: #1a1a1a !important;
+          padding: 28px !important;
+          border-color: #e5e7eb !important;
+          box-shadow: none !important;
+        }
+        .pdf-exporting .pdf-hide {
+          display: none !important;
+        }
+        .pdf-exporting .pdf-card {
+          background: #ffffff !important;
+          border: 1px solid #e5e7eb !important;
+          color: #1f2937 !important;
+          box-shadow: none !important;
+        }
+        .pdf-exporting .pdf-title {
+          color: #0f172a !important;
+        }
+        .pdf-exporting .pdf-text-muted {
+          color: #4b5563 !important;
+        }
+        .pdf-exporting .pdf-text-faint {
+          color: #9ca3af !important;
+        }
+        .pdf-exporting .pdf-border {
+          border-color: #e5e7eb !important;
+        }
+        .pdf-exporting .pdf-cell-active {
+          background: #fef08a !important;
+          border-color: #fde047 !important;
+        }
+        .pdf-exporting .pdf-cell-in {
+          background: #ffffff !important;
+          border-color: #e5e7eb !important;
+        }
+        .pdf-exporting .pdf-cell-out {
+          background: #f3f4f6 !important;
+          border-color: #e5e7eb !important;
+          opacity: 0.3 !important;
+        }
+      `}</style>
 
       {/* ===== Header ===== */}
       <header className="sticky top-0 z-30 border-b" style={{ background: "var(--bg-header)", borderColor: C.border, backdropFilter: "blur(10px)" }}>
@@ -1015,7 +1498,7 @@ export default function App() {
 
               {/* 회의실 사용 현황 대시보드 */}
               <div className="pt-2">
-                <Dashboard month={dashMonth} setMonth={setDashMonth} roomF={dashRoom} setRoomF={setDashRoom} now={now} reservations={myRes} />
+                <MyCalendarReport user={user} reservations={myRes} now={now} showToast={showToast} profiles={profiles} onBlockClick={onBlockClick} />
               </div>
             </div>
           )
