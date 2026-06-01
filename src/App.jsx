@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, forwardRef } from "react";
 import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from "firebase/firestore";
 import { db, isFirebaseConfigured } from "./firebase";
 import {
   Calendar, CalendarDays, Clock, Users, Monitor, Video, Plus, X, Check,
   CheckCircle2, Repeat, AlertCircle, ChevronLeft, ChevronRight, Trash2,
   Building2, List, LogOut, Lock, User, UserPlus, GripVertical, LogIn,
-  LayoutDashboard, HelpCircle, Sun, Moon, Download, FileText,
+  Sun, Moon, Download, FileText,
 } from "lucide-react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
@@ -65,7 +65,7 @@ const SLOTS = (DAY_END - DAY_START) / STEP, GUTTER = 48;
 const pad = (n) => String(n).padStart(2, "0");
 const toMin = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
 const toHHMM = (m) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
-const ampm = (t) => { const m = toMin(t), h = Math.floor(m / 60); const l = h < 12 ? "오전" : "오후"; const hh = h % 12 === 0 ? 12 : h % 12; return `${l} ${pad(hh)}:${pad(m % 60)}`; };
+
 const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
 const keyOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const fmtK = (d) => `${d.getMonth() + 1}월 ${d.getDate()}일 (${WEEK[d.getDay()]})`;
@@ -73,7 +73,7 @@ const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); r
 const dayOnly = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const sameDay = (a, b) => keyOf(a) === keyOf(b);
 const TIMES = Array.from({ length: SLOTS + 1 }, (_, i) => toHHMM(DAY_START + i * STEP));
-let UID = 100; const nid = () => `r_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
+const nid = () => `r_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
 
 /* ===================== shared atoms ===================== */
 function TeamTag({ team }) {
@@ -113,17 +113,16 @@ const defaultProfiles = {
 function Avatar({ name, label, size = 36, solid = false, onClick, className, style }) {
   const [img, setImg] = useState(null);
   
-  const loadImg = () => {
-    try {
-      const x = localStorage.getItem("profile_images");
-      const p = x ? JSON.parse(x) : {};
-      setImg(name ? (p[name] || defaultProfiles[name]) : null);
-    } catch {
-      setImg(name ? defaultProfiles[name] : null);
-    }
-  };
-
   useEffect(() => {
+    const loadImg = () => {
+      try {
+        const x = localStorage.getItem("profile_images");
+        const p = x ? JSON.parse(x) : {};
+        setImg(name ? (p[name] || defaultProfiles[name]) : null);
+      } catch {
+        setImg(name ? defaultProfiles[name] : null);
+      }
+    };
     loadImg();
     const handler = () => loadImg();
     window.addEventListener("profile_updated", handler);
@@ -195,184 +194,9 @@ function LoginModal({ message, onClose, onLogin }) {
   );
 }
 
-/* ===================== dashboard ===================== */
-function lcg(seed) { let s = seed % 2147483647; if (s <= 0) s += 2147483646; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
-function genDash(year, month, roomFilter, reservations) {
-  const days = new Date(year, month + 1, 0).getDate();
-  const daily = [];
-  let big = 0, small = 0;
-  
-  for (let d = 1; d <= days; d++) {
-    daily.push({ d, wd: new Date(year, month, d).getDay(), big: 0, small: 0, total: 0 });
-  }
-
-  if (Array.isArray(reservations)) {
-    reservations.forEach(r => {
-      const [ry, rm, rd] = r.date.split("-").map(Number);
-      if (ry === year && rm === month + 1) {
-        if (roomFilter === "all" || r.roomId === roomFilter) {
-          const dObj = daily[rd - 1];
-          if (dObj) {
-            const durationMin = toMin(r.end) - toMin(r.start);
-            if (r.roomId === "big") {
-              dObj.big += 1;
-              big += durationMin;
-            } else if (r.roomId === "small") {
-              dObj.small += 1;
-              small += durationMin;
-            }
-            dObj.total += 1;
-          }
-        }
-      }
-    });
-  }
-
-  const total = daily.reduce((acc, curr) => acc + curr.total, 0);
-  const totalMin = Math.round(big + small);
-  const mostUsed = big > small ? "큰 회의실" : small > big ? "작은 회의실" : "-";
-  const leastUsed = big > small ? "작은 회의실" : small > big ? "큰 회의실" : "-";
-  return { 
-    days, 
-    daily, 
-    total, 
-    totalMin, 
-    mostUsed, 
-    leastUsed, 
-    mostMin: Math.round(big), 
-    leastMin: Math.round(small)
-  };
-}
-const HEAT = ["var(--heat-0)", "var(--heat-1)", "var(--heat-2)", "var(--heat-3)", "var(--heat-4)"];
-function heatColor(v, max) { if (!v) return HEAT[0]; const lv = Math.min(4, 1 + Math.floor((v / Math.max(1, max)) * 3.99)); return HEAT[lv]; }
-
-function StatCard({ label, value, sub, delay }) {
-  return (
-    <div className="rise rounded-lg border bg-white p-4" style={{ borderColor: C.border, animationDelay: `${delay}ms` }}>
-      <div className="flex items-center gap-1 text-[12px] font-semibold" style={{ color: C.muted }}>{label}<HelpCircle size={12} style={{ color: C.faint }} /></div>
-      {sub && <div className="mt-3 text-[11px] font-medium" style={{ color: C.faint }}>{sub}</div>}
-      <div className={`${sub ? "mt-0.5" : "mt-4"} text-[22px] font-medium tracking-tight`}>{value}</div>
-    </div>
-  );
-}
-
-function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations }) {
-  const data = useMemo(() => genDash(month.getFullYear(), month.getMonth(), roomF, reservations), [month, roomF, reservations]);
-  const maxTotal = Math.max(1, ...data.daily.map((x) => x.total));
-  // heatmap grid
-  const first = new Date(month.getFullYear(), month.getMonth(), 1);
-  const gridStart = addDays(first, -first.getDay());
-  const heatCells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
-  const dailyByDate = {}; data.daily.forEach((x) => { dailyByDate[x.d] = x; });
-
-  // bar chart geometry
-  const barW = 22, gap = 8, chartH = 190, padB = 24, padT = 20;
-  const innerW = data.days * barW + (data.days - 1) * gap;
-  const scale = (chartH - padB - padT) / maxTotal;
-
-  return (
-    <section>
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-lg font-medium">회의실 현황 대시보드</h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center rounded-lg border bg-white" style={{ borderColor: C.border }}>
-            <button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} className="lift grid h-9 w-9 place-items-center rounded-l-xl" style={{ color: C.muted }}><ChevronLeft size={17} /></button>
-            <div className="px-2 text-sm font-medium">{month.getFullYear()}년 {month.getMonth() + 1}월</div>
-            <button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} className="lift grid h-9 w-9 place-items-center rounded-r-xl" style={{ color: C.muted }}><ChevronRight size={17} /></button>
-          </div>
-          <div className="inline-flex rounded-lg border bg-white p-1" style={{ borderColor: C.border }}>
-            {[["all", "전체"], ["big", "큰 회의실"], ["small", "작은 회의실"]].map(([k, l]) => (
-              <button key={k} onClick={() => setRoomF(k)} className="rounded-lg px-3 py-1.5 text-xs font-medium" style={roomF === k ? { background: C.ink, color: "var(--bg)" } : { color: C.muted }}>{l}</button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="총 회의실 예약 수" value={`${data.total}건`} delay={0} />
-        <StatCard label="총 회의실 사용 시간" value={`${data.totalMin}분`} delay={40} />
-        <StatCard label="가장 많이 사용된 회의실" sub={`${data.mostMin}분`} value={data.mostUsed} delay={80} />
-        <StatCard label="가장 적게 사용된 회의실" sub={`${data.leastMin}분`} value={data.leastUsed} delay={120} />
-      </div>
-
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* heatmap */}
-        <div className="rise rounded-lg border bg-white p-5" style={{ borderColor: C.border, animationDelay: "120ms" }}>
-          <div className="mb-3 flex items-center gap-2">
-            <span className="rounded-lg px-2 py-0.5 text-xs font-medium" style={{ background: PASTEL.yellow.bg, color: PASTEL.yellow.text }}>{month.getMonth() + 1}월</span>
-            <span className="text-sm font-medium">회의실 이용 현황</span>
-          </div>
-          <div className="grid grid-cols-7 gap-1.5">
-            {WEEK.map((w, i) => <div key={w} className="text-center text-[10px] font-medium" style={{ color: i === 0 ? "#C0392B" : i === 6 ? "#2A5DC7" : C.faint }}>{w}</div>)}
-            {heatCells.map((c, i) => {
-              const inM = c.getMonth() === month.getMonth();
-              const v = inM ? (dailyByDate[c.getDate()]?.total || 0) : 0;
-              return (
-                <div 
-                  key={i} 
-                  className="aspect-square rounded-lg flex flex-col justify-between p-1.5 text-center transition-all" 
-                  title={inM ? `${c.getDate()}일 · ${v}건` : ""} 
-                  style={{ 
-                    background: inM ? "var(--bg-input)" : "transparent", 
-                    border: inM ? `1px solid ${C.border}` : "none",
-                    minHeight: "48px"
-                  }}
-                >
-                  {inM ? (
-                    <>
-                      <span className="text-[9px] font-semibold block text-left" style={{ color: C.faint }}>{c.getDate()}</span>
-                      <span className="text-[11px] font-bold block" style={{ color: v > 0 ? "var(--ink-deep)" : C.faint }}>
-                        {v > 0 ? `${v}건` : "-"}
-                      </span>
-                    </>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-          <div className="mt-3 flex items-center justify-end text-[10px] font-medium" style={{ color: C.faint }}>
-            * 각 날짜별로 실제 등록된 예약 건수(건)를 보여줍니다.
-          </div>
-        </div>
-
-        {/* bar chart */}
-        <div className="rise rounded-lg border bg-white p-5" style={{ borderColor: C.border, animationDelay: "160ms" }}>
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="rounded-lg px-2 py-0.5 text-xs font-medium" style={{ background: PASTEL.blue.bg, color: PASTEL.blue.text }}>{month.getMonth() + 1}월</span>
-              <span className="text-sm font-medium">일별 회의 현황</span>
-            </div>
-            <div className="flex items-center gap-3 text-[11px] font-semibold" style={{ color: C.muted }}>
-              <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: "var(--ink-deep)" }} />큰</span>
-              <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: C.inkDeep }} />작은</span>
-            </div>
-          </div>
-          <div className="sc overflow-x-auto">
-            <svg width={Math.max(innerW + 8, 320)} height={chartH} style={{ display: "block" }}>
-              {[0, 0.5, 1].map((t, i) => { const y = padT + (chartH - padB - padT) * (1 - t); return <g key={i}><line x1="0" x2={innerW + 8} y1={y} y2={y} stroke={C.line} strokeWidth="1" /><text x="0" y={y - 3} fontSize="9" fill={C.faint}>{Math.round(maxTotal * t)}</text></g>; })}
-              {data.daily.map((x, i) => {
-                const xx = i * (barW + gap);
-                const sH = x.small * scale, bH = x.big * scale;
-                const baseY = chartH - padB;
-                return (
-                  <g key={i}>
-                    <rect x={xx} y={baseY - sH} width={barW} height={sH} fill={C.yellowDeep} rx="2" />
-                    <rect x={xx} y={baseY - sH - bH} width={barW} height={bH} fill="var(--ink-deep)" rx="2" />
-                    {(x.d % 5 === 1) && <text x={xx + barW / 2} y={chartH - 6} fontSize="9" fill={C.faint} textAnchor="middle">{x.d}</text>}
-                  </g>
-                );
-              })}
-            </svg>
-          </div>
-        </div>
-      </div>
-      <p className="mt-3 text-[11px]" style={{ color: C.faint }}>* 대시보드 지표는 해당 월의 이용 현황을 집계해 보여줍니다.</p>
-    </section>
-  );
-}
 
 /* ===================== pdf report template ===================== */
-const PdfReportTemplate = React.forwardRef(({ mode, anchor, user, reservations, now }, ref) => {
+const PdfReportTemplate = forwardRef(({ mode, anchor, user, reservations, now }, ref) => {
   const activeStart = useMemo(() => {
     if (mode === "week") {
       const x = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
@@ -390,16 +214,7 @@ const PdfReportTemplate = React.forwardRef(({ mode, anchor, user, reservations, 
     } else {
       return new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
     }
-  }, [mode, activeStart]);
-
-  const days = useMemo(() => {
-    if (mode === "week") {
-      return Array.from({ length: 7 }, (_, i) => addDays(activeStart, i));
-    } else {
-      const gridStart = addDays(activeStart, -activeStart.getDay());
-      return Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
-    }
-  }, [mode, activeStart]);
+  }, [mode, activeStart, anchor]);
 
   const periodReservations = useMemo(() => {
     const s = activeStart;
@@ -572,7 +387,6 @@ const PdfReportTemplate = React.forwardRef(({ mode, anchor, user, reservations, 
 /* ===================== app ===================== */
 export default function App() {
   const [user, setUser] = useState(null);
-  const userRef = useRef(null); userRef.current = user;
   const [now, setNow] = useState(() => new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 20000); return () => clearInterval(t); }, []);
 
@@ -597,7 +411,7 @@ export default function App() {
       try {
         const local = localStorage.getItem("reservations");
         return local ? JSON.parse(local) : [];
-      } catch (e) {
+      } catch {
         return [];
       }
     }
@@ -656,6 +470,7 @@ export default function App() {
 
       if (hasDuplicates) {
         isMigratedRef.current = true;
+        // eslint-disable-next-line
         setReservations(updated);
         showToast("중복 등록된 예약을 안전하게 개별 분리하여 복구했습니다.");
       }
@@ -672,9 +487,46 @@ export default function App() {
   const [authOpen, setAuthOpen] = useState(false);
   const [authMsg, setAuthMsg] = useState("");
   const [authPending, setAuthPending] = useState(null);
-  const [dashMonth, setDashMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
-  const [dashRoom, setDashRoom] = useState("all");
   const [dayEventsDate, setDayEventsDate] = useState(null);
+  
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const size = 120;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        const minDim = Math.min(img.width, img.height);
+        const sx = (img.width - minDim) / 2;
+        const sy = (img.height - minDim) / 2;
+        ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        const updated = { ...profiles, [user]: dataUrl };
+        setProfiles(updated);
+        localStorage.setItem("profile_images", JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent("profile_updated"));
+        showToast("프로필 이미지를 등록했습니다.");
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDeleteProfileImage = () => {
+    const updated = { ...profiles };
+    delete updated[user];
+    setProfiles(updated);
+    localStorage.setItem("profile_images", JSON.stringify(updated));
+    setShowProfileMenu(false);
+    window.dispatchEvent(new CustomEvent("profile_updated"));
+    showToast("프로필 이미지를 삭제했습니다.");
+  };
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [profiles, setProfiles] = useState(() => {
     try {
@@ -777,7 +629,7 @@ export default function App() {
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const room = ROOMS.find((r) => r.id === roomId);
 
-  const getMeId = () => { const u = userRef.current; const m = MEMBERS.find((x) => u && (x.name.includes(u) || u.includes(x.name))); return m ? m.id : null; };
+  const getMeId = () => { const u = user; const m = MEMBERS.find((x) => u && (x.name.includes(u) || u.includes(x.name))); return m ? m.id : null; };
   const isMine = (r) => !!user && r.owner === user;
   const canEdit = (r) => {
     if (!user) return false;
@@ -788,9 +640,9 @@ export default function App() {
   const canDelete = (r) => {
     return !!user && r.owner === user;
   };
-  const showToast = (m) => { setToast(m); setTimeout(() => setToast(null), 2600); };
+  function showToast(m) { setToast(m); setTimeout(() => setToast(null), 2600); }
 
-  function requireAuth(fn, msg) { if (userRef.current) return fn(); setAuthMsg(msg || "계속하려면 로그인이 필요해요."); setAuthPending(() => fn); setAuthOpen(true); }
+  function requireAuth(fn, msg) { if (user) return fn(); setAuthMsg(msg || "계속하려면 로그인이 필요해요."); setAuthPending(() => fn); setAuthOpen(true); }
   function doLogin(name) { setReservations((p) => p.map((r) => (r.owner === "나" ? { ...r, owner: name } : r))); setUser(name); setAuthOpen(false); }
   useEffect(() => { if (user && authPending) { const p = authPending; setAuthPending(null); p(); } }, [user]); // eslint-disable-line
 
@@ -1174,7 +1026,7 @@ export default function App() {
                     <div><div className="text-[16px] font-medium">{room.name}</div><div className="mt-0.5 text-xs" style={{ color: C.muted }}>{fmtK(anchor)} · 09:00 – 22:00</div></div>
                     <button onClick={() => tryCreate(roomId, defStart())} className="lift flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium" style={{ background: C.ink, color: "var(--bg)", boxShadow: "0 1px 2px rgba(0,0,0,.05)" }}><Plus size={16} /> 새 예약</button>
                   </div>
-                  <div ref={timelineScrollRef} className="sc overflow-y-auto px-4 py-4 sm:px-5 pb-8"><div className="flex"><Gutter /><div className="min-w-0 flex-1"><Track rid={roomId} /></div></div></div>
+                  <div ref={timelineScrollRef} className="sc overflow-y-auto px-4 py-4 sm:px-5 pb-8"><div className="flex">{Gutter()}<div className="min-w-0 flex-1">{Track({ rid: roomId })}</div></div></div>
                 </section>
               </>
             )}
