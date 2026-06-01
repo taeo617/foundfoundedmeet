@@ -1155,10 +1155,10 @@ export default function App() {
       </main>
 
       {/* ===== mobile bottom nav ===== */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t md:hidden" style={{ background: "rgba(255,255,255,.92)", borderColor: C.border, backdropFilter: "blur(10px)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t md:hidden" style={{ background: theme === "dark" ? "rgba(0,0,0,0.92)" : "rgba(255,255,255,.92)", borderColor: C.border, backdropFilter: "blur(10px)", paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div className="mx-auto flex max-w-md items-stretch justify-around">
           {NAV.map(([k, lbl, Icon]) => { const on = section === k; return (
-            <button key={k} onClick={() => setSection(k)} className="relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium" style={{ color: on ? C.ink : C.faint }}>
+            <button key={k} onClick={() => setSection(k)} className="relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium" style={{ color: on ? C.ink : (theme === "dark" ? "#D1D5DB" : C.faint) }}>
               {on && <span className="absolute left-1/2 top-0 h-0.5 w-8 -translate-x-1/2 rounded-lg" style={{ background: C.ink }} />}
               <Icon size={20} />{lbl}{k === "mine" && myRes.length ? ` ${myRes.length}` : ""}
             </button>
@@ -1168,7 +1168,7 @@ export default function App() {
 
       {/* ===== FAB (book section) ===== */}
       {section === "book" && (
-        <button onClick={() => tryCreate(roomId, defStart())} className="lift fixed right-5 z-30 flex h-14 w-14 items-center justify-center rounded-lg md:hidden" style={{ bottom: "calc(env(safe-area-inset-bottom) + 68px)", background: C.ink, color: "var(--bg)", boxShadow: "0 4px 12px rgba(0,0,0,.15)" }}><Plus size={26} /></button>
+        <button onClick={() => tryCreate(roomId, defStart())} className="lift fixed right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full md:hidden" style={{ bottom: "calc(env(safe-area-inset-bottom) + 68px)", background: C.ink, color: "var(--bg)", boxShadow: "0 4px 12px rgba(0,0,0,.15)" }}><Plus size={26} /></button>
       )}
 
       {/* ===== Booking modal ===== */}
@@ -1360,7 +1360,7 @@ export default function App() {
                             <span className="text-[14px] font-semibold truncate max-w-[180px] sm:max-w-[220px]">{r.title}</span>
                             {r.repeat && <Repeat size={11} />}
                           </div>
-                          <span className="text-[10px] font-semibold rounded px-2 py-0.5" style={{ background: "rgba(255,255,255,0.6)", color: p.text }}>
+                          <span className="text-[10px] font-semibold rounded px-2 py-0.5" style={{ background: theme === "dark" ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.6)", color: p.text }}>
                             {rm?.name || "회의실"}
                           </span>
                         </div>
