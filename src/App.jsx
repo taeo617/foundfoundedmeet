@@ -405,6 +405,7 @@ export default function App() {
   const [section, setSection] = useState("book");
   const [view, setView] = useState("calendar");
   const [anchor, setAnchor] = useState(() => dayOnly(new Date()));
+  const [mineDate, setMineDate] = useState(() => keyOf(new Date()));
   const [roomId, setRoomId] = useState("big");
   const [reservations, setReservations] = useState(() => {
     if (!isFirebaseConfigured) {
@@ -650,9 +651,10 @@ export default function App() {
     if (!user) return [];
     const meId = MEMBERS.find((m) => m.name === user)?.id;
     return reservations.filter((r) => {
-      return r.owner === user || (meId && r.attendees && r.attendees.includes(meId));
+      const isMy = r.owner === user || (meId && r.attendees && r.attendees.includes(meId));
+      return isMy && r.date === mineDate;
     }).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
-  }, [reservations, user]);
+  }, [reservations, user, mineDate]);
   const byDate = useMemo(() => { const m = {}; reservations.forEach((r) => { (m[r.date] ||= []).push(r); }); return m; }, [reservations]);
 
   function roomStatus(rid) {
@@ -1035,8 +1037,17 @@ export default function App() {
 
         {section === "mine" && (
           <section>
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-medium">내 예약</h2>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-medium">내 예약</h2>
+                <input 
+                  type="date" 
+                  value={mineDate} 
+                  onChange={(e) => setMineDate(e.target.value || keyOf(new Date()))} 
+                  className="inp rounded-lg border px-2 py-1.5 text-xs font-medium outline-none" 
+                  style={{ borderColor: C.border, background: "var(--bg-input)" }} 
+                />
+              </div>
               {user && (
                 <button 
                   onClick={() => setSection("book")} 
