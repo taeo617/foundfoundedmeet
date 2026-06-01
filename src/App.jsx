@@ -89,6 +89,25 @@ function StatusPill({ kind, text }) {
 function Wordmark({ size = 18 }) {
   return <span className="tracking-tight" style={{ fontSize: size, color: C.ink, lineHeight: 1 }}><span style={{ fontWeight: 500, color: C.text }}>found</span><span style={{ fontWeight: 600 }}>founded</span></span>;
 }
+const defaultProfiles = {
+  "도영": "/avatar_doyoung.png",
+  "혜경": "/avatar_hyekyung.png",
+  "지민": "/avatar_jimin.png",
+  "수현": "/avatar_suhyun.png",
+  "보아": "/avatar_boa.png",
+  "oxo": "/avatar_oxo.png",
+  "진우": "/avatar_jinwoo.png",
+  "다은": "/avatar_daeun.png",
+  "태영": "/avatar_taeyoung.png",
+  "경선": "/avatar_kyungsun.png",
+  "유진": "/avatar_yujin.png",
+  "준범": "/avatar_junbeom.png",
+  "현열": "/avatar_hyunyeol.png",
+  "정수": "/avatar_jungsoo.png",
+  "준구": "/avatar_jungoo.png",
+  "규호": "/avatar_gyuho.png"
+};
+
 function Avatar({ name, label, size = 36, solid = false, onClick, className, style }) {
   const [img, setImg] = useState(null);
   
@@ -96,9 +115,9 @@ function Avatar({ name, label, size = 36, solid = false, onClick, className, sty
     try {
       const x = localStorage.getItem("profile_images");
       const p = x ? JSON.parse(x) : {};
-      setImg(name ? p[name] : null);
+      setImg(name ? (p[name] || defaultProfiles[name]) : null);
     } catch {
-      setImg(null);
+      setImg(name ? defaultProfiles[name] : null);
     }
   };
 
@@ -458,14 +477,6 @@ export default function App() {
   const [dayEventsDate, setDayEventsDate] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [profiles, setProfiles] = useState(() => {
-    const defaultProfiles = {
-      "도영": "/avatar_doyoung.png",
-      "혜경": "/avatar_hyekyung.png",
-      "지민": "/avatar_jimin.png",
-      "수현": "/avatar_suhyun.png",
-      "보아": "/avatar_boa.png",
-      "oxo": "/avatar_boa.png"
-    };
     try {
       const x = localStorage.getItem("profile_images");
       const saved = x ? JSON.parse(x) : {};
