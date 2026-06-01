@@ -308,6 +308,26 @@ export default function App() {
     return () => unsub();
   }, []);
 
+  useEffect(() => {
+    const localRes = localStorage.getItem("reservations");
+    const migrated = localStorage.getItem("firestore_migrated");
+    if (localRes && !migrated) {
+      try {
+        const parsed = JSON.parse(localRes);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          parsed.forEach(async (r) => {
+            if (r.id) {
+              await setDoc(doc(db, "reservations", r.id), r);
+            }
+          });
+        }
+        localStorage.setItem("firestore_migrated", "true");
+      } catch (err) {
+        console.error("Local data migration error:", err);
+      }
+    }
+  }, []);
+
   const [form, setForm] = useState(null);
   const [errs, setErrs] = useState({});
   const [detail, setDetail] = useState(null);
@@ -536,7 +556,7 @@ export default function App() {
       {/* ===== Header ===== */}
       <header className="sticky top-0 z-30 border-b" style={{ background: "var(--bg-header)", borderColor: C.border, backdropFilter: "blur(10px)" }}>
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-5">
-          <button onClick={() => setSection("book")} className="flex items-center"><Wordmark size={19} /></button>
+          <button onClick={() => window.location.reload()} className="flex items-center"><Wordmark size={19} /></button>
           <nav className="hidden items-center gap-1 rounded-lg p-1 md:flex" style={{ background: "var(--bg-quaternary)" }}>
             {NAV.map(([k, lbl, Icon]) => (
               <button key={k} onClick={() => setSection(k)} className="lift flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium" style={section === k ? { background: C.ink, color: "var(--bg)" } : { color: C.muted }}><Icon size={15} />{lbl}{k === "mine" && myRes.length ? ` · ${myRes.length}` : ""}</button>
