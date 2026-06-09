@@ -308,11 +308,31 @@ function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations }) {
             {heatCells.map((c, i) => {
               const inM = c.getMonth() === month.getMonth();
               const v = inM ? (dailyByDate[c.getDate()]?.total || 0) : 0;
-              return <div key={i} className="aspect-square rounded-lg" title={inM ? `${c.getDate()}일 · ${v}건` : ""} style={{ background: inM ? heatColor(v, maxTotal) : "transparent", border: inM ? `1px solid ${C.line}` : "none" }} />;
+              return (
+                <div
+                  key={i}
+                  className="aspect-square rounded-lg flex flex-col justify-between p-1.5 text-center transition-all"
+                  title={inM ? `${c.getDate()}일 · ${v}건` : ""}
+                  style={{
+                    background: inM ? (v > 0 ? "var(--bg-quaternary)" : "var(--bg-secondary)") : "transparent",
+                    border: inM ? `1px solid ${C.line}` : "none",
+                    minHeight: "48px"
+                  }}
+                >
+                  {inM ? (
+                    <>
+                      <span className="text-[10px] font-semibold block text-left" style={{ color: C.muted }}>{c.getDate()}</span>
+                      <span className="text-[12px] font-bold block" style={{ color: v > 0 ? "var(--ink)" : "var(--faint)", opacity: v > 0 ? 1 : 0.4 }}>
+                        {v > 0 ? `${v}건` : "-"}
+                      </span>
+                    </>
+                  ) : null}
+                </div>
+              );
             })}
           </div>
-          <div className="mt-3 flex items-center justify-end gap-1.5 text-[10px] font-medium" style={{ color: C.faint }}>
-            적음 {HEAT.map((h, i) => <span key={i} className="h-3 w-3 rounded-sm" style={{ background: h, border: `1px solid ${C.line}` }} />)} 많음
+          <div className="mt-3 text-[11px]" style={{ color: C.faint }}>
+            * 각 날짜별 칸에 내가 포함된 예약의 총 건수가 숫자로 표시됩니다.
           </div>
         </div>
 
