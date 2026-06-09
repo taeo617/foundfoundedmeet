@@ -625,6 +625,15 @@ export default function App() {
       return isMy && r.date === mineDate;
     }).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
   }, [reservations, user, mineDate]);
+
+  const myResAll = useMemo(() => {
+    if (!user) return [];
+    const meId = MEMBERS.find((m) => m.name === user)?.id;
+    return reservations.filter((r) => {
+      return r.owner === user || (meId && r.attendees && r.attendees.includes(meId));
+    }).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+  }, [reservations, user]);
+
   const byDate = useMemo(() => { const m = {}; reservations.forEach((r) => { (m[r.date] ||= []).push(r); }); return m; }, [reservations]);
 
   function roomStatus(rid) {
@@ -823,7 +832,7 @@ export default function App() {
   const startOfWeek = addDays(anchor, -anchor.getDay());
   const weekCells = Array.from({ length: 7 }, (_, i) => addDays(startOfWeek, i));
 
-  const NAV = [["book", "예약", CalendarDays], ["mine", "내 예약", List], ["dash", "대시보드", LayoutDashboard]];
+  const NAV = [["book", "예약", CalendarDays], ["mine", "내 예약", List]];
 
   return (
     <div style={{ background: C.bg, color: C.text, minHeight: "100vh" }} className="w-full flex flex-col">
@@ -1113,11 +1122,9 @@ export default function App() {
               </div>
 
               {/* 회의실 사용 현황 대시보드 */}
-              {section === "dash" && (
-                <div className="mt-6">
-                  <Dashboard month={dashMonth} setMonth={setDashMonth} roomF={dashRoom} setRoomF={setDashRoom} now={now} reservations={reservations} />
-                </div>
-              )}
+              <div className="pt-2">
+                <Dashboard month={dashMonth} setMonth={setDashMonth} roomF={dashRoom} setRoomF={setDashRoom} now={now} reservations={myResAll} />
+              </div>
             </div>
           )
         )}
