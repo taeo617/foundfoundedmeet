@@ -641,8 +641,7 @@ export default function App() {
     if (!user) return [];
     const meId = MEMBERS.find((m) => m.name === user)?.id;
     return reservations.filter((r) => {
-      const isMy = r.owner === user || (meId && r.attendees && r.attendees.includes(meId));
-      return isMy && r.date === mineDate;
+      return meId && r.attendees && r.attendees.includes(meId) && r.date === mineDate;
     }).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
   }, [reservations, user, mineDate]);
 
@@ -650,7 +649,7 @@ export default function App() {
     if (!user) return [];
     const meId = MEMBERS.find((m) => m.name === user)?.id;
     return reservations.filter((r) => {
-      return r.owner === user || (meId && r.attendees && r.attendees.includes(meId));
+      return meId && r.attendees && r.attendees.includes(meId);
     }).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
   }, [reservations, user]);
 
