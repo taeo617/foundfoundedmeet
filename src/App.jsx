@@ -615,7 +615,7 @@ export default function App() {
                         <option value="15">+ 15분</option>
                         <option value="30">+ 30분</option>
                       </select>
-                      <button onClick={() => completeRes(r)} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, color: C.ink }}>지금 완료</button>
+                      <button onClick={() => completeRes(r)} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, color: C.ink }}>회의 종료</button>
                       <button onClick={() => { setRoomId(r.roomId); setAnchor(d); openEdit(r); setSection("book"); }} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, color: C.muted }}>수정</button>
                       <button onClick={() => cancelRes(r.id)} className="lift flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-medium" style={{ background: PASTEL.red.bg, color: PASTEL.red.text }}><Trash2 size={13} /></button>
                     </div>
