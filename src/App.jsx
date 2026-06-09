@@ -685,6 +685,34 @@ export default function App() {
     if (f.attendees.length > ROOMS.find((r) => r.id === f.roomId).capacity) e.att = "참석 인원이 회의실 정원을 초과했어요.";
     setErrs(e);
     if (Object.keys(e).length) return;
+
+    // Check for conflicting attendees
+    const startM = toMin(f.start);
+    const endM = toMin(f.end);
+    const conflicts = [];
+    reservations.forEach((r) => {
+      // Ignore current reservation itself (when editing), and only check same date
+      if (r.id !== f.id && r.date === f.date) {
+        const rStart = toMin(r.start);
+        const rEnd = toMin(r.end);
+        // Check if times overlap
+        if (!(endM <= rStart || startM >= rEnd)) {
+          // Check if any of the target attendees are in this conflicting reservation
+          f.attendees.forEach((attId) => {
+            if (r.attendees && r.attendees.includes(attId)) {
+              const mName = MEMBERS.find((m) => m.id === attId)?.name || attId;
+              const rRoomName = ROOMS.find((rm) => rm.id === r.roomId)?.name || r.roomId;
+              conflicts.push(`${mName}님 (${rRoomName} / ${r.start}~${r.end} "${r.title}")`);
+            }
+          });
+        }
+      }
+    });
+
+    if (conflicts.length > 0) {
+      alert(`선택하신 참석자 중 해당 시간에 이미 다른 회의가 예약되어 있는 멤버가 있습니다:\n\n${conflicts.join("\n")}\n\n시간을 변경하거나 참석자 조정을 해주세요.`);
+      return;
+    }
     
     setIsSubmitting(true);
     if (isFirebaseConfigured) {
