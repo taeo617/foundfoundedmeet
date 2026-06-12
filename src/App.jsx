@@ -620,6 +620,8 @@ export default function App() {
   }, []);
 
 const [dayEventsDate, setDayEventsDate] = useState(null);
+  const [requestUrgentOpen, setRequestUrgentOpen] = useState(false);
+  const [urgentMessage, setUrgentMessage] = useState("");
 
   useEffect(() => {
     const handleMessage = async (event) => {
@@ -1702,6 +1704,39 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               <DetailRow icon={Users} label="참석자" value={detail.attendees.length ? detail.attendees.map(memLabel).join(", ") : "없음"} />
               <DetailRow icon={User} label="등록자" value={`${detail.owner}님`} />
             </div>
+            
+            {/* 🚨 긴급 사용 요청 */}
+            {user && detail.owner !== user && (
+              <div className="mt-4 border-t pt-4" style={{ borderColor: C.border }}>
+                {!requestUrgentOpen ? (
+                  <button onClick={() => setRequestUrgentOpen(true)} className="lift flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-500 bg-red-50 py-2.5 text-[13px] font-bold text-red-600">
+                    <AlertCircle size={15} /> 이 회의실을 긴급하게 사용해야 하나요?
+                  </button>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[12px] font-bold text-red-600">🚨 참석자에게 양보 요청 알림 보내기</span>
+                    <input 
+                      autoFocus
+                      value={urgentMessage}
+                      onChange={e => setUrgentMessage(e.target.value)}
+                      placeholder="사유 (예: 급한 손님이 오셔서 회의실이 필요합니다ㅠㅠ)" 
+                      className="inp w-full rounded border px-3 py-2 text-xs outline-none bg-white" 
+                      style={{ borderColor: PASTEL.red.line }}
+                    />
+                    <div className="flex gap-2">
+                      <button onClick={() => { setRequestUrgentOpen(false); setUrgentMessage(""); }} className="lift rounded border px-3 py-1.5 text-xs font-semibold flex-1" style={{ borderColor: C.border, color: C.muted }}>취소</button>
+                      <button onClick={() => {
+                        sendPushNotification('🚨 회의실 긴급 사용 요청', `${user}님이 긴급 사용을 요청했습니다: "${urgentMessage || '가능하시다면 양보 부탁드립니다ㅠㅠ'}"`, detail.attendees);
+                        showToast('긴급 요청 알림을 전송했습니다.');
+                        setRequestUrgentOpen(false);
+                        setUrgentMessage("");
+                      }} className="lift rounded px-3 py-1.5 text-xs font-semibold flex-1" style={{ background: PASTEL.red.bg, color: PASTEL.red.text }}>보내기</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
             <div className="mt-6 flex gap-2 justify-end">
               {canEdit(detail) && (
                 <button onClick={() => { const d = detail; setDetail(null); setRoomId(d.roomId); openEdit(d); }} className="lift rounded-lg border px-4 py-2 text-xs font-semibold" style={{ background: C.ink, borderColor: C.ink, color: "var(--bg)" }}>수정</button>
@@ -1709,7 +1744,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               {canDelete(detail) && (
                 <button onClick={() => cancelRes(detail.id)} className="lift rounded-lg px-4 py-2 text-xs font-semibold" style={{ background: PASTEL.red.bg, color: PASTEL.red.text }}>삭제</button>
               )}
-              <button onClick={() => setDetail(null)} className="lift rounded-lg border px-4 py-2 text-xs font-semibold" style={{ borderColor: C.border, color: C.muted }}>닫기</button>
+              <button onClick={() => { setDetail(null); setRequestUrgentOpen(false); setUrgentMessage(""); }} className="lift rounded-lg border px-4 py-2 text-xs font-semibold" style={{ borderColor: C.border, color: C.muted }}>닫기</button>
             </div>
           </div>
         </div>
