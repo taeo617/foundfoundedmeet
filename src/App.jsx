@@ -507,9 +507,7 @@ function SplashScreen({ onComplete }) {
       ) : (
         <div className="splash-fallback">
           <div className="splash-logo-container">
-            <span className="splash-found">found</span>
-            <span className="splash-slash">/</span>
-            <span className="splash-founded">Founded</span>
+            <span className="splash-char w500 del-1">f</span><span className="splash-char w500 del-2">o</span><span className="splash-char w500 del-3">u</span><span className="splash-char w500 del-4">n</span><span className="splash-char w500 del-5">d</span><span className="splash-char w500 del-6">/</span><span className="splash-char w800 del-7">F</span><span className="splash-char w800 del-8">o</span><span className="splash-char w800 del-9">u</span><span className="splash-char w800 del-10">n</span><span className="splash-char w800 del-11">d</span><span className="splash-char w800 del-12">e</span><span className="splash-char w800 del-13">d</span>
           </div>
         </div>
       )}
