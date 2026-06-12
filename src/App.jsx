@@ -514,7 +514,7 @@ export default function App() {
   }, [theme]);
 
   const [section, setSection] = useState("book");
-  const [view, setView] = useState("calendar");
+  const [view, setView] = useState("timeline");
   const [anchor, setAnchor] = useState(() => dayOnly(new Date()));
   const [mineDate, setMineDate] = useState(() => keyOf(new Date()));
   const [roomId, setRoomId] = useState("big");
@@ -1472,7 +1472,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   : <button onClick={() => setAnchor(today)} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, background: "var(--bg-input)", color: C.muted }}>오늘</button>}
               </div>
               <div className="inline-flex rounded-lg border bg-white p-1" style={{ borderColor: C.border }}>
-                {[["calendar", "월간", CalendarDays], ["dashboard", "대시보드", LayoutDashboard]].map(([k, lbl, Icon]) => (
+                {[["calendar", "월간", CalendarDays], ["timeline", "타임라인", List]].map(([k, lbl, Icon]) => (
                   <button key={k} onClick={() => setView(k)} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium" style={view === k ? { background: C.ink, color: "var(--bg)" } : { color: C.muted }}><Icon size={15} /><span className="hidden sm:inline">{lbl}</span></button>
                 ))}
               </div>
@@ -1505,7 +1505,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   })}
                 </div>
               </section>
-            ) : view === "dashboard" ? (
+            ) : view === "timeline" ? (
               <div className="rise flex flex-col md:flex-row gap-4 flex-1 h-full min-h-[500px]">
                 {/* Left Calendar */}
                 <section className="md:w-[55%] lg:w-[60%] rounded-lg border bg-white p-2.5 sm:p-4 flex flex-col" style={{ borderColor: C.border, boxShadow: "0 1px 2px rgba(0,0,0,.04)" }}>
@@ -1536,15 +1536,15 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   </div>
                 </section>
 
-                {/* Right Dashboard */}
-                <section className="md:w-[45%] lg:w-[40%] flex flex-col h-full bg-[#111111] rounded-[20px] p-5 text-white overflow-hidden" style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.12)" }}>
+                {/* Right Timeline */}
+                <section className="md:w-[45%] lg:w-[40%] flex flex-col h-full rounded-[20px] p-5 overflow-hidden border" style={{ background: "var(--bg)", borderColor: C.border, boxShadow: "0 8px 32px rgba(0,0,0,0.06)" }}>
                   <div className="flex items-center justify-between mb-4 shrink-0">
                     <div>
-                      <div className="text-[18px] font-bold text-white">{fmtK(anchor)}</div>
-                      <div className="text-[12px] text-white/50 mt-1">{WEEK[anchor.getDay()]}요일</div>
+                      <div className="text-[18px] font-bold" style={{ color: C.text }}>{fmtK(anchor)}</div>
+                      <div className="text-[12px] mt-1" style={{ color: C.faint }}>{WEEK[anchor.getDay()]}요일</div>
                     </div>
-                    <select className="bg-white/10 border border-white/20 text-white rounded-lg px-3 py-2 text-[13px] font-medium outline-none cursor-pointer" value={roomId} onChange={(e) => setRoomId(e.target.value)}>
-                      {ROOMS.map(r => <option key={r.id} value={r.id} className="text-black bg-white">{r.name}</option>)}
+                    <select className="border rounded-lg px-3 py-2 text-[13px] font-medium outline-none cursor-pointer" style={{ borderColor: C.border, background: "var(--bg-input)", color: C.text }} value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+                      {ROOMS.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                     </select>
                   </div>
                   {/* Reuse Mobile Dashboard Layout */}
