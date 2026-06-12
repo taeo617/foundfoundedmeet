@@ -409,7 +409,30 @@ function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations }) {
 
 /* ===================== app ===================== */
 export default function App() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const tokenStr = localStorage.getItem("auth_token");
+      if (tokenStr) {
+        const token = JSON.parse(atob(tokenStr));
+        if (token.exp && token.exp > Date.now()) {
+          return token.name;
+        } else {
+          localStorage.removeItem("auth_token");
+          localStorage.removeItem("last_user");
+        }
+      }
+    } catch(e) {}
+    return null;
+  });
+
+  useEffect(() => {
+    if (user) {
+      const meId = MEMBERS.find((m) => m.name === user)?.id;
+      if (meId) {
+        subscribeToWebPush(meId);
+      }
+    }
+  }, [user]);
   const [now, setNow] = useState(() => new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 20000); return () => clearInterval(t); }, []);
 
@@ -701,9 +724,12 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
   function showToast(m) { setToast(m); setTimeout(() => setToast(null), 2600); }
 
   function requireAuth(fn, msg) { if (user) return fn(); setAuthMsg(msg || "계속하려면 로그인이 필요해요."); setAuthPending(() => fn); setAuthOpen(true); }
-    function doLogin(name) { 
+      function doLogin(name) { 
     setReservations((p) => p.map((r) => (r.owner === "나" ? { ...r, owner: name } : r))); 
-    setUser(name); localStorage.setItem("last_user", name); 
+    setUser(name); 
+    localStorage.setItem("last_user", name);
+    const token = { name: name, exp: Date.now() + 30 * 24 * 60 * 60 * 1000 };
+    localStorage.setItem("auth_token", btoa(JSON.stringify(token)));
     setAuthOpen(false); 
     const meId = MEMBERS.find((m) => m.name === name)?.id;
     if (meId) {
@@ -1118,7 +1144,7 @@ ${conflicts.join("
                   <Avatar name={user} size={24} solid={section === "mypage"} />
                   <span style={{ color: C.text }}>{user}님</span>
                 </button>
-                <button onClick={() => { setUser(null); if (section === "mypage" || section === "dash") setSection("book"); }} title="로그아웃" className="lift grid h-9 w-9 place-items-center rounded-[4px] border" style={{ borderColor: C.border, color: C.muted }}><LogOut size={15} /></button>
+                <button onClick={() => { setUser(null); localStorage.removeItem("auth_token"); localStorage.removeItem("last_user"); if (section === "mypage" || section === "dash") setSection("book"); }} title="로그아웃" className="lift grid h-9 w-9 place-items-center rounded-[4px] border" style={{ borderColor: C.border, color: C.muted }}><LogOut size={15} /></button>
               </div>
             ) : (
               <button onClick={() => requireAuth(() => {}, "로그인")} className="lift flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium" style={{ background: C.ink, color: "var(--bg)", boxShadow: "0 1px 2px rgba(0,0,0,.05)" }}><LogIn size={15} /> 로그인</button>
