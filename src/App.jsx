@@ -1191,7 +1191,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     const mobNextMtg = currentRoomRes.filter(r => toMin(r.start) >= nowMin && (!mobCurrentMtg || r.id !== mobCurrentMtg.id)).sort((a,b)=>toMin(a.start)-toMin(b.start))[0];
     
     return (
-      <div className={`${isDesktopSplit ? "hidden md:flex h-full overflow-y-auto no-scrollbar" : "flex md:hidden"} flex-col flex-1 w-full pt-2 ${isDesktopSplit ? "pb-4" : "pb-20"} relative`}>
+      <div className={`${isDesktopSplit ? "hidden md:flex h-full overflow-y-auto no-scrollbar" : "flex md:hidden"} flex-col flex-1 w-full pt-2 ${isDesktopSplit ? "pb-0" : "pb-20"} relative`}>
         {/* Mobile Header / Desktop Timeline Header */}
         <div className="flex items-center justify-between mb-4 px-1">
           <div>
@@ -1321,7 +1321,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         </div>
 
         {/* Bottom Fixed FAB for Mobile/Desktop */}
-        <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+68px)] left-4 right-4 z-30 ${isDesktopSplit ? "md:static md:mt-6" : ""}`}>
+        <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+68px)] left-4 right-4 z-30 ${isDesktopSplit ? "md:sticky md:bottom-0 md:mt-auto md:pt-4 md:pb-2 md:bg-[var(--bg)]" : ""}`}>
           <button className="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 text-[14px] font-bold shadow-lg transition-transform active:scale-95" style={{ background: "var(--ink)", color: "var(--bg)" }} onClick={() => tryCreate(roomId, defStart(), selKey)}>
             <Plus size={18} /> 예약하기
           </button>
@@ -1466,7 +1466,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   : <button onClick={() => setAnchor(today)} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, background: "var(--bg-input)", color: C.muted }}>오늘</button>}
               </div>
               <div className="inline-flex rounded-lg border bg-white p-1" style={{ borderColor: C.border }}>
-                {[["calendar", "월간", CalendarDays], ["timeline", "타임라인", List]].map(([k, lbl, Icon]) => (
+                {[["timeline", "타임라인", List], ["calendar", "월간", CalendarDays]].map(([k, lbl, Icon]) => (
                   <button key={k} onClick={() => setView(k)} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium" style={view === k ? { background: C.ink, color: "var(--bg)" } : { color: C.muted }}><Icon size={15} /><span className="hidden sm:inline">{lbl}</span></button>
                 ))}
               </div>
@@ -1500,11 +1500,18 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 </div>
               </section>
             ) : view === "timeline" ? (
-              <section className="rise flex-1 flex flex-col h-full rounded-[20px] p-6 overflow-hidden border mx-auto w-full max-w-2xl" style={{ background: "var(--bg)", borderColor: C.border, boxShadow: "0 8px 32px rgba(0,0,0,0.06)" }}>
-                {/* Full screen Timeline Dashboard */}
-                <div className="flex-1 overflow-y-auto no-scrollbar pb-10">
-                  {renderMobileDashboard(true)}
+              <section className="rise flex-1 flex flex-col h-full rounded-[20px] p-6 sm:p-10 overflow-hidden border w-full" style={{ background: "var(--bg)", borderColor: C.border, boxShadow: "0 8px 32px rgba(0,0,0,0.06)" }}>
+                <div className="flex items-center justify-between mb-6 shrink-0">
+                  <div>
+                    <div className="text-[24px] font-bold" style={{ color: C.text }}>{fmtK(anchor)}</div>
+                    <div className="text-[14px] mt-1" style={{ color: C.faint }}>{WEEK[anchor.getDay()]}요일</div>
+                  </div>
+                  <select className="border rounded-lg px-4 py-2.5 text-[14px] font-semibold outline-none cursor-pointer" style={{ borderColor: C.border, background: "var(--bg-input)", color: C.text }} value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+                    {ROOMS.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  </select>
                 </div>
+                {/* Full screen Timeline Dashboard */}
+                {renderMobileDashboard(true)}
               </section>
             ) : null}
             </div>
