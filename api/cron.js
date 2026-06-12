@@ -16,7 +16,7 @@ const db = getFirestore(app);
 
 const pad = (n) => String(n).padStart(2, "0");
 const toMin = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
-const keyOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const keyOf = (d) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 
 export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {

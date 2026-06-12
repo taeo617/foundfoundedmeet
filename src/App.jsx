@@ -845,12 +845,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     });
 
     if (conflicts.length > 0) {
-      alert(`선택하신 참석자 중 해당 시간에 이미 다른 회의가 예약되어 있는 멤버가 있습니다:
-
-${conflicts.join("
-")}
-
-시간을 변경하거나 참석자 조정을 해주세요.`);
+      alert(`선택하신 참석자 중 해당 시간에 이미 다른 회의가 예약되어 있는 멤버가 있습니다:\n\n${conflicts.join("\n")}\n\n시간을 변경하거나 참석자 조정을 해주세요.`);
       return;
     }
     
