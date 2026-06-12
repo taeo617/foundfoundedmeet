@@ -1206,7 +1206,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         </div>
 
         {/* Date Picker */}
-        <div className="flex gap-3 overflow-x-auto no-scrollbar mb-4 pb-2 -mx-4 px-4">
+        <div className="flex gap-3 overflow-x-auto sc mb-4 pb-2 -mx-4 px-4">
           {Array.from({length: 31}, (_, i) => addDays(today, i - 15)).map((d, i) => {
             const dk = keyOf(d);
             const isSel = dk === selKey;
@@ -1307,19 +1307,11 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                         
                         {/* Attendees & Owner */}
                         <div className="mt-2 flex flex-wrap items-center gap-1.5 relative z-20">
-                          {r.owner && (
-                            <span className="inline-flex items-center rounded border border-[var(--mob-busy-bg)] bg-white/50 dark:bg-black/50 px-1.5 py-0.5 text-[10px] font-bold text-[var(--mob-busy-bg)] shadow-sm">
-                              {r.owner}
+                          {Array.from(new Set([r.owner, ...(r.attendees || []).map(id => M(id)?.name)])).filter(Boolean).map(name => (
+                            <span key={name} className="inline-flex items-center rounded bg-black/5 dark:bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-gray-700 dark:text-gray-300">
+                              {name}
                             </span>
-                          )}
-                          {r.attendees?.map(id => {
-                            const m = M(id);
-                            return m ? (
-                              <span key={id} className="inline-flex items-center rounded bg-black/5 dark:bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-gray-700 dark:text-gray-300">
-                                {m.name}
-                              </span>
-                            ) : null;
-                          })}
+                          ))}
                         </div>
                         
                         {/* Current Time Line Overlay if inside this meeting */}
@@ -1519,12 +1511,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 </div>
               </section>
             ) : view === "timeline" ? (
-              <section className="rise flex-1 flex flex-col h-full rounded-[20px] p-6 sm:p-10 overflow-hidden border w-full" style={{ background: "var(--bg)", borderColor: C.border, boxShadow: "0 8px 32px rgba(0,0,0,0.06)" }}>
-                <div className="flex items-center justify-end mb-2 shrink-0">
-                  <select className="border rounded-lg px-4 py-2.5 text-[14px] font-semibold outline-none cursor-pointer" style={{ borderColor: C.border, background: "var(--bg-input)", color: C.text }} value={roomId} onChange={(e) => setRoomId(e.target.value)}>
-                    {ROOMS.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                  </select>
-                </div>
+              <section className="rise flex-1 flex flex-col h-full rounded-[20px] p-6 sm:p-8 overflow-hidden border w-full" style={{ background: "var(--bg)", borderColor: C.border, boxShadow: "0 8px 32px rgba(0,0,0,0.06)" }}>
                 {/* Full screen Timeline Dashboard */}
                 {renderMobileDashboard(true)}
               </section>
