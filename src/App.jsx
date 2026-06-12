@@ -469,7 +469,7 @@ function SplashScreen({ onComplete }) {
     setFade(true);
     setTimeout(() => {
       onComplete();
-    }, 600); // matches CSS opacity transition duration
+    }, 800); // matches CSS opacity transition duration
   };
 
   const handleCanPlay = () => {
@@ -510,9 +510,6 @@ function SplashScreen({ onComplete }) {
             <span className="splash-found">found</span>
             <span className="splash-slash">/</span>
             <span className="splash-founded">Founded</span>
-          </div>
-          <div className="splash-loader-bar">
-            <div className="splash-loader-progress" />
           </div>
         </div>
       )}
