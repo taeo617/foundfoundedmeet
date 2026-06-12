@@ -456,6 +456,48 @@ export default function App() {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 20000); return () => clearInterval(t); }, []);
 
+
+
+  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "light");
+  useEffect(() => {
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      document.documentElement.setAttribute("data-theme", "light");
+    }
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  const [section, setSection] = useState("book");
+  const [view, setView] = useState("calendar");
+  const [anchor, setAnchor] = useState(() => dayOnly(new Date()));
+  const [mineDate, setMineDate] = useState(() => keyOf(new Date()));
+  const [roomId, setRoomId] = useState("big");
+  const [dashMonth, setDashMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [dashRoom, setDashRoom] = useState("all");
+  const [reservations, setReservations] = useState(() => {
+    if (!isFirebaseConfigured) {
+      try {
+        const local = localStorage.getItem("reservations");
+        return local ? JSON.parse(local) : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+  
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    const unsub = onSnapshot(collection(db, "reservations"), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setReservations(data);
+    });
+    return () => unsub();
+  }, []);
+
   // Trigger ending notifications
   useEffect(() => {
     if (!isFirebaseConfigured || reservations.length === 0 || !user) return;
@@ -497,46 +539,6 @@ export default function App() {
       }
     });
   }, [now, reservations, user]);
-
-  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "light");
-  useEffect(() => {
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark");
-      document.documentElement.setAttribute("data-theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      document.documentElement.setAttribute("data-theme", "light");
-    }
-    localStorage.setItem("theme", theme);
-  }, [theme]);
-
-  const [section, setSection] = useState("book");
-  const [view, setView] = useState("calendar");
-  const [anchor, setAnchor] = useState(() => dayOnly(new Date()));
-  const [mineDate, setMineDate] = useState(() => keyOf(new Date()));
-  const [roomId, setRoomId] = useState("big");
-  const [dashMonth, setDashMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
-  const [dashRoom, setDashRoom] = useState("all");
-  const [reservations, setReservations] = useState(() => {
-    if (!isFirebaseConfigured) {
-      try {
-        const local = localStorage.getItem("reservations");
-        return local ? JSON.parse(local) : [];
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  });
-  
-  useEffect(() => {
-    if (!isFirebaseConfigured) return;
-    const unsub = onSnapshot(collection(db, "reservations"), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setReservations(data);
-    });
-    return () => unsub();
-  }, []);
 
   useEffect(() => {
     if (!isFirebaseConfigured) return;
