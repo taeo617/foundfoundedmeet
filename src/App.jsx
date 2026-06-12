@@ -645,7 +645,6 @@ export default function App() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [temp, setTemp] = useState([]);
   const [dz, setDz] = useState(false);
-  const timelineScrollRef = useRef(null);
 
   useEffect(() => {
     if (section === "book" && window.innerWidth <= 768) {
@@ -658,7 +657,6 @@ export default function App() {
     }
   }, [anchor, section]);
 
-  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2600); };
   const [authOpen, setAuthOpen] = useState(false);
   const [authMsg, setAuthMsg] = useState("");
   const [authPending, setAuthPending] = useState(null);
@@ -1258,7 +1256,6 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   지금 바로 예약하기
                 </button>
               )}
-            </div>
             </div>
           </div>
         )}
