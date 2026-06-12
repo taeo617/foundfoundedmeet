@@ -1192,18 +1192,16 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     
     return (
       <div className={`${isDesktopSplit ? "hidden md:flex h-full overflow-y-auto no-scrollbar" : "flex md:hidden"} flex-col flex-1 w-full pt-2 ${isDesktopSplit ? "pb-4" : "pb-20"} relative`}>
-        {!isDesktopSplit && (
-          <>
-            {/* Mobile Header */}
-            <div className="flex items-center justify-between mb-4 px-1">
-              <div>
-                <div className="text-xl font-bold">{anchor.getMonth() + 1}월 {anchor.getDate()}일 {WEEK[anchor.getDay()]}요일</div>
-                <div className="text-xs mt-1" style={{ color: C.faint }}>오늘 예약 {currentRoomRes.length}건</div>
-              </div>
-              <button className="h-10 w-10 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/10" onClick={() => showToast("알림이 없습니다.")}>
-                <Bell size={20} />
-              </button>
-            </div>
+        {/* Mobile Header / Desktop Timeline Header */}
+        <div className="flex items-center justify-between mb-4 px-1">
+          <div>
+            <div className="text-xl font-bold">{anchor.getMonth() + 1}월 {anchor.getDate()}일 {WEEK[anchor.getDay()]}요일</div>
+            <div className="text-xs mt-1" style={{ color: C.faint }}>오늘 예약 {currentRoomRes.length}건</div>
+          </div>
+          <button className="h-10 w-10 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/10" onClick={() => showToast("알림이 없습니다.")}>
+            <Bell size={20} />
+          </button>
+        </div>
 
         {/* Date Picker */}
         <div className="flex gap-3 overflow-x-auto no-scrollbar mb-4 pb-2 -mx-4 px-4">
@@ -1237,8 +1235,6 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             </button>
           ))}
         </div>
-        </>
-        )}
 
         {/* Status Card (Only show context for today) */}
         {isTodayAnchor && (
@@ -1324,14 +1320,12 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           </div>
         </div>
 
-        {/* Bottom Fixed FAB for Mobile */}
-        {!isDesktopSplit && (
-          <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+68px)] left-4 right-4 z-30">
-            <button className="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 text-[14px] font-bold shadow-lg transition-transform active:scale-95" style={{ background: "var(--ink)", color: "var(--bg)" }} onClick={() => tryCreate(roomId, defStart(), selKey)}>
-              <Plus size={18} /> 예약하기
-            </button>
-          </div>
-        )}
+        {/* Bottom Fixed FAB for Mobile/Desktop */}
+        <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+68px)] left-4 right-4 z-30 ${isDesktopSplit ? "md:static md:mt-6" : ""}`}>
+          <button className="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 text-[14px] font-bold shadow-lg transition-transform active:scale-95" style={{ background: "var(--ink)", color: "var(--bg)" }} onClick={() => tryCreate(roomId, defStart(), selKey)}>
+            <Plus size={18} /> 예약하기
+          </button>
+        </div>
       </div>
     );
   };
@@ -1506,53 +1500,12 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 </div>
               </section>
             ) : view === "timeline" ? (
-              <div className="rise flex flex-col md:flex-row gap-4 flex-1 h-full min-h-[500px]">
-                {/* Left Calendar */}
-                <section className="md:w-[55%] lg:w-[60%] rounded-lg border bg-white p-2.5 sm:p-4 flex flex-col" style={{ borderColor: C.border, boxShadow: "0 1px 2px rgba(0,0,0,.04)" }}>
-                  <div className="mb-2 hidden items-center justify-end px-1 text-xs font-medium sm:flex" style={{ color: C.faint }}>선택된 날짜의 상세 일정이 우측에 표시됩니다.</div>
-                  <div className="grid grid-cols-7 overflow-hidden rounded-lg border flex-1" style={{ borderColor: C.border, gridTemplateRows: "auto repeat(6, 1fr)" }}>
-                    {WEEK.map((w, i) => <div key={w} className="border-b py-2 text-center text-[11px] font-medium sm:text-xs" style={{ borderColor: C.border, background: "var(--bg-secondary)", color: i === 0 ? "#C0392B" : i === 6 ? "#2A5DC7" : C.muted }}>{w}</div>)}
-                    {cells.map((cell, i) => {
-                      const inMonth = cell.getMonth() === anchor.getMonth(), cToday = sameDay(cell, today);
-                      const isSel = keyOf(cell) === keyOf(anchor);
-                      const list = (byDate[keyOf(cell)] || []).slice().sort((a, b) => toMin(a.start) - toMin(b.start));
-                      return (
-                        <div key={i} onClick={() => setAnchor(cell)} className="cell border-b border-l p-1 sm:p-1.5 flex flex-col" style={{ borderColor: isSel ? C.ink : C.border, borderWidth: isSel ? 2 : 1, background: cToday ? C.yellowSoft : inMonth ? "var(--bg-input)" : "var(--bg-tertiary)", opacity: inMonth ? 1 : .5, minHeight: 0 }}>
-                          <div className="flex items-center justify-between">
-                            <span className={cToday ? "grid h-5 w-5 place-items-center rounded-lg text-[11px] font-medium" : "text-[12px] font-medium"} style={cToday ? { background: C.ink, color: "var(--bg)" } : { color: cell.getDay() === 0 ? "#C0392B" : cell.getDay() === 6 ? "#2A5DC7" : C.text }}>{cell.getDate()}</span>
-                            {list.length > 0 && <span className="hidden text-[10px] font-medium sm:inline" style={{ color: C.faint }}>{list.length}</span>}
-                          </div>
-                          <div className="mt-1 hidden space-y-1 sm:block flex-1 overflow-hidden" style={{ minHeight: 40 }}>
-                            {list.slice(0, 2).map((r) => { const p = r.isUrgent ? pal('red') : pal('green'); return (
-                              <div key={r.id} onClick={(e) => { e.stopPropagation(); onBlockClick(r); }} className="flex items-center gap-1 truncate rounded-lg px-1.5 py-0.5 text-[11px] font-medium" style={{ background: p.bg, color: p.text }}>
-                                <span className="h-1.5 w-1.5 shrink-0 rounded-lg" style={{ background: p.dot }} /><span className="truncate">{r.start} {r.title}</span>
-                              </div>
-                            ); })}
-                            {list.length > 2 && <div className="px-1 text-[10px] font-medium" style={{ color: C.faint }}>+{list.length - 2}</div>}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-
-                {/* Right Timeline */}
-                <section className="md:w-[45%] lg:w-[40%] flex flex-col h-full rounded-[20px] p-5 overflow-hidden border" style={{ background: "var(--bg)", borderColor: C.border, boxShadow: "0 8px 32px rgba(0,0,0,0.06)" }}>
-                  <div className="flex items-center justify-between mb-4 shrink-0">
-                    <div>
-                      <div className="text-[18px] font-bold" style={{ color: C.text }}>{fmtK(anchor)}</div>
-                      <div className="text-[12px] mt-1" style={{ color: C.faint }}>{WEEK[anchor.getDay()]}요일</div>
-                    </div>
-                    <select className="border rounded-lg px-3 py-2 text-[13px] font-medium outline-none cursor-pointer" style={{ borderColor: C.border, background: "var(--bg-input)", color: C.text }} value={roomId} onChange={(e) => setRoomId(e.target.value)}>
-                      {ROOMS.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                    </select>
-                  </div>
-                  {/* Reuse Mobile Dashboard Layout */}
-                  <div className="flex-1 overflow-y-auto no-scrollbar pb-10">
-                    {renderMobileDashboard(true)}
-                  </div>
-                </section>
-              </div>
+              <section className="rise flex-1 flex flex-col h-full rounded-[20px] p-6 overflow-hidden border mx-auto w-full max-w-2xl" style={{ background: "var(--bg)", borderColor: C.border, boxShadow: "0 8px 32px rgba(0,0,0,0.06)" }}>
+                {/* Full screen Timeline Dashboard */}
+                <div className="flex-1 overflow-y-auto no-scrollbar pb-10">
+                  {renderMobileDashboard(true)}
+                </div>
+              </section>
             ) : null}
             </div>
             
