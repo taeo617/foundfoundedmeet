@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, forwardRef } from "react";
-import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, arrayUnion } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, arrayUnion, runTransaction } from "firebase/firestore";
 import { db, isFirebaseConfigured } from "./firebase";
 import {
   Calendar, CalendarDays, Clock, Users, Monitor, Video, Plus, X, Check,
@@ -455,6 +455,48 @@ export default function App() {
   }, [user]);
   const [now, setNow] = useState(() => new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 20000); return () => clearInterval(t); }, []);
+
+  // Trigger ending notifications
+  useEffect(() => {
+    if (!isFirebaseConfigured || reservations.length === 0 || !user) return;
+    const todayKey = keyOf(new Date());
+    const nowM = now.getHours() * 60 + now.getMinutes();
+
+    reservations.forEach(async (r) => {
+      if (r.date !== todayKey) return;
+      const endM = toMin(r.end);
+      const startM = toMin(r.start);
+      if (nowM < startM || nowM >= endM) return; // Only process active meetings
+
+      const left = endM - nowM;
+      
+      if (left === 5 && !r.notified5m) {
+        try {
+          await runTransaction(db, async (transaction) => {
+            const sfDocRef = doc(db, "reservations", r.id);
+            const sfDoc = await transaction.get(sfDocRef);
+            if (!sfDoc.exists() || sfDoc.data().notified5m) throw "Already notified";
+            transaction.update(sfDocRef, { notified5m: true });
+          });
+          const roomName = ROOMS.find(rm => rm.id === r.roomId)?.name || r.roomId;
+          sendPushNotification('⏳ 회의 종료 5분 전입니다', `[${roomName}] 다음 회의나 마무리를 준비해주세요.`, r.attendees);
+        } catch(e) {}
+      }
+      
+      if (left === 1 && !r.notified1m) {
+        try {
+          await runTransaction(db, async (transaction) => {
+            const sfDocRef = doc(db, "reservations", r.id);
+            const sfDoc = await transaction.get(sfDocRef);
+            if (!sfDoc.exists() || sfDoc.data().notified1m) throw "Already notified";
+            transaction.update(sfDocRef, { notified1m: true });
+          });
+          const roomName = ROOMS.find(rm => rm.id === r.roomId)?.name || r.roomId;
+          sendPushNotification('⏱️ 회의 종료 1분 전입니다', `[${roomName}] 곧 회의실 이용 시간이 끝납니다.`, r.attendees);
+        } catch(e) {}
+      }
+    });
+  }, [now, reservations, user]);
 
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "light");
   useEffect(() => {
