@@ -1335,7 +1335,12 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
   return (
     <div style={{ background: C.bg, color: C.text, minHeight: "100vh" }} className="w-full flex flex-col">
-      {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
+      {showSplash && <SplashScreen onComplete={() => {
+        setShowSplash(false);
+        if (!user && window.innerWidth <= 768) {
+          requireAuth(() => {}, "모바일에서 이용하시려면 로그인이 필요해요.");
+        }
+      }} />}
       <style>{`
         *{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";box-sizing:border-box;}
         .lift{transition:background .1s ease;} .lift:hover{background:var(--lift-hover);} .lift:active{background:var(--lift-active);}
@@ -1675,7 +1680,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       {/* ===== mobile bottom nav ===== */}
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t md:hidden" style={{ background: theme === "dark" ? "rgba(0,0,0,0.92)" : "rgba(255,255,255,.92)", borderColor: C.border, backdropFilter: "blur(10px)", paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div className="mx-auto flex max-w-md items-stretch justify-around">
-          {NAV.map(([k, lbl, Icon]) => { const on = section === k; return (
+          {NAV.filter(([k]) => k !== "install").map(([k, lbl, Icon]) => { const on = section === k; return (
             <button key={k} onClick={() => setSection(k)} className="relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium" style={{ color: on ? C.ink : (theme === "dark" ? "#D1D5DB" : C.faint) }}>
               {on && <span className="absolute left-1/2 top-0 h-0.5 w-8 -translate-x-1/2 rounded-lg" style={{ background: C.ink }} />}
               <Icon size={20} />{lbl}{k === "mine" && myRes.length ? ` ${myRes.length}` : ""}
