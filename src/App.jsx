@@ -1312,7 +1312,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               <div className="border p-5 rounded-xl bg-gray-50">
                 <h3 className="text-lg font-bold mb-3">📱 Android 사용자</h3>
                 <p className="text-sm mb-4">아래 버튼을 눌러 APK 파일을 다운로드하고 설치해주세요. 설치 시 <b>"출처를 알 수 없는 앱 허용"</b>이 필요할 수 있습니다.</p>
-                <a href="/foundfoundedmeet.apk" className="block text-center bg-black text-white font-bold py-3 rounded-lg shadow-md hover:bg-gray-800 transition">Android APK 다운로드</a>
+                <button onClick={() => alert('현재 Android 앱(APK) 파일을 준비 중입니다. 웹 브라우저의 홈 화면 추가 기능을 대신 이용해 주세요!')} className="block w-full text-center bg-black text-white font-bold py-3 rounded-lg shadow-md hover:bg-gray-800 transition">Android APK 다운로드</button>
               </div>
               
               <div className="border p-5 rounded-xl bg-gray-50">
