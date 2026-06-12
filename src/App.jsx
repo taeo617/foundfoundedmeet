@@ -1594,7 +1594,16 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             <div className="flex flex-1 flex-col overflow-hidden md:flex-row">
               {/* dropzone (top on mobile / right on desktop) */}
               <div className="order-1 flex shrink-0 flex-col border-b p-3 md:order-2 md:w-1/2 md:border-b-0 md:border-l" style={{ borderColor: C.border }}>
-                <div className="mb-2 px-1 text-xs font-medium" style={{ color: C.muted }}>참석자 ({temp.length})</div>
+                <div className="mb-2 px-1 flex justify-between items-center text-xs font-medium" style={{ color: C.muted }}>
+                  <span>참석자 ({temp.length})</span>
+                  <button 
+                    onClick={() => setTemp(temp.length === MEMBERS.length ? [] : MEMBERS.map(m => m.id))}
+                    className="hover:underline text-[11px] px-1 py-0.5 rounded"
+                    style={{ color: C.ink }}
+                  >
+                    {temp.length === MEMBERS.length ? "전체 해제" : "전체 선택"}
+                  </button>
+                </div>
                 <div onDragOver={(e) => { e.preventDefault(); setDz(true); }} onDragLeave={() => setDz(false)} onDrop={(e) => { e.preventDefault(); addTemp(e.dataTransfer.getData("text/plain")); setDz(false); }}
                   className="sc overflow-y-auto rounded-lg border-2 border-dashed p-3" style={{ borderColor: dz ? C.ink : C.border, background: dz ? C.yellowSoft : "var(--bg-secondary)", minHeight: 120, maxHeight: 220 }}>
                   {temp.length === 0 ? (
