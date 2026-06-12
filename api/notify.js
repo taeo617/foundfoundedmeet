@@ -64,7 +64,16 @@ export default async function handler(req, res) {
     }
 
     // 2. Send Web Push
-    const webPushPromises = webTokens.map(sub => {
+    const uniqueWebTokens = [];
+    const seenEndpoints = new Set();
+    for (const token of webTokens) {
+      if (token && token.endpoint && !seenEndpoints.has(token.endpoint)) {
+        seenEndpoints.add(token.endpoint);
+        uniqueWebTokens.push(token);
+      }
+    }
+
+    const webPushPromises = uniqueWebTokens.map(sub => {
       const payload = JSON.stringify({ title, body, url });
       return webpush.sendNotification(sub, payload).catch(err => {
         console.error('Web push error:', err);
