@@ -76,7 +76,7 @@ const TIMES = Array.from({ length: SLOTS + 1 }, (_, i) => toHHMM(DAY_START + i *
 const nid = () => `r_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
 
 
-const VAPID_PUBLIC_KEY = "BHcev4VX3785teMaRQaNp7ahP5w1TxBt2kUoOwnJaaGEXOXz3nTAj54oSVSh4rHg92bq5uASXttZyDyzUF3R8E4";
+const VAPID_PUBLIC_KEY = "BPEVBSwDakUuwkdE60FOGy3YcdASPrlcC43xsnxkLhc_KNMrhEmYi0-x94IBEvb-d4SXWfouYdAdKwgDokH9BnA";
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
