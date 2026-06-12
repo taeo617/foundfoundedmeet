@@ -145,7 +145,13 @@ function StatusPill({ kind, text }) {
   return <span className="inline-flex items-center gap-1.5 rounded-[4px] px-2 py-0.5 text-[11px] font-medium" style={{ background: m.bg, color: m.fg }}><span className="h-1.5 w-1.5 rounded-full" style={{ background: m.dot }} /> {text}</span>;
 }
 function Wordmark({ size = 18 }) {
-  return <span className="tracking-tight" style={{ fontSize: size, color: C.ink, lineHeight: 1 }}><span style={{ fontWeight: 500, color: C.text }}>found</span><span style={{ fontWeight: 600 }}>founded</span></span>;
+  return (
+    <span className="font-sans" style={{ fontSize: size, color: C.ink, lineHeight: 1, letterSpacing: "-0.055em", display: "inline-flex", alignItems: "center", fontWeight: "normal" }}>
+      <span style={{ fontWeight: 500, color: C.text }}>found</span>
+      <span style={{ fontWeight: 500, color: C.text, opacity: 0.8 }}>/</span>
+      <span style={{ fontWeight: 800 }}>Founded</span>
+    </span>
+  );
 }
 const defaultProfiles = {
   "도영": "/avatar_doyoung.png",
@@ -484,10 +490,6 @@ function SplashScreen({ onComplete }) {
 
   return (
     <div className={`splash-container ${fade ? "fade-out" : ""}`}>
-      <button onClick={handleComplete} className="splash-skip-btn">
-        SKIP
-      </button>
-
       {!useFallback ? (
         <div className="splash-video-wrapper">
           <video
@@ -504,10 +506,14 @@ function SplashScreen({ onComplete }) {
         </div>
       ) : (
         <div className="splash-fallback">
-          <div className="splash-logo-pulse">
-            <span>found</span>founded
+          <div className="splash-logo-container">
+            <span className="splash-found">found</span>
+            <span className="splash-slash">/</span>
+            <span className="splash-founded">Founded</span>
           </div>
-          <div className="splash-spinner" />
+          <div className="splash-loader-bar">
+            <div className="splash-loader-progress" />
+          </div>
         </div>
       )}
     </div>
