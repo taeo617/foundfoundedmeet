@@ -466,7 +466,7 @@ function SplashScreen({ onComplete }) {
 
 /* ===================== app ===================== */
 export default function App() {
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem('skipSplash'));
   const [user, setUser] = useState(() => {
     try {
       const tokenStr = localStorage.getItem("auth_token");
@@ -647,15 +647,15 @@ export default function App() {
   const [dz, setDz] = useState(false);
 
   useEffect(() => {
-    if (section === "book" && window.innerWidth <= 768) {
+    if (section === "book") {
       setTimeout(() => {
-        const el = document.getElementById(`mob-date-${keyOf(anchor)}`);
+        const el = document.getElementById(`mob-date-${keyOf(today)}`);
         if (el) {
           el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
         }
       }, 50);
     }
-  }, [anchor, section]);
+  }, [section, today]);
 
   const [authOpen, setAuthOpen] = useState(false);
   const [authMsg, setAuthMsg] = useState("");
@@ -1205,7 +1205,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
         {/* Date Picker */}
         <div className="flex gap-3 overflow-x-auto no-scrollbar mb-4 pb-2 -mx-4 px-4">
-          {cells.map((d, i) => {
+          {Array.from({length: 31}, (_, i) => addDays(today, i - 15)).map((d, i) => {
             const dk = keyOf(d);
             const isSel = dk === selKey;
             const isT = dk === todayKey;
@@ -1411,7 +1411,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       {/* ===== Header ===== */}
       <header className={`sticky top-0 z-30 border-b ${section === "book" ? "hidden md:block" : ""}`} style={{ background: "var(--bg-header)", borderColor: C.border, backdropFilter: "blur(10px)" }}>
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-5">
-          <button onClick={() => window.location.reload()} className="flex items-center"><Wordmark size={19} /></button>
+          <button onClick={() => { sessionStorage.setItem('skipSplash', 'true'); window.location.href = '/'; }} className="flex items-center"><Wordmark size={19} /></button>
           <nav className="hidden items-center gap-1 rounded-lg p-1 md:flex" style={{ background: "var(--bg-quaternary)" }}>
             {NAV.map(([k, lbl, Icon]) => (
               <button key={k} onClick={() => setSection(k)} className="lift flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium" style={section === k ? { background: C.ink, color: "var(--bg)" } : { color: C.muted }}><Icon size={15} />{lbl}{k === "mine" && myRes.length ? ` · ${myRes.length}` : ""}</button>
@@ -1501,11 +1501,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               </section>
             ) : view === "timeline" ? (
               <section className="rise flex-1 flex flex-col h-full rounded-[20px] p-6 sm:p-10 overflow-hidden border w-full" style={{ background: "var(--bg)", borderColor: C.border, boxShadow: "0 8px 32px rgba(0,0,0,0.06)" }}>
-                <div className="flex items-center justify-between mb-6 shrink-0">
-                  <div>
-                    <div className="text-[24px] font-bold" style={{ color: C.text }}>{fmtK(anchor)}</div>
-                    <div className="text-[14px] mt-1" style={{ color: C.faint }}>{WEEK[anchor.getDay()]}요일</div>
-                  </div>
+                <div className="flex items-center justify-end mb-2 shrink-0">
                   <select className="border rounded-lg px-4 py-2.5 text-[14px] font-semibold outline-none cursor-pointer" style={{ borderColor: C.border, background: "var(--bg-input)", color: C.text }} value={roomId} onChange={(e) => setRoomId(e.target.value)}>
                     {ROOMS.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                   </select>
