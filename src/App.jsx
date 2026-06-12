@@ -34,6 +34,7 @@ const EQUIP = { monitor: { label: "모니터", Icon: Monitor }, video: { label: 
 const ROOMS = [
   { id: "big",   name: "큰 회의실",   capacity: 8, equip: ["monitor", "video"] },
   { id: "small", name: "작은 회의실", capacity: 6, equip: ["monitor"] },
+  { id: "lounge", name: "라운지", capacity: 20, equip: [] },
 ];
 
 /* members — 성 제외, 표시는 "{name}님" */
@@ -1096,7 +1097,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           return <div key={i} className="slot absolute left-0 right-0 border-t" style={{ top: i * PX, height: PX, borderColor: isHour ? "var(--border-calendar)" : isHalf ? "var(--border-calendar-half)" : "rgba(234, 233, 226, 0.25)" }} onClick={() => tryCreate(rid, sm)} />;
         })}
         {list.map((r) => {
-                    const top = ((toMin(r.start) - DAY_START) / STEP) * PX, h = ((toMin(r.end) - toMin(r.start)) / STEP) * PX, p = r.isUrgent ? pal('red') : pal('green'), mine = isMine(r);
+                    const top = ((toMin(r.start) - DAY_START) / STEP) * PX, h = ((toMin(r.end) - toMin(r.start)) / STEP) * PX, p = r.isUrgent ? pal('red') : pal('yellow'), mine = isMine(r);
           return (
             <div key={r.id} className="blk absolute overflow-hidden rounded-lg border px-2.5 py-1.5" style={{ top: top + 2, height: h - 4, left: 5, right: 5, background: p.bg, borderColor: p.line, color: p.text }} onClick={() => onBlockClick(r)}>
               <div className="flex items-center gap-1.5"><span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.dot }} /><span className="truncate text-[13px] font-medium">{r.title}</span>{r.repeat && <Repeat size={11} />}{mine && <span className="ml-auto rounded px-1 text-[10px] font-medium" style={{ background: "rgba(255,255,255,.7)", color: p.text }}>내 예약</span>}</div>
@@ -1269,11 +1270,11 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                         </div>
                         {/* mobile: dots */}
                         <div className="mt-1 flex flex-wrap gap-1 sm:hidden flex-1" style={{ minHeight: 8 }}>
-                          {list.slice(0, 4).map((r) => <span key={r.id} onClick={(e) => { e.stopPropagation(); onBlockClick(r); }} className="h-1.5 w-1.5 rounded-full" style={{ background: pal(r.color).dot }} />)}
+                          {list.slice(0, 4).map((r) => <span key={r.id} onClick={(e) => { e.stopPropagation(); onBlockClick(r); }} className="h-1.5 w-1.5 rounded-full" style={{ background: r.isUrgent ? pal('red').dot : pal('yellow').dot }} />)}
                         </div>
                         {/* desktop: chips */}
                         <div className="mt-1 hidden space-y-1 sm:block flex-1" style={{ minHeight: 54 }}>
-                          {list.slice(0, view === "week" ? 10 : 3).map((r) => { const p = r.isUrgent ? pal('red') : pal(r.color); return (
+                          {list.slice(0, view === "week" ? 10 : 3).map((r) => { const p = r.isUrgent ? pal('red') : pal('yellow'); return (
                             <div key={r.id} onClick={(e) => { e.stopPropagation(); onBlockClick(r); }} className="flex items-center gap-1 truncate rounded-lg px-1.5 py-0.5 text-[11px] font-medium" style={{ background: p.bg, color: p.text }}>
                               <span className="h-1.5 w-1.5 shrink-0 rounded-lg" style={{ background: p.dot }} /><span className="truncate">{r.start} {r.title}</span>
                             </div>
@@ -1370,7 +1371,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               </div>
             ) : (
               <div className="grid gap-3">
-                {myRes.map((r) => { const p = r.isUrgent ? pal('red') : pal('green'), rm = ROOMS.find((x) => x.id === r.roomId), [y, mo, da] = r.date.split("-").map(Number), d = new Date(y, mo - 1, da); return (
+                {myRes.map((r) => { const p = r.isUrgent ? pal('red') : pal('yellow'), rm = ROOMS.find((x) => x.id === r.roomId), [y, mo, da] = r.date.split("-").map(Number), d = new Date(y, mo - 1, da); return (
                   <div key={r.id} className="lift flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 rounded-lg border bg-white p-3.5 sm:p-4" style={{ borderColor: C.border }}>
                     <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
                       <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg" style={{ background: p.bg, color: p.text }}><span className="text-lg font-medium">{da}</span></div>
@@ -1506,14 +1507,6 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                       options={TIMES.filter(t => toMin(t) > toMin(form.start)).map(t => [t, t])}
                       error={errs.time}
                     />
-                  </div>
-                </Field>
-
-                <Field label="색상">
-                  <div className="flex items-center gap-2.5">
-                    {COLORS.map((c) => { const on = form.color === c; return (
-                      <button key={c} onClick={() => setForm({ ...form, color: c })} className="flex h-3.5 w-3.5 place-items-center justify-center rounded-full transition-transform" title={c} style={{ background: PASTEL[c].dot, boxShadow: on ? `0 0 0 2px var(--bg-input), 0 0 0 3px ${C.ink}` : "none", transform: on ? "scale(1.2)" : "none" }}></button>
-                    ); })}
                   </div>
                 </Field>
 
@@ -1658,7 +1651,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   <div className="py-8 text-center text-sm font-semibold" style={{ color: C.muted }}>등록된 일정이 없습니다.</div>
                 ) : (
                   list.map((r) => {
-                    const p = pal(r.color);
+                    const p = r.isUrgent ? pal('red') : pal('yellow');
                     const rm = ROOMS.find((x) => x.id === r.roomId);
                     return (
                       <div
@@ -1709,7 +1702,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       {detail && (
         <div className="ov fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4" style={{ background: "rgba(20,20,20,.5)" }} onClick={() => setDetail(null)}>
           <div className="sheet w-full rounded-t-lg bg-white p-6 sm:max-w-sm sm:rounded-lg" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-2 border-b pb-3 mb-3" style={{ borderColor: C.border }}><span className="h-3 w-3 rounded-full" style={{ background: pal(detail.color).dot }} /><h3 className="text-[17px] font-semibold">{detail.title}</h3></div>
+            <div className="flex items-center gap-2 border-b pb-3 mb-3" style={{ borderColor: C.border }}><span className="h-3 w-3 rounded-full" style={{ background: detail.isUrgent ? pal('red').dot : pal('yellow').dot }} /><h3 className="text-[17px] font-semibold">{detail.title}</h3></div>
             <div className="space-y-1">
               <DetailRow icon={Clock} label="시간" value={`${detail.date} ${detail.start} ~ ${detail.end}`} />
               <DetailRow icon={Users} label="참석자" value={detail.attendees.length ? detail.attendees.map(memLabel).join(", ") : "없음"} />
