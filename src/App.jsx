@@ -1483,13 +1483,14 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 </Field>
                 <Field label="회의실"><SelectBox value={form.roomId} onChange={(v) => setForm({ ...form, roomId: v })} options={ROOMS.map((r) => [r.id, `${r.name} · ${r.capacity}명`])} /></Field>
                 <Field label="날짜">
-                  <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="inp w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none" style={{ borderColor: C.border, background: "var(--bg-select)" }} />
+                  <input type="date" value={form.date} onClick={(e) => { try { e.target.showPicker(); } catch(err) {} }} onChange={(e) => setForm({ ...form, date: e.target.value })} className="inp w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none cursor-pointer" style={{ borderColor: C.border, background: "var(--bg-select)" }} />
                 </Field>
                 <Field label="시간" error={errs.time}>
                   <div className="grid grid-cols-2 gap-3">
                     <input 
                       type="time" 
                       step="300"
+                      onClick={(e) => { try { e.target.showPicker(); } catch(err) {} }}
                       value={form.start} 
                       onChange={(e) => {
                         const v = e.target.value;
@@ -1503,12 +1504,13 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                         });
                         setErrs((x) => ({ ...x, time: undefined }));
                       }}
-                      className="inp w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none" 
+                      className="inp w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none cursor-pointer" 
                       style={{ borderColor: errs.time ? "#C0392B" : C.border, background: "var(--bg-select)" }} 
                     />
                     <input 
                       type="time" 
                       step="300"
+                      onClick={(e) => { try { e.target.showPicker(); } catch(err) {} }}
                       value={form.end} 
                       onChange={(e) => {
                         const v = e.target.value;
@@ -1516,7 +1518,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                         setForm({ ...form, end: v });
                         setErrs((x) => ({ ...x, time: undefined }));
                       }}
-                      className="inp w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none" 
+                      className="inp w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none cursor-pointer" 
                       style={{ borderColor: errs.time ? "#C0392B" : C.border, background: "var(--bg-select)" }} 
                     />
                   </div>
