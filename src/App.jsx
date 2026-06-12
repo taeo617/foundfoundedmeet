@@ -948,9 +948,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       
       // Push Notifications
       if (!isEdit) {
-         sendPushNotification('📅 새 회의가 등록됐어요', `[${ROOMS.find(r=>r.id===f.roomId)?.name}] ${f.date} ${f.start}~${f.end}`, f.attendees);
+         sendPushNotification('📅 새 회의가 등록됐어요', `${user}님이 예약했습니다. [${ROOMS.find(r=>r.id===f.roomId)?.name}] ${f.date} ${f.start}~${f.end}`, f.attendees);
       } else {
-         sendPushNotification('✏️ 회의 일정이 변경됐어요', `[${ROOMS.find(r=>r.id===f.roomId)?.name}] 일정이 바뀌었어요. 확인해주세요.`, f.attendees);
+         sendPushNotification('✏️ 회의 일정이 변경됐어요', `${user}님이 일정을 변경했습니다. [${ROOMS.find(r=>r.id===f.roomId)?.name}] 확인해주세요.`, f.attendees);
       }
       
       pushedReservations.forEach(pushed => {
@@ -1045,7 +1045,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
              // Find overlapping meeting attendees
              const overlapsNext = reservations.filter(x => x.roomId === r.roomId && x.date === r.date && x.id !== r.id && !(toMin(x.end) <= endM || toMin(x.start) >= newEndM));
              overlapsNext.forEach(ov => {
-               sendPushNotification('✏️ 회의 일정이 변경됐어요', `[${ROOMS.find(rm=>rm.id===ov.roomId)?.name}] 이전 회의 연장으로 인해 일정이 겹쳤습니다. 확인해주세요.`, ov.attendees);
+               sendPushNotification('✏️ 회의 일정이 변경됐어요', `${user}님의 회의 연장으로 인해 일정이 겹쳤습니다. [${ROOMS.find(rm=>rm.id===ov.roomId)?.name}] 확인해주세요.`, ov.attendees);
              });
           }
         }).catch(err => {
