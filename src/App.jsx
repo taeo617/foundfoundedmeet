@@ -413,7 +413,7 @@ export default function App() {
     try {
       const tokenStr = localStorage.getItem("auth_token");
       if (tokenStr) {
-        const token = JSON.parse(atob(tokenStr));
+        const token = JSON.parse(decodeURIComponent(escape(atob(tokenStr))));
         if (token.exp && token.exp > Date.now()) {
           return token.name;
         } else {
@@ -729,7 +729,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     setUser(name); 
     localStorage.setItem("last_user", name);
     const token = { name: name, exp: Date.now() + 30 * 24 * 60 * 60 * 1000 };
-    localStorage.setItem("auth_token", btoa(JSON.stringify(token)));
+    localStorage.setItem("auth_token", btoa(unescape(encodeURIComponent(JSON.stringify(token)))));
     setAuthOpen(false); 
     const meId = MEMBERS.find((m) => m.name === name)?.id;
     if (meId) {
