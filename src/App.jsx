@@ -432,8 +432,91 @@ function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations }) {
   );
 }
 
+/* ===================== splash screen ===================== */
+function SplashScreen({ onComplete }) {
+  const [isVideoLoaded, setIsVideoLoaded] = useState(false);
+  const [useFallback, setUseFallback] = useState(false);
+  const [fade, setFade] = useState(false);
+  const videoRef = useRef(null);
+
+  // If video doesn't load in 3.5s, fall back to logo animation
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!isVideoLoaded) {
+        setUseFallback(true);
+      }
+    }, 3500);
+    return () => clearTimeout(timer);
+  }, [isVideoLoaded]);
+
+  // If fallback is active, show for 2 seconds then fade out
+  useEffect(() => {
+    if (useFallback) {
+      const timer = setTimeout(() => {
+        handleComplete();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [useFallback]);
+
+  const handleComplete = () => {
+    setFade(true);
+    setTimeout(() => {
+      onComplete();
+    }, 600); // matches CSS opacity transition duration
+  };
+
+  const handleCanPlay = () => {
+    if (videoRef.current) {
+      videoRef.current.play().then(() => {
+        setIsVideoLoaded(true);
+      }).catch(err => {
+        console.warn("Video playback blocked/failed, using fallback:", err);
+        setUseFallback(true);
+      });
+    }
+  };
+
+  const handleError = () => {
+    console.warn("Video load error, falling back to CSS animation.");
+    setUseFallback(true);
+  };
+
+  return (
+    <div className={`splash-container ${fade ? "fade-out" : ""}`}>
+      <button onClick={handleComplete} className="splash-skip-btn">
+        SKIP
+      </button>
+
+      {!useFallback ? (
+        <div className="splash-video-wrapper">
+          <video
+            ref={videoRef}
+            src="/splash.mp4"
+            className="splash-video"
+            autoPlay
+            muted
+            playsInline
+            onCanPlay={handleCanPlay}
+            onEnded={handleComplete}
+            onError={handleError}
+          />
+        </div>
+      ) : (
+        <div className="splash-fallback">
+          <div className="splash-logo-pulse">
+            <span>found</span>founded
+          </div>
+          <div className="splash-spinner" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ===================== app ===================== */
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
   const [user, setUser] = useState(() => {
     try {
       const tokenStr = localStorage.getItem("auth_token");
@@ -1124,6 +1207,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
   return (
     <div style={{ background: C.bg, color: C.text, minHeight: "100vh" }} className="w-full flex flex-col">
+      {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
       <style>{`
         *{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";box-sizing:border-box;}
         .lift{transition:background .1s ease;} .lift:hover{background:var(--lift-hover);} .lift:active{background:var(--lift-active);}
