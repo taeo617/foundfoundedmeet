@@ -512,6 +512,11 @@ export default function App() {
 
       const left = endM - nowM;
       
+      const nextMeeting = reservations
+        .filter(nr => nr.roomId === r.roomId && nr.date === todayKey && nr.id !== r.id && toMin(nr.start) >= endM)
+        .sort((a, b) => toMin(a.start) - toMin(b.start))[0];
+      const nextInfo = nextMeeting ? `(다음 예약: ${nextMeeting.start} ${nextMeeting.title})` : `(다음 예약 없음)`;
+      
       if (left === 5 && !r.notified5m) {
         try {
           await runTransaction(db, async (transaction) => {
@@ -521,7 +526,7 @@ export default function App() {
             transaction.update(sfDocRef, { notified5m: true });
           });
           const roomName = ROOMS.find(rm => rm.id === r.roomId)?.name || r.roomId;
-          sendPushNotification('⏳ 회의 종료 5분 전입니다', `[${roomName}] 다음 회의나 마무리를 준비해주세요.`, r.attendees);
+          sendPushNotification('⏳ 회의 종료 5분 전입니다', `[${roomName}] 마무리 준비해주세요. ${nextInfo}`, r.attendees);
         } catch(e) {}
       }
       
@@ -534,7 +539,7 @@ export default function App() {
             transaction.update(sfDocRef, { notified1m: true });
           });
           const roomName = ROOMS.find(rm => rm.id === r.roomId)?.name || r.roomId;
-          sendPushNotification('⏱️ 회의 종료 1분 전입니다', `[${roomName}] 곧 회의실 이용 시간이 끝납니다.`, r.attendees);
+          sendPushNotification('⏱️ 회의 종료 1분 전입니다', `[${roomName}] 이용 시간이 끝납니다. ${nextInfo}`, r.attendees);
         } catch(e) {}
       }
     });
@@ -949,7 +954,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       }
       
       pushedReservations.forEach(pushed => {
-         sendPushNotification('✏️ 긴급 회의로 일정이 밀렸어요', `[${ROOMS.find(r=>r.id===pushed.roomId)?.name}] 일정이 ${pushed.start}로 밀렸어요.`, pushed.attendees);
+         const roomName = ROOMS.find(r=>r.id===pushed.roomId)?.name || pushed.roomId;
+         const msg = f.urgentComment ? `[${f.urgentComment}] 기존 일정은 ${pushed.start}로 밀렸습니다.` : `[${roomName}] 일정이 ${pushed.start}로 밀렸어요.`;
+         sendPushNotification('🚨 긴급 회의로 일정이 밀렸어요', msg, pushed.attendees);
       });
 
       setForm(null);
@@ -1496,6 +1503,22 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     ); })}
                   </div>
                 </Field>
+
+                <div className="flex flex-col gap-2 rounded-lg border p-3 mt-1" style={{ borderColor: form.isUrgent ? PASTEL.red.line : C.border, background: form.isUrgent ? PASTEL.red.bg : "transparent" }}>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={form.isUrgent || false} onChange={(e) => setForm({ ...form, isUrgent: e.target.checked })} className="w-4 h-4" style={{ accentColor: PASTEL.red.dot }} />
+                    <span className="text-sm font-bold" style={{ color: form.isUrgent ? PASTEL.red.text : C.ink }}>🚨 긴급 회의 (겹치는 예약을 뒤로 미룹니다)</span>
+                  </label>
+                  {form.isUrgent && (
+                    <input 
+                      value={form.urgentComment || ""} 
+                      onChange={(e) => setForm({ ...form, urgentComment: e.target.value })} 
+                      placeholder="사유 (기존 예약자에게 알림으로 전송됩니다)" 
+                      className="inp w-full mt-1 rounded border px-3 py-2 text-xs outline-none bg-white" 
+                      style={{ borderColor: PASTEL.red.line, color: C.text }} 
+                    />
+                  )}
+                </div>
 
                 <div>
                   <div className="mb-1.5 flex items-center justify-between">
