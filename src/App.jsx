@@ -1173,7 +1173,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
   const weekCells = Array.from({ length: 7 }, (_, i) => addDays(startOfWeek, i));
 
   const NAV = user 
-    ? [["book", "예약", CalendarDays], ["mine", "내 예약", List], ["mypage", "마이페이지", User]]
+    ? [["book", "예약", CalendarDays], ["mine", "내 예약", List]]
     : [["book", "예약", CalendarDays]];
 
   const renderMobileDashboard = (isDesktopSplit = false) => {
@@ -1195,7 +1195,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     return (
       <div className={`${isDesktopSplit ? "hidden md:flex h-full overflow-y-auto no-scrollbar" : "flex md:hidden"} flex-col flex-1 w-full pt-2 ${isDesktopSplit ? "pb-0" : "pb-20"} relative`}>
         {/* Mobile Header / Desktop Timeline Header */}
-        <div className="flex items-center justify-between mb-4 px-1">
+        <div className="flex items-center justify-between mb-4 px-1 md:px-0">
           <div>
             <div className="text-xl font-bold">{anchor.getMonth() + 1}월 {anchor.getDate()}일 {WEEK[anchor.getDay()]}요일</div>
             <div className="text-xs mt-1" style={{ color: C.faint }}>오늘 예약 {currentRoomRes.length}건</div>
@@ -1206,7 +1206,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         </div>
 
         {/* Date Picker */}
-        <div className="flex gap-3 overflow-x-auto sc mb-4 pb-2 -mx-4 px-4">
+        <div className="flex gap-3 overflow-x-auto sc mb-4 pb-2 -mx-4 px-4 md:mx-0 md:px-0">
           {Array.from({length: 31}, (_, i) => addDays(today, i - 15)).map((d, i) => {
             const dk = keyOf(d);
             const isSel = dk === selKey;
@@ -1230,7 +1230,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         </div>
         
         {/* Room Selection */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4 -mx-4 px-4 pb-1">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4 -mx-4 px-4 pb-1 md:mx-0 md:px-0">
           {ROOMS.map(r => (
             <button key={r.id} onClick={() => setRoomId(r.id)} className="shrink-0 px-4 py-1.5 rounded-full text-[13px] font-semibold border" style={roomId === r.id ? { background: C.ink, color: "var(--bg)", borderColor: C.ink } : { borderColor: C.border, color: C.muted }}>
               {r.name}
