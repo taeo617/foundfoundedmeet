@@ -27,7 +27,10 @@ async function checkUsers() {
     console.log(`- ID field: ${data.id}`);
     console.log(`- WebPushSubscription:`, data.webPushSubscription ? 'PRESENT' : 'MISSING');
     if (data.webPushSubscription) {
-      console.log(`  Endpoint: ${data.webPushSubscription.endpoint}`);
+      console.log(`  Old Endpoint: ${data.webPushSubscription.endpoint}`);
+    }
+    if (data.webPushSubscriptions) {
+      console.log(`  New Array count: ${data.webPushSubscriptions.length}`);
     }
   });
 }
