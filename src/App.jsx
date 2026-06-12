@@ -463,7 +463,7 @@ export default function App() {
     const nowM = now.getHours() * 60 + now.getMinutes();
 
     reservations.forEach(async (r) => {
-      if (r.date !== todayKey) return;
+      if (r.date !== todayKey || !r.start || !r.end) return;
       const endM = toMin(r.end);
       const startM = toMin(r.start);
       if (nowM < startM || nowM >= endM) return; // Only process active meetings
