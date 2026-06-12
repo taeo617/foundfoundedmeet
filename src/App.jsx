@@ -78,6 +78,19 @@ const nid = () => `r_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
 
 const VAPID_PUBLIC_KEY = "BHcev4VX3785teMaRQaNp7ahP5w1TxBt2kUoOwnJaaGEXOXz3nTAj54oSVSh4rHg92bq5uASXttZyDyzUF3R8E4";
 
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding)
+    .replace(/\-/g, '+')
+    .replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 async function subscribeToWebPush(userId) {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
   try {
@@ -86,7 +99,7 @@ async function subscribeToWebPush(userId) {
     if (permission === 'granted') {
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: VAPID_PUBLIC_KEY
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
       });
       // Save subscription to user document in Firestore
       if (isFirebaseConfigured) {
