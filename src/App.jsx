@@ -94,7 +94,11 @@ function urlBase64ToUint8Array(base64String) {
 async function subscribeToWebPush(userId) {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
   try {
-    const registration = await navigator.serviceWorker.register('/service-worker.js');
+    await navigator.serviceWorker.register('/service-worker.js');
+    
+    // Wait until the service worker is active and ready
+    const registration = await navigator.serviceWorker.ready;
+    
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
       const subscription = await registration.pushManager.subscribe({
