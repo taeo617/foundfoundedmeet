@@ -223,6 +223,10 @@ function LoginModal({ message, onClose, onLogin }) {
   const submit = () => { 
     const trimmedName = name.trim();
     if (!trimmedName) return setErr("이름을 입력해주세요."); 
+    if (trimmedName.toLowerCase() === "admin") {
+      if (pw !== "3913") return setErr("비밀번호가 올바르지 않아요.");
+      return onLogin("admin");
+    }
     const memberExists = MEMBERS.some((m) => m.name === trimmedName);
     if (!memberExists) return setErr("등록되지 않은 멤버 이름입니다. 등록된 이름으로 로그인해 주세요.");
     if (pw !== "3377") return setErr("비밀번호가 올바르지 않아요."); 
@@ -785,12 +789,15 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
   const isMine = (r) => !!user && r.owner === user;
   const canEdit = (r) => {
     if (!user) return false;
+    if (user === "admin") return true;
     if (r.owner === user) return true;
     const meId = MEMBERS.find((m) => m.name === user)?.id;
     return !!(meId && r.attendees && r.attendees.includes(meId));
   };
   const canDelete = (r) => {
-    return !!user && r.owner === user;
+    if (!user) return false;
+    if (user === "admin") return true;
+    return r.owner === user;
   };
   function showToast(m) { setToast(m); setTimeout(() => setToast(null), 2600); }
 
