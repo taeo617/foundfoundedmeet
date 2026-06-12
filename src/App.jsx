@@ -813,17 +813,21 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     if (!user) return [];
     const meId = MEMBERS.find((m) => m.name === user)?.id;
     return reservations.filter((r) => {
-      return meId && r.attendees && r.attendees.includes(meId) && r.date === mineDate;
+      const isMine = r.owner === user || (meId && r.attendees && r.attendees.includes(meId));
+      const hasEnded = r.date < keyOf(now) || (r.date === keyOf(now) && toMin(r.end) <= nowMin);
+      return isMine && !hasEnded && r.date === mineDate;
     }).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
-  }, [reservations, user, mineDate]);
+  }, [reservations, user, mineDate, now, nowMin]);
 
   const myResAll = useMemo(() => {
     if (!user) return [];
     const meId = MEMBERS.find((m) => m.name === user)?.id;
     return reservations.filter((r) => {
-      return meId && r.attendees && r.attendees.includes(meId);
+      const isMine = r.owner === user || (meId && r.attendees && r.attendees.includes(meId));
+      const hasEnded = r.date < keyOf(now) || (r.date === keyOf(now) && toMin(r.end) <= nowMin);
+      return isMine && !hasEnded;
     }).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
-  }, [reservations, user]);
+  }, [reservations, user, now, nowMin]);
 
   const byDate = useMemo(() => { const m = {}; reservations.forEach((r) => { (m[r.date] ||= []).push(r); }); return m; }, [reservations]);
 
