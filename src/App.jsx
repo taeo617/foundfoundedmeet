@@ -75,6 +75,41 @@ const sameDay = (a, b) => keyOf(a) === keyOf(b);
 const TIMES = Array.from({ length: SLOTS + 1 }, (_, i) => toHHMM(DAY_START + i * STEP));
 const nid = () => `r_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
 
+
+const VAPID_PUBLIC_KEY = "BHcev4VX3785teMaRQaNp7ahP5w1TxBt2kUoOwnJaaGEXOXz3nTAj54oSVSh4rHg92bq5uASXttZyDyzUF3R8E4";
+
+async function subscribeToWebPush(userId) {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const registration = await navigator.serviceWorker.register('/service-worker.js');
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: VAPID_PUBLIC_KEY
+      });
+      // Save subscription to user document in Firestore
+      if (isFirebaseConfigured) {
+        await setDoc(doc(db, "users", userId), { id: userId, webPushSubscription: JSON.parse(JSON.stringify(subscription)) }, { merge: true });
+      }
+    }
+  } catch (err) {
+    console.error('Web Push subscription error:', err);
+  }
+}
+
+async function sendPushNotification(title, body, attendees) {
+  try {
+    await fetch('/api/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, body, url: '/', attendees })
+    });
+  } catch (err) {
+    console.error('Failed to send push notification:', err);
+  }
+}
+
 /* ===================== shared atoms ===================== */
 function TeamTag({ team }) {
   const id = team === "ID";
@@ -478,7 +513,39 @@ export default function App() {
   const [authOpen, setAuthOpen] = useState(false);
   const [authMsg, setAuthMsg] = useState("");
   const [authPending, setAuthPending] = useState(null);
-  const [dayEventsDate, setDayEventsDate] = useState(null);
+  
+  // PWA & iOS install banner
+  const [showIosBanner, setShowIosBanner] = useState(false);
+  useEffect(() => {
+    const isIos = () => {
+      const userAgent = window.navigator.userAgent.toLowerCase();
+      return /iphone|ipad|ipod/.test(userAgent);
+    };
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    if (isIos() && !isStandalone) {
+      setShowIosBanner(true);
+    }
+  }, []);
+
+const [dayEventsDate, setDayEventsDate] = useState(null);
+
+  useEffect(() => {
+    const handleMessage = async (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'EXPO_PUSH_TOKEN' && isFirebaseConfigured) {
+          const u = localStorage.getItem("last_user"); // Need to save last_user on login
+          const meId = MEMBERS.find((m) => m.name === u)?.id;
+          if (meId) {
+             await setDoc(doc(db, "users", meId), { id: meId, expoPushToken: data.token }, { merge: true });
+          }
+        }
+      } catch (e) {}
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -634,7 +701,15 @@ export default function App() {
   function showToast(m) { setToast(m); setTimeout(() => setToast(null), 2600); }
 
   function requireAuth(fn, msg) { if (user) return fn(); setAuthMsg(msg || "계속하려면 로그인이 필요해요."); setAuthPending(() => fn); setAuthOpen(true); }
-  function doLogin(name) { setReservations((p) => p.map((r) => (r.owner === "나" ? { ...r, owner: name } : r))); setUser(name); setAuthOpen(false); }
+    function doLogin(name) { 
+    setReservations((p) => p.map((r) => (r.owner === "나" ? { ...r, owner: name } : r))); 
+    setUser(name); localStorage.setItem("last_user", name); 
+    setAuthOpen(false); 
+    const meId = MEMBERS.find((m) => m.name === name)?.id;
+    if (meId) {
+      subscribeToWebPush(meId);
+    }
+  }
   useEffect(() => { if (user && authPending) { const p = authPending; setAuthPending(null); p(); } }, [user]); // eslint-disable-line
 
   const myRes = useMemo(() => {
@@ -671,33 +746,67 @@ export default function App() {
     return reservations.some((r) => r.roomId === rid && r.date === date && r.id !== ignore && !(b <= toMin(r.start) || a >= toMin(r.end)));
   }
   const defStart = () => Math.min(Math.max(isToday ? Math.ceil(nowMin / STEP) * STEP : 10 * 60, DAY_START), DAY_END - 60);
-  function openCreate(rid, startMin, date) { setErrs({}); const me = getMeId(); setForm({ id: null, roomId: rid, title: "", date: date || selKey, start: toHHMM(startMin), end: toHHMM(Math.min(startMin + 60, DAY_END)), attendees: me ? [me] : [], repeat: false, color: "yellow" }); }
+  function openCreate(rid, startMin, date) { setErrs({}); const me = getMeId(); setForm({ id: null, roomId: rid, title: "", date: date || selKey, start: toHHMM(startMin), end: toHHMM(Math.min(startMin + 60, DAY_END)), attendees: me ? [me] : [], repeat: false, color: "yellow", isUrgent: false, comments: [] }); }
   const tryCreate = (rid, sm, date) => requireAuth(() => openCreate(rid, sm, date), "일정을 추가하려면 로그인이 필요해요.");
   const openEdit = (r) => { setErrs({}); setForm({ ...r, attendees: [...r.attendees] }); };
 
-  async function saveForm() {
+    async function saveForm() {
     if (isSubmitting) return;
     const f = form; const e = {};
     if (!f.title.trim()) e.title = "회의 제목을 입력해주세요.";
     if (toMin(f.end) <= toMin(f.start)) e.time = "종료 시간은 시작 시간보다 늦어야 해요.";
-    else if (overlaps(f.roomId, f.date, f.start, f.end, f.id)) e.time = "선택한 시간에 이미 다른 예약이 있어요.";
     if (f.attendees.length === 0) e.att = "참석자를 1명 이상 선택해주세요.";
     if (f.attendees.length > ROOMS.find((r) => r.id === f.roomId).capacity) e.att = "참석 인원이 회의실 정원을 초과했어요.";
     setErrs(e);
     if (Object.keys(e).length) return;
 
-    // Check for conflicting attendees
     const startM = toMin(f.start);
     const endM = toMin(f.end);
+    let pushedReservations = [];
+
+    // Check for room overlaps
+    const roomOverlaps = reservations.filter((r) => r.roomId === f.roomId && r.date === f.date && r.id !== f.id && !(endM <= toMin(r.start) || startM >= toMin(r.end)));
+    
+    if (roomOverlaps.length > 0) {
+      if (!f.isUrgent) {
+        setErrs({ ...e, time: "선택한 시간에 이미 다른 예약이 있어요. (긴급 회의로 설정하면 기존 예약을 미룰 수 있습니다)" });
+        return;
+      } else {
+        // Pushing existing normal meetings
+        const hasUrgentOverlap = roomOverlaps.some(r => r.isUrgent);
+        if (hasUrgentOverlap) {
+          setErrs({ ...e, time: "선택한 시간에 이미 다른 긴급 회의가 있어서 밀어낼 수 없습니다." });
+          return;
+        }
+        
+        // Push logic: move them right after this meeting
+        let currentPushTime = endM;
+        const sortedOverlaps = roomOverlaps.sort((a, b) => toMin(a.start) - toMin(b.start));
+        
+        for (const overlap of sortedOverlaps) {
+          const duration = toMin(overlap.end) - toMin(overlap.start);
+          const pushedStart = currentPushTime;
+          const pushedEnd = pushedStart + duration;
+          
+          if (pushedEnd > DAY_END) {
+             setErrs({ ...e, time: "기존 예약을 밀어내면 운영 시간(22:00)을 초과하게 됩니다." });
+             return;
+          }
+          
+          pushedReservations.push({
+            ...overlap,
+            start: toHHMM(pushedStart),
+            end: toHHMM(pushedEnd)
+          });
+          currentPushTime = pushedEnd;
+        }
+      }
+    }
+
     const conflicts = [];
     reservations.forEach((r) => {
-      // Ignore current reservation itself (when editing), and only check same date
       if (r.id !== f.id && r.date === f.date) {
-        const rStart = toMin(r.start);
-        const rEnd = toMin(r.end);
-        // Check if times overlap
-        if (!(endM <= rStart || startM >= rEnd)) {
-          // Check if any of the target attendees are in this conflicting reservation
+        if (!(endM <= toMin(r.start) || startM >= toMin(r.end))) {
           f.attendees.forEach((attId) => {
             if (r.attendees && r.attendees.includes(attId)) {
               const mName = MEMBERS.find((m) => m.id === attId)?.name || attId;
@@ -710,46 +819,60 @@ export default function App() {
     });
 
     if (conflicts.length > 0) {
-      alert(`선택하신 참석자 중 해당 시간에 이미 다른 회의가 예약되어 있는 멤버가 있습니다:\n\n${conflicts.join("\n")}\n\n시간을 변경하거나 참석자 조정을 해주세요.`);
+      alert(`선택하신 참석자 중 해당 시간에 이미 다른 회의가 예약되어 있는 멤버가 있습니다:
+
+${conflicts.join("
+")}
+
+시간을 변경하거나 참석자 조정을 해주세요.`);
       return;
     }
     
     setIsSubmitting(true);
-    if (isFirebaseConfigured) {
-      try {
-        if (f.id) { 
-          await updateDoc(doc(db, "reservations", f.id), { ...f, title: f.title.trim() });
-          showToast("예약을 수정했어요."); 
-        } else { 
-          const newId = nid();
-          await setDoc(doc(db, "reservations", newId), { ...f, id: newId, title: f.title.trim(), owner: user });
-          showToast("예약이 완료됐어요."); 
+    try {
+      const isEdit = !!f.id;
+      const docId = f.id || nid();
+      const finalForm = { ...f, id: docId, title: f.title.trim(), owner: f.owner || user };
+      
+      if (isFirebaseConfigured) {
+        await setDoc(doc(db, "reservations", docId), finalForm);
+        for (const pushed of pushedReservations) {
+          await updateDoc(doc(db, "reservations", pushed.id), { start: pushed.start, end: pushed.end });
         }
-        setForm(null);
-      } catch (err) {
-        console.error(err);
-        showToast("오류가 발생했습니다.");
-      } finally {
-        setIsSubmitting(false);
+      } else {
+        setReservations((prev) => {
+          let updated = [...prev];
+          if (isEdit) {
+            updated = updated.map(r => r.id === docId ? finalForm : r);
+          } else {
+            updated.push(finalForm);
+          }
+          pushedReservations.forEach(pushed => {
+            updated = updated.map(r => r.id === pushed.id ? pushed : r);
+          });
+          return updated;
+        });
       }
-    } else {
-      try {
-        if (f.id) {
-          setReservations((prev) => prev.map((r) => r.id === f.id ? { ...f, title: f.title.trim() } : r));
-          showToast("예약을 수정했어요.");
-        } else {
-          const newId = nid();
-          const newRes = { ...f, id: newId, title: f.title.trim(), owner: user };
-          setReservations((prev) => [...prev, newRes]);
-          showToast("예약이 완료됐어요.");
-        }
-        setForm(null);
-      } catch (err) {
-        console.error(err);
-        showToast("오류가 발생했습니다.");
-      } finally {
-        setIsSubmitting(false);
+      
+      showToast(isEdit ? "예약을 수정했어요." : "예약이 완료됐어요.");
+      
+      // Push Notifications
+      if (!isEdit) {
+         sendPushNotification('📅 새 회의가 등록됐어요', `[${ROOMS.find(r=>r.id===f.roomId)?.name}] ${f.date} ${f.start}~${f.end}`, f.attendees);
+      } else {
+         sendPushNotification('✏️ 회의 일정이 변경됐어요', `[${ROOMS.find(r=>r.id===f.roomId)?.name}] 일정이 바뀌었어요. 확인해주세요.`, f.attendees);
       }
+      
+      pushedReservations.forEach(pushed => {
+         sendPushNotification('✏️ 긴급 회의로 일정이 밀렸어요', `[${ROOMS.find(r=>r.id===pushed.roomId)?.name}] 일정이 ${pushed.start}로 밀렸어요.`, pushed.attendees);
+      });
+
+      setForm(null);
+    } catch (err) {
+      console.error(err);
+      showToast("오류가 발생했습니다.");
+    } finally {
+      setIsSubmitting(false);
     }
   }
   function cancelRes(id) { 
@@ -807,7 +930,7 @@ export default function App() {
     }, "회의를 완료하려면 로그인이 필요해요.");
   }
 
-  function extendRes(r, mins) {
+    function extendRes(r, mins) {
     requireAuth(() => {
       const endM = toMin(r.end);
       const newEndM = endM + mins;
@@ -815,14 +938,24 @@ export default function App() {
         showToast("운영 시간이 초과되어 연장할 수 없어요.");
         return;
       }
-      if (overlaps(r.roomId, r.date, toHHMM(endM), toHHMM(newEndM), r.id)) {
-        showToast("다음 예약과 겹쳐 연장할 수 없어요.");
-        return;
+      
+      const isOverlap = overlaps(r.roomId, r.date, toHHMM(endM), toHHMM(newEndM), r.id);
+      if (isOverlap) {
+         if(!window.confirm("⚠️ 이후 예약이 있습니다. 그래도 강제로 연장하시겠습니까? (다음 예약자에게 알림이 전송됩니다)")) {
+            return;
+         }
       }
       
       if (isFirebaseConfigured) {
         updateDoc(doc(db, "reservations", r.id), { end: toHHMM(newEndM) }).then(() => {
           showToast(`회의를 ${mins}분 연장했어요.`);
+          if(isOverlap) {
+             // Find overlapping meeting attendees
+             const overlapsNext = reservations.filter(x => x.roomId === r.roomId && x.date === r.date && x.id !== r.id && !(toMin(x.end) <= endM || toMin(x.start) >= newEndM));
+             overlapsNext.forEach(ov => {
+               sendPushNotification('✏️ 회의 일정이 변경됐어요', `[${ROOMS.find(rm=>rm.id===ov.roomId)?.name}] 이전 회의 연장으로 인해 일정이 겹쳤습니다. 확인해주세요.`, ov.attendees);
+             });
+          }
         }).catch(err => {
           console.error(err);
           showToast("오류가 발생했습니다.");
@@ -858,7 +991,7 @@ export default function App() {
           return <div key={i} className="slot absolute left-0 right-0 border-t" style={{ top: i * PX, height: PX, borderColor: isHour ? "var(--border-calendar)" : isHalf ? "var(--border-calendar-half)" : "rgba(234, 233, 226, 0.25)" }} onClick={() => tryCreate(rid, sm)} />;
         })}
         {list.map((r) => {
-          const top = ((toMin(r.start) - DAY_START) / STEP) * PX, h = ((toMin(r.end) - toMin(r.start)) / STEP) * PX, p = pal(r.color), mine = isMine(r);
+                    const top = ((toMin(r.start) - DAY_START) / STEP) * PX, h = ((toMin(r.end) - toMin(r.start)) / STEP) * PX, p = r.isUrgent ? pal('red') : pal('green'), mine = isMine(r);
           return (
             <div key={r.id} className="blk absolute overflow-hidden rounded-lg border px-2.5 py-1.5" style={{ top: top + 2, height: h - 4, left: 5, right: 5, background: p.bg, borderColor: p.line, color: p.text }} onClick={() => onBlockClick(r)}>
               <div className="flex items-center gap-1.5"><span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.dot }} /><span className="truncate text-[13px] font-medium">{r.title}</span>{r.repeat && <Repeat size={11} />}{mine && <span className="ml-auto rounded px-1 text-[10px] font-medium" style={{ background: "rgba(255,255,255,.7)", color: p.text }}>내 예약</span>}</div>
@@ -879,7 +1012,7 @@ export default function App() {
   const startOfWeek = addDays(anchor, -anchor.getDay());
   const weekCells = Array.from({ length: 7 }, (_, i) => addDays(startOfWeek, i));
 
-  const NAV = [["book", "예약", CalendarDays], ["mine", "내 예약", List]];
+  const NAV = [["book", "예약", CalendarDays], ["mine", "내 예약", List], ["install", "앱 설치", Download]];
 
   return (
     <div style={{ background: C.bg, color: C.text, minHeight: "100vh" }} className="w-full flex flex-col">
@@ -942,6 +1075,16 @@ export default function App() {
           opacity: 0.3 !important;
         }
       `}</style>
+
+      
+      {showIosBanner && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 flex justify-between items-center z-50 shadow-[0_-4px_12px_rgba(0,0,0,0.1)]">
+          <div className="text-sm">
+            <b>iOS 앱으로 설치</b><br/><span className="text-xs text-gray-500">Safari 공유 버튼 ➔ '홈 화면에 추가'</span>
+          </div>
+          <button onClick={() => setShowIosBanner(false)} className="text-gray-400 p-2"><X size={18}/></button>
+        </div>
+      )}
 
       {/* ===== Header ===== */}
       <header className="sticky top-0 z-30 border-b" style={{ background: "var(--bg-header)", borderColor: C.border, backdropFilter: "blur(10px)" }}>
@@ -1025,7 +1168,7 @@ export default function App() {
                         </div>
                         {/* desktop: chips */}
                         <div className="mt-1 hidden space-y-1 sm:block flex-1" style={{ minHeight: 54 }}>
-                          {list.slice(0, view === "week" ? 10 : 3).map((r) => { const p = pal(r.color); return (
+                                                    {list.slice(0, view === "week" ? 10 : 3).map((r) => { const p = r.isUrgent ? pal('red') : pal('green'); return (
                             <div key={r.id} onClick={(e) => { e.stopPropagation(); onBlockClick(r); }} className="flex items-center gap-1 truncate rounded-lg px-1.5 py-0.5 text-[11px] font-medium" style={{ background: p.bg, color: p.text }}>
                               <span className="h-1.5 w-1.5 shrink-0 rounded-lg" style={{ background: p.dot }} /><span className="truncate">{r.start} {r.title}</span>
                             </div>
@@ -1059,6 +1202,32 @@ export default function App() {
               </>
             )}
           </>
+        )}
+
+        
+        {section === "install" && (
+          <section className="rise rounded-lg border bg-white p-6 sm:p-10 text-center" style={{ borderColor: C.border, boxShadow: "0 1px 2px rgba(0,0,0,.04)" }}>
+            <h2 className="text-2xl font-bold mb-4">앱 다운로드 및 설치 안내</h2>
+            <p className="mb-6 text-gray-600">회의실 예약 서비스를 더 편리하게 이용하세요.</p>
+            
+            <div className="grid md:grid-cols-2 gap-8 text-left">
+              <div className="border p-5 rounded-xl bg-gray-50">
+                <h3 className="text-lg font-bold mb-3">📱 Android 사용자</h3>
+                <p className="text-sm mb-4">아래 버튼을 눌러 APK 파일을 다운로드하고 설치해주세요. 설치 시 <b>"출처를 알 수 없는 앱 허용"</b>이 필요할 수 있습니다.</p>
+                <a href="/foundfoundedmeet.apk" className="block text-center bg-black text-white font-bold py-3 rounded-lg shadow-md hover:bg-gray-800 transition">Android APK 다운로드</a>
+              </div>
+              
+              <div className="border p-5 rounded-xl bg-gray-50">
+                <h3 className="text-lg font-bold mb-3">🍎 iOS (iPhone) 사용자</h3>
+                <p className="text-sm mb-2">iOS는 홈 화면에 추가하여 앱처럼 사용할 수 있습니다.</p>
+                <ol className="list-decimal list-inside text-sm text-gray-700 space-y-1">
+                  <li><b>Safari</b> 브라우저로 접속합니다.</li>
+                  <li>하단의 <b>공유</b> 버튼(네모 안의 위쪽 화살표)을 누릅니다.</li>
+                  <li>메뉴에서 <b>"홈 화면에 추가"</b>를 선택합니다.</li>
+                </ol>
+              </div>
+            </div>
+          </section>
         )}
 
         {section === "mine" && (
@@ -1096,7 +1265,7 @@ export default function App() {
               </div>
             ) : (
               <div className="grid gap-3">
-                {myRes.map((r) => { const p = pal(r.color), rm = ROOMS.find((x) => x.id === r.roomId), [y, mo, da] = r.date.split("-").map(Number), d = new Date(y, mo - 1, da); return (
+                {myRes.map((r) => { const p = r.isUrgent ? pal('red') : pal('green'), rm = ROOMS.find((x) => x.id === r.roomId), [y, mo, da] = r.date.split("-").map(Number), d = new Date(y, mo - 1, da); return (
                   <div key={r.id} className="lift flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 rounded-lg border bg-white p-3.5 sm:p-4" style={{ borderColor: C.border }}>
                     <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
                       <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg" style={{ background: p.bg, color: p.text }}><span className="text-lg font-medium">{da}</span></div>
