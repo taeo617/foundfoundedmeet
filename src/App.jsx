@@ -59,7 +59,7 @@ const M = (id) => MEMBERS.find((x) => x.id === id);
 const memLabel = (id) => { const m = M(id); return m ? `${m.team} ${m.name}님` : id; };
 
 /* timeline geometry */
-const DAY_START = 9 * 60, DAY_END = 22 * 60, STEP = 10, PX = 30;
+const DAY_START = 9 * 60, DAY_END = 22 * 60, STEP = 5, PX = 15;
 const SLOTS = (DAY_END - DAY_START) / STEP, GUTTER = 48;
 
 /* helpers */
@@ -863,7 +863,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     if (isSubmitting) return;
     const f = form; const e = {};
     if (!f.title.trim()) e.title = "회의 제목을 입력해주세요.";
-    if (toMin(f.end) <= toMin(f.start)) e.time = "종료 시간은 시작 시간보다 늦어야 해요.";
+    if (!f.start || !f.end) e.time = "시간을 정확히 입력해주세요.";
+    else if (toMin(f.end) <= toMin(f.start)) e.time = "종료 시간은 시작 시간보다 늦어야 해요.";
+    else if (toMin(f.start) < DAY_START || toMin(f.end) > DAY_END) e.time = `운영 시간(${toHHMM(DAY_START)} ~ ${toHHMM(DAY_END)}) 내로 설정해주세요.`;
     if (f.attendees.length === 0) e.att = "참석자를 1명 이상 선택해주세요.";
     if (f.attendees.length > ROOMS.find((r) => r.id === f.roomId).capacity) e.att = "참석 인원이 회의실 정원을 초과했어요.";
     setErrs(e);
@@ -1485,27 +1487,37 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 </Field>
                 <Field label="시간" error={errs.time}>
                   <div className="grid grid-cols-2 gap-3">
-                    <SelectBox
-                      value={form.start}
-                      onChange={(v) => {
+                    <input 
+                      type="time" 
+                      step="300"
+                      value={form.start} 
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (!v) return;
+                        const sMin = toMin(v);
+                        const currE = toMin(form.end);
                         setForm({
                           ...form,
                           start: v,
-                          end: toMin(form.end) <= toMin(v) ? toHHMM(Math.min(toMin(v) + 60, DAY_END)) : form.end
+                          end: currE <= sMin ? toHHMM(Math.min(sMin + 60, DAY_END)) : form.end
                         });
                         setErrs((x) => ({ ...x, time: undefined }));
                       }}
-                      options={TIMES.slice(0, -1).map(t => [t, t])}
-                      error={errs.time}
+                      className="inp w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none" 
+                      style={{ borderColor: errs.time ? "#C0392B" : C.border, background: "var(--bg-select)" }} 
                     />
-                    <SelectBox
-                      value={form.end}
-                      onChange={(v) => {
+                    <input 
+                      type="time" 
+                      step="300"
+                      value={form.end} 
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (!v) return;
                         setForm({ ...form, end: v });
                         setErrs((x) => ({ ...x, time: undefined }));
                       }}
-                      options={TIMES.filter(t => toMin(t) > toMin(form.start)).map(t => [t, t])}
-                      error={errs.time}
+                      className="inp w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none" 
+                      style={{ borderColor: errs.time ? "#C0392B" : C.border, background: "var(--bg-select)" }} 
                     />
                   </div>
                 </Field>
