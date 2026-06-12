@@ -440,77 +440,26 @@ function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations }) {
 
 /* ===================== splash screen ===================== */
 function SplashScreen({ onComplete }) {
-  const [isVideoLoaded, setIsVideoLoaded] = useState(false);
-  const [useFallback, setUseFallback] = useState(false);
   const [fade, setFade] = useState(false);
-  const videoRef = useRef(null);
 
-  // If video doesn't load in 3.5s, fall back to logo animation
   useEffect(() => {
+    // 1.5배 빠른 애니메이션 속도에 맞춰 대기 시간을 단축 (1300ms)
     const timer = setTimeout(() => {
-      if (!isVideoLoaded) {
-        setUseFallback(true);
-      }
-    }, 3500);
+      setFade(true);
+      setTimeout(() => {
+        onComplete();
+      }, 500); // CSS opacity transition duration
+    }, 1300);
     return () => clearTimeout(timer);
-  }, [isVideoLoaded]);
-
-  // If fallback is active, show for 2 seconds then fade out
-  useEffect(() => {
-    if (useFallback) {
-      const timer = setTimeout(() => {
-        handleComplete();
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [useFallback]);
-
-  const handleComplete = () => {
-    setFade(true);
-    setTimeout(() => {
-      onComplete();
-    }, 800); // matches CSS opacity transition duration
-  };
-
-  const handleCanPlay = () => {
-    if (videoRef.current) {
-      videoRef.current.play().then(() => {
-        setIsVideoLoaded(true);
-      }).catch(err => {
-        console.warn("Video playback blocked/failed, using fallback:", err);
-        setUseFallback(true);
-      });
-    }
-  };
-
-  const handleError = () => {
-    console.warn("Video load error, falling back to CSS animation.");
-    setUseFallback(true);
-  };
+  }, [onComplete]);
 
   return (
     <div className={`splash-container ${fade ? "fade-out" : ""}`}>
-      {!useFallback ? (
-        <div className="splash-video-wrapper">
-          <video
-            ref={videoRef}
-            src="/splash.mp4"
-            className="splash-video"
-            autoPlay
-            muted
-            playsInline
-            onCanPlay={handleCanPlay}
-            onEnded={handleComplete}
-            onError={handleError}
-          />
+      <div className="splash-fallback">
+        <div className="splash-logo-container">
+          <span className="splash-char w600 del-1">f</span><span className="splash-char w600 del-2">o</span><span className="splash-char w600 del-3">u</span><span className="splash-char w600 del-4">n</span><span className="splash-char w600 del-5">d</span><span className="splash-char w600 del-6">/</span><span className="splash-char w800 del-7">F</span><span className="splash-char w800 del-8">o</span><span className="splash-char w800 del-9">u</span><span className="splash-char w800 del-10">n</span><span className="splash-char w800 del-11">d</span><span className="splash-char w800 del-12">e</span><span className="splash-char w800 del-13">d</span>
         </div>
-      ) : (
-        <div className="splash-fallback">
-          <div className="splash-logo-container">
-            <span className="splash-char w600 del-1">f</span><span className="splash-char w600 del-2">o</span><span className="splash-char w600 del-3">u</span><span className="splash-char w600 del-4">n</span><span className="splash-char w600 del-5">d</span><span className="splash-char w600 del-6">/</span><span className="splash-char w800 del-7">F</span><span className="splash-char w800 del-8">o</span><span className="splash-char w800 del-9">u</span><span className="splash-char w800 del-10">n</span><span className="splash-char w800 del-11">d</span><span className="splash-char w800 del-12">e</span><span className="splash-char w800 del-13">d</span>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
