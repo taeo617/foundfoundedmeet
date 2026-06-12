@@ -1722,7 +1722,12 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             </div>
             
             {/* 🚨 긴급 사용 요청 */}
-            {user && detail.owner !== user && (
+            {user && detail.owner !== user && (() => {
+              const [y, mo, da] = detail.date.split("-").map(Number);
+              const d = new Date(y, mo - 1, da);
+              const isEnded = d < dayOnly(now) || (sameDay(d, now) && toMin(detail.end) <= nowMin);
+              return !isEnded;
+            })() && (
               <div className="mt-4 border-t pt-4" style={{ borderColor: C.border }}>
                 {!requestUrgentOpen ? (
                   <button onClick={() => setRequestUrgentOpen(true)} className="lift flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-500 bg-red-50 py-2.5 text-[13px] font-bold text-red-600">
