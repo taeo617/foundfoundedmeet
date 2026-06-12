@@ -146,9 +146,9 @@ function StatusPill({ kind, text }) {
 }
 function Wordmark({ size = 18 }) {
   return (
-    <span className="font-sans" style={{ fontSize: size, color: C.ink, lineHeight: 1, letterSpacing: "-0.01em", display: "inline-flex", alignItems: "center", fontWeight: "normal" }}>
-      <span style={{ fontWeight: 500, color: C.text }}>found</span>
-      <span style={{ fontWeight: 500, color: C.text, opacity: 0.8 }}>/</span>
+    <span style={{ fontFamily: '"Pretendard Variable", sans-serif', fontSize: size, color: C.ink, lineHeight: 1, letterSpacing: "-0.02em", display: "inline-flex", alignItems: "center", fontWeight: "normal" }}>
+      <span style={{ fontWeight: 600, color: C.text }}>found</span>
+      <span style={{ fontWeight: 600, color: C.text, opacity: 0.8 }}>/</span>
       <span style={{ fontWeight: 800 }}>Founded</span>
     </span>
   );
@@ -507,7 +507,7 @@ function SplashScreen({ onComplete }) {
       ) : (
         <div className="splash-fallback">
           <div className="splash-logo-container">
-            <span className="splash-char w500 del-1">f</span><span className="splash-char w500 del-2">o</span><span className="splash-char w500 del-3">u</span><span className="splash-char w500 del-4">n</span><span className="splash-char w500 del-5">d</span><span className="splash-char w500 del-6">/</span><span className="splash-char w800 del-7">F</span><span className="splash-char w800 del-8">o</span><span className="splash-char w800 del-9">u</span><span className="splash-char w800 del-10">n</span><span className="splash-char w800 del-11">d</span><span className="splash-char w800 del-12">e</span><span className="splash-char w800 del-13">d</span>
+            <span className="splash-char w600 del-1">f</span><span className="splash-char w600 del-2">o</span><span className="splash-char w600 del-3">u</span><span className="splash-char w600 del-4">n</span><span className="splash-char w600 del-5">d</span><span className="splash-char w600 del-6">/</span><span className="splash-char w800 del-7">F</span><span className="splash-char w800 del-8">o</span><span className="splash-char w800 del-9">u</span><span className="splash-char w800 del-10">n</span><span className="splash-char w800 del-11">d</span><span className="splash-char w800 del-12">e</span><span className="splash-char w800 del-13">d</span>
           </div>
         </div>
       )}
