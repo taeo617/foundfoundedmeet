@@ -5,7 +5,7 @@ import {
   Calendar, CalendarDays, Clock, Users, Monitor, Video, Plus, X, Check,
   CheckCircle2, Repeat, AlertCircle, ChevronLeft, ChevronRight, Trash2,
   Building2, List, LogOut, Lock, User, UserPlus, GripVertical, LogIn,
-  LayoutDashboard, HelpCircle, Sun, Moon, Download, FileText,
+  LayoutDashboard, HelpCircle, Sun, Moon, Download, FileText, Bell,
 } from "lucide-react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
@@ -496,7 +496,12 @@ export default function App() {
 
 
 
-  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "light");
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem("theme");
+    if (saved) return saved;
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) return "dark";
+    return "light";
+  });
   useEffect(() => {
     if (theme === "dark") {
       document.documentElement.classList.add("dark");
@@ -1153,7 +1158,169 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
   const startOfWeek = addDays(anchor, -anchor.getDay());
   const weekCells = Array.from({ length: 7 }, (_, i) => addDays(startOfWeek, i));
 
-  const NAV = [["book", "예약", CalendarDays], ["mine", "내 예약", List], ["install", "앱 설치", Download]];
+  const NAV = user 
+    ? [["book", "예약", CalendarDays], ["mine", "내 예약", List], ["mypage", "마이페이지", User]]
+    : [["book", "예약", CalendarDays], ["install", "앱 설치", Download]];
+
+  const renderMobileDashboard = () => {
+    const selKey = keyOf(anchor);
+    const mobDayList = reservations.filter(r => r.date === selKey).sort((a, b) => toMin(a.start) - toMin(b.start));
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const todayKey = keyOf(today);
+    
+    // Calculate Status Card for roomId
+    const isTodayAnchor = selKey === todayKey;
+    const currentRoomRes = reservations.filter(r => r.roomId === roomId && r.date === todayKey);
+    const mobCurrentMtg = currentRoomRes.find(r => {
+      const s = toMin(r.start);
+      const e = toMin(r.end);
+      return nowMin >= s && nowMin < e;
+    });
+    const mobNextMtg = currentRoomRes.filter(r => toMin(r.start) >= nowMin && (!mobCurrentMtg || r.id !== mobCurrentMtg.id)).sort((a,b)=>toMin(a.start)-toMin(b.start))[0];
+    
+    return (
+      <div className="flex md:hidden flex-col flex-1 w-full pt-2 pb-20 relative">
+        {/* Mobile Header */}
+        <div className="flex items-center justify-between mb-4 px-1">
+          <div>
+            <div className="text-xl font-bold">{anchor.getMonth() + 1}월 {anchor.getDate()}일 {WEEK[anchor.getDay()]}요일</div>
+            <div className="text-xs mt-1" style={{ color: C.faint }}>오늘 예약 {currentRoomRes.length}건</div>
+          </div>
+          <button className="h-10 w-10 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/10" onClick={() => showToast("알림이 없습니다.")}>
+            <Bell size={20} />
+          </button>
+        </div>
+
+        {/* Date Picker */}
+        <div className="flex gap-3 overflow-x-auto no-scrollbar mb-4 pb-2 -mx-4 px-4">
+          {weekCells.map((d, i) => {
+            const dk = keyOf(d);
+            const isSel = dk === selKey;
+            const isT = dk === todayKey;
+            const dRes = reservations.filter(r => r.date === dk);
+            const hasUrgent = dRes.some(r => r.isUrgent);
+            const hasNormal = dRes.length > 0 && !hasUrgent;
+            return (
+              <div key={i} onClick={() => setAnchor(d)} className="flex flex-col items-center shrink-0 w-10 cursor-pointer">
+                <span className="text-[10px] mb-1.5 font-medium" style={{ color: C.faint }}>{WEEK[d.getDay()]}</span>
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[14px] font-bold transition-colors ${isSel || isT ? (theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white') : ''}`} style={!(isSel || isT) ? { color: C.text } : {}}>
+                  {d.getDate()}
+                </div>
+                <div className="h-1.5 mt-1.5 flex gap-0.5">
+                  {hasUrgent && <span className="block w-1.5 h-1.5 rounded-full" style={{ background: "var(--mob-busy-bg)" }} />}
+                  {!hasUrgent && hasNormal && <span className="block w-1.5 h-1.5 rounded-full" style={{ background: "var(--mob-free-bg)" }} />}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        
+        {/* Room Selection */}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4 -mx-4 px-4 pb-1">
+          {ROOMS.map(r => (
+            <button key={r.id} onClick={() => setRoomId(r.id)} className="shrink-0 px-4 py-1.5 rounded-full text-[13px] font-semibold border" style={roomId === r.id ? { background: C.ink, color: "var(--bg)", borderColor: C.ink } : { borderColor: C.border, color: C.muted }}>
+              {r.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Status Card (Only show context for today) */}
+        {isTodayAnchor && (
+          <div className="mb-6 rounded-[14px] p-4 text-white relative overflow-hidden" style={{ background: mobCurrentMtg ? "var(--mob-busy-bg)" : "var(--mob-free-bg)", margin: "6px 0", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
+            <div className="flex items-center gap-2 mb-2 relative z-10">
+              <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+              <span className="text-[18px] font-bold" style={{ color: mobCurrentMtg ? "var(--mob-busy-text)" : "var(--mob-free-text)" }}>{mobCurrentMtg ? "지금 회의 중" : "지금 비어있음"}</span>
+            </div>
+            <div className="text-[13px] font-medium mb-5" style={{ color: mobCurrentMtg ? "var(--mob-busy-text)" : "var(--mob-free-text)", opacity: 0.8 }}>
+              {mobCurrentMtg ? `${mobCurrentMtg.title} · ${mobCurrentMtg.end} 종료` : mobNextMtg ? `${mobNextMtg.start}까지 사용 가능` : "오늘 남은 시간 계속 사용 가능"}
+            </div>
+            <div className="relative z-10">
+              {mobCurrentMtg ? (
+                <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => showToast("코멘트 남기기 기능 준비 중입니다.")}>
+                  코멘트 남기기 · 연장 요청
+                </button>
+              ) : (
+                <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => tryCreate(roomId, defStart(), selKey)}>
+                  지금 바로 예약하기
+                </button>
+              )}
+            </div>
+            {/* Background Icon Decoration */}
+            <div className="absolute -right-4 -bottom-4 opacity-10">
+              {mobCurrentMtg ? <Video size={100} /> : <CheckCircle2 size={100} />}
+            </div>
+          </div>
+        )}
+
+        {/* Timeline List */}
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-[12px] font-medium" style={{ color: C.faint }}>{isTodayAnchor ? "오늘 일정" : `${anchor.getMonth() + 1}월 ${anchor.getDate()}일 일정`}</span>
+            <div className="flex-1 h-px" style={{ background: C.border }} />
+          </div>
+
+          <div className="flex flex-col gap-2 relative">
+            {mobDayList.length === 0 ? (
+              <div className="py-10 flex flex-col items-center justify-center text-center">
+                <Calendar size={28} className="mb-2" style={{ color: C.faint }} />
+                <span className="text-[13px] font-medium" style={{ color: C.faint }}>이후 예약 없음</span>
+              </div>
+            ) : (
+              mobDayList.map((r) => {
+                const sM = toMin(r.start);
+                const eM = toMin(r.end);
+                const isPast = nowMin >= eM && isTodayAnchor;
+                const isCurr = nowMin >= sM && nowMin < eM && isTodayAnchor;
+                const rm = ROOMS.find(x => x.id === r.roomId);
+                
+                return (
+                  <div key={r.id} className="flex relative items-stretch" onClick={() => onBlockClick(r)}>
+                    <div className="w-[42px] shrink-0 pt-3 text-[11px] font-medium" style={{ color: C.faint }}>
+                      {r.start}
+                    </div>
+                    
+                    <div className="relative flex-1 ml-1 pl-3 py-1">
+                      {/* Vertical Color Line */}
+                      <div className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full" style={{ background: r.isUrgent ? "var(--mob-line-urgent)" : "var(--mob-line-normal)", opacity: isPast ? 0.3 : 1 }} />
+                      
+                      {/* Card Body */}
+                      <div className="p-3.5 rounded-[10px] relative overflow-hidden" style={{ background: r.isUrgent ? "var(--mob-card-urgent)" : "var(--mob-card-normal)", opacity: isPast ? 0.5 : 1 }}>
+                        <div className="flex items-start justify-between mb-1">
+                          <div className="text-[14px] font-bold truncate pr-2 leading-tight" style={{ color: C.text }}>{r.title}</div>
+                          {r.isUrgent && (
+                            <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: "var(--mob-busy-bg)", color: "var(--mob-busy-text)" }}>긴급</span>
+                          )}
+                        </div>
+                        <div className="text-[11px] font-medium" style={{ color: C.faint }}>
+                          {rm?.name || r.roomId} · {r.start}~{r.end}
+                        </div>
+                        
+                        {/* Current Time Line Overlay if inside this meeting */}
+                        {isCurr && (
+                          <div className="absolute left-0 right-0 top-1/2 flex items-center z-10 pointer-events-none -ml-4">
+                            <span className="w-[6px] h-[6px] rounded-full" style={{ background: "var(--mob-busy-bg)" }} />
+                            <div className="flex-1 h-[1.5px]" style={{ background: "var(--mob-busy-bg)" }} />
+                            <span className="ml-1 text-[10px] font-bold" style={{ color: "var(--mob-busy-bg)" }}>지금</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Bottom Fixed FAB for Mobile */}
+        <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+68px)] left-4 right-4 z-30">
+          <button className="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 text-[14px] font-bold shadow-lg transition-transform active:scale-95" style={{ background: "var(--ink)", color: "var(--bg)" }} onClick={() => tryCreate(roomId, defStart(), selKey)}>
+            <Plus size={18} /> 예약하기
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div style={{ background: C.bg, color: C.text, minHeight: "100vh" }} className="w-full flex flex-col">
@@ -1229,7 +1396,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       )}
 
       {/* ===== Header ===== */}
-      <header className="sticky top-0 z-30 border-b" style={{ background: "var(--bg-header)", borderColor: C.border, backdropFilter: "blur(10px)" }}>
+      <header className={`sticky top-0 z-30 border-b ${section === "book" ? "hidden md:block" : ""}`} style={{ background: "var(--bg-header)", borderColor: C.border, backdropFilter: "blur(10px)" }}>
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-5">
           <button onClick={() => window.location.reload()} className="flex items-center"><Wordmark size={19} /></button>
           <nav className="hidden items-center gap-1 rounded-lg p-1 md:flex" style={{ background: "var(--bg-quaternary)" }}>
@@ -1272,7 +1439,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       <main className="mx-auto max-w-6xl px-4 pb-28 pt-5 sm:px-5 md:pb-10 flex-1 flex flex-col w-full">
         {section === "book" && (
           <>
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            {/* --- Desktop View --- */}
+            <div className="hidden md:flex flex-col flex-1 w-full">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <div className="flex items-center rounded-lg border bg-white" style={{ borderColor: C.border }}>
                   <button onClick={() => view === "calendar" ? setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1)) : setAnchor(addDays(anchor, -1))} className="lift grid h-9 w-9 place-items-center rounded-l-xl" style={{ color: C.muted }}><ChevronLeft size={18} /></button>
@@ -1343,6 +1512,10 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 </section>
               </>
             )}
+            </div>
+            
+            {/* --- Mobile View --- */}
+            {renderMobileDashboard()}
           </>
         )}
 

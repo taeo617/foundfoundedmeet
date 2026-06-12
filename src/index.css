@@ -77,6 +77,16 @@
   --pastel-red-dot: #F09A96;
   --pastel-red-line: #F2D8D9;
   
+  /* Mobile UI Specific Colors */
+  --mob-busy-bg: #E24B4A;
+  --mob-busy-text: #ffffff;
+  --mob-free-bg: #1D9E75;
+  --mob-free-text: #ffffff;
+  --mob-card-urgent: #fff5f5;
+  --mob-card-normal: #f0fdf4;
+  --mob-line-urgent: #E24B4A;
+  --mob-line-normal: #1D9E75;
+  
   /* Heatmap */
   --heat-0: #EFEEE9;
   --heat-1: #FFF1B8;
@@ -158,6 +168,16 @@
   --pastel-red-text: #f09a96;
   --pastel-red-dot: #D44C47;
   --pastel-red-line: #4e2b2b;
+  
+  /* Mobile UI Specific Colors */
+  --mob-busy-bg: #7f1d1d;
+  --mob-busy-text: #fca5a5;
+  --mob-free-bg: #064e3b;
+  --mob-free-text: #6ee7b7;
+  --mob-card-urgent: #1c0a0a;
+  --mob-card-normal: #0a1c12;
+  --mob-line-urgent: #E24B4A;
+  --mob-line-normal: #1D9E75;
   
   /* Heatmap */
   --heat-0: #1a1a1a;
@@ -289,4 +309,14 @@ body, header, section, .sheet, .cell, input, select, button {
 .del-11 { animation-delay: 0.68s; }
 .del-12 { animation-delay: 0.74s; }
 .del-13 { animation-delay: 0.80s; }
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
 
