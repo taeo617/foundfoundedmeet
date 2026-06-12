@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, forwardRef } from "react";
-import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import { db, isFirebaseConfigured } from "./firebase";
 import {
   Calendar, CalendarDays, Clock, Users, Monitor, Video, Plus, X, Check,
@@ -107,7 +107,10 @@ async function subscribeToWebPush(userId) {
       });
       // Save subscription to user document in Firestore
       if (isFirebaseConfigured) {
-        await setDoc(doc(db, "users", userId), { id: userId, webPushSubscription: JSON.parse(JSON.stringify(subscription)) }, { merge: true });
+        await setDoc(doc(db, "users", userId), { 
+          id: userId, 
+          webPushSubscriptions: arrayUnion(JSON.parse(JSON.stringify(subscription))) 
+        }, { merge: true });
       }
     }
   } catch (err) {

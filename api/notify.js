@@ -55,7 +55,10 @@ export default async function handler(req, res) {
       const snapshot = await getDocs(q);
       snapshot.forEach((doc) => {
         const data = doc.data();
-        if (data.webPushSubscription) webTokens.push(data.webPushSubscription);
+        if (data.webPushSubscription) webTokens.push(data.webPushSubscription); // legacy support
+        if (data.webPushSubscriptions && Array.isArray(data.webPushSubscriptions)) {
+          webTokens.push(...data.webPushSubscriptions);
+        }
         if (data.expoPushToken) expoTokens.push(data.expoPushToken);
       });
     }
