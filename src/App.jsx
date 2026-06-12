@@ -1296,18 +1296,22 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                       {/* Card Body */}
                       <div className="p-3.5 rounded-[10px] relative overflow-hidden" style={{ background: r.isUrgent ? "var(--mob-card-urgent)" : "var(--mob-card-normal)", opacity: isPast ? 0.5 : 1 }}>
                         <div className="flex items-start justify-between mb-1">
-                          <div className="text-[14px] font-bold truncate pr-2 leading-tight" style={{ color: C.text }}>{r.title}</div>
+                          <div className="text-[14px] font-bold truncate pr-2 leading-tight flex items-center gap-1.5" style={{ color: C.text }}>
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: r.isUrgent ? pal('red').dot : pal('green').dot }} />
+                            {r.title}
+                          </div>
                           {r.isUrgent && (
                             <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: "var(--mob-busy-bg)", color: "var(--mob-busy-text)" }}>긴급</span>
                           )}
                         </div>
-                        <div className="text-[11px] font-medium" style={{ color: C.faint }}>
-                          {rm?.name || r.roomId} · {r.start}~{r.end}
+                        <div className="text-[11px] font-medium flex items-center gap-1 mt-0.5" style={{ color: C.faint }}>
+                          <Clock size={11} className="shrink-0" style={{ opacity: 0.7 }} />
+                          <span>{rm?.name || r.roomId} · {r.start}~{r.end}</span>
                         </div>
                         
                         {/* Attendees & Owner */}
                         <div className="mt-2 flex flex-wrap items-center gap-1.5 relative z-20">
-                          <span className="text-[11px] font-semibold mr-0.5" style={{ color: C.faint }}>참석자</span>
+                          <span className="text-[11px] font-semibold mr-0.5 flex items-center gap-1" style={{ color: C.faint }}><User size={11} className="shrink-0" style={{ opacity: 0.7 }} />참석자</span>
                           {Array.from(new Set([r.owner, ...(r.attendees || []).map(id => M(id)?.name)])).filter(Boolean).map(name => (
                             <span key={name} className="inline-flex items-center rounded bg-black/5 dark:bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-gray-700 dark:text-gray-300">
                               {name}
@@ -1902,7 +1906,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   className="lift flex w-full items-center justify-center gap-1.5 rounded-lg py-3.5 text-sm font-medium"
                   style={{ background: C.ink, color: "var(--bg)", boxShadow: "0 1px 2px rgba(0,0,0,.05)" }}
                 >
-                  <Plus size={16} /> 일정 추가하기
+                  <Plus size={16} /> 회의실 예약하기
                 </button>
               </div>
             </div>
