@@ -1307,6 +1307,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                         
                         {/* Attendees & Owner */}
                         <div className="mt-2 flex flex-wrap items-center gap-1.5 relative z-20">
+                          <span className="text-[11px] font-semibold mr-0.5" style={{ color: C.faint }}>참석자</span>
                           {Array.from(new Set([r.owner, ...(r.attendees || []).map(id => M(id)?.name)])).filter(Boolean).map(name => (
                             <span key={name} className="inline-flex items-center rounded bg-black/5 dark:bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-gray-700 dark:text-gray-300">
                               {name}
@@ -1421,13 +1422,17 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
       {/* ===== Header ===== */}
       <header className={`sticky top-0 z-30 border-b ${section === "book" ? "hidden md:block" : ""}`} style={{ background: "var(--bg-header)", borderColor: C.border, backdropFilter: "blur(10px)" }}>
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-5">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-5 relative">
           <button onClick={() => { sessionStorage.setItem('skipSplash', 'true'); window.location.href = '/'; }} className="flex items-center"><Wordmark size={19} /></button>
-          <nav className="hidden items-center gap-1 rounded-lg p-1 md:flex" style={{ background: "var(--bg-quaternary)" }}>
-            {NAV.map(([k, lbl, Icon]) => (
-              <button key={k} onClick={() => setSection(k)} className="lift flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium" style={section === k ? { background: C.ink, color: "var(--bg)" } : { color: C.muted }}><Icon size={15} />{lbl}{k === "mine" && myRes.length ? ` · ${myRes.length}` : ""}</button>
-            ))}
-          </nav>
+          {user && (
+            <div className="absolute left-1/2 -translate-x-1/2 hidden md:block">
+              <nav className="flex items-center gap-1 rounded-lg p-1" style={{ background: "var(--bg-quaternary)" }}>
+                {NAV.map(([k, lbl, Icon]) => (
+                  <button key={k} onClick={() => setSection(k)} className="lift flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium" style={section === k ? { background: C.ink, color: "var(--bg)" } : { color: C.muted }}><Icon size={15} />{lbl}{k === "mine" && myRes.length ? ` · ${myRes.length}` : ""}</button>
+                ))}
+              </nav>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <div className="hidden text-right leading-tight sm:block"><div className="text-[12px] font-medium">{fmtK(now)}</div><div className="text-[11px]" style={{ color: C.faint }}>{now.getHours() < 12 ? "오전" : "오후"} {pad(((now.getHours() + 11) % 12) + 1)}:{pad(now.getMinutes())}</div></div>
             <button
