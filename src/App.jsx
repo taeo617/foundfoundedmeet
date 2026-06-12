@@ -1303,6 +1303,23 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                           {rm?.name || r.roomId} · {r.start}~{r.end}
                         </div>
                         
+                        {/* Attendees & Owner */}
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5 relative z-20">
+                          {r.owner && (
+                            <span className="inline-flex items-center rounded border border-[var(--mob-busy-bg)] bg-white/50 dark:bg-black/50 px-1.5 py-0.5 text-[10px] font-bold text-[var(--mob-busy-bg)] shadow-sm">
+                              {r.owner}
+                            </span>
+                          )}
+                          {r.attendees?.map(id => {
+                            const m = M(id);
+                            return m ? (
+                              <span key={id} className="inline-flex items-center rounded bg-black/5 dark:bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-gray-700 dark:text-gray-300">
+                                {m.name}
+                              </span>
+                            ) : null;
+                          })}
+                        </div>
+                        
                         {/* Current Time Line Overlay if inside this meeting */}
                         {isCurr && (
                           <div className="absolute left-0 right-0 top-1/2 flex items-center z-10 pointer-events-none -ml-4">
@@ -1999,7 +2016,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       )}
 
       {/* ===== Toast ===== */}
-      {toast && <div className="tdrop fixed left-1/2 top-5 z-[80] flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium" style={{ background: C.ink, color: "var(--bg)", boxShadow: "0 4px 12px rgba(0,0,0,.15)" }}><CheckCircle2 size={16} style={{ color: "var(--yellow)" }} /> {toast}</div>}
+      {toast && <div className="rise fixed left-1/2 bottom-[100px] -translate-x-1/2 z-[80] flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium whitespace-nowrap" style={{ background: C.ink, color: "var(--bg)", boxShadow: "0 4px 12px rgba(0,0,0,.15)" }}><CheckCircle2 size={16} style={{ color: "var(--yellow)" }} /> {toast}</div>}
     </div>
   );
 }
