@@ -1260,7 +1260,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                         </div>
                         {/* desktop: chips */}
                         <div className="mt-1 hidden space-y-1 sm:block flex-1" style={{ minHeight: 54 }}>
-                                                    {list.slice(0, view === "week" ? 10 : 3).map((r) => { const p = r.isUrgent ? pal('red') : pal('green'); return (
+                          {list.slice(0, view === "week" ? 10 : 3).map((r) => { const p = r.isUrgent ? pal('red') : pal(r.color); return (
                             <div key={r.id} onClick={(e) => { e.stopPropagation(); onBlockClick(r); }} className="flex items-center gap-1 truncate rounded-lg px-1.5 py-0.5 text-[11px] font-medium" style={{ background: p.bg, color: p.text }}>
                               <span className="h-1.5 w-1.5 shrink-0 rounded-lg" style={{ background: p.dot }} /><span className="truncate">{r.start} {r.title}</span>
                             </div>
