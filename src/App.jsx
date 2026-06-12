@@ -645,6 +645,20 @@ export default function App() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [temp, setTemp] = useState([]);
   const [dz, setDz] = useState(false);
+  const timelineScrollRef = useRef(null);
+
+  useEffect(() => {
+    if (section === "book" && window.innerWidth <= 768) {
+      setTimeout(() => {
+        const el = document.getElementById(`mob-date-${keyOf(anchor)}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        }
+      }, 50);
+    }
+  }, [anchor, section]);
+
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2600); };
   const [authOpen, setAuthOpen] = useState(false);
   const [authMsg, setAuthMsg] = useState("");
   const [authPending, setAuthPending] = useState(null);
@@ -1193,7 +1207,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
         {/* Date Picker */}
         <div className="flex gap-3 overflow-x-auto no-scrollbar mb-4 pb-2 -mx-4 px-4">
-          {weekCells.map((d, i) => {
+          {cells.map((d, i) => {
             const dk = keyOf(d);
             const isSel = dk === selKey;
             const isT = dk === todayKey;
@@ -1201,7 +1215,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             const hasUrgent = dRes.some(r => r.isUrgent);
             const hasNormal = dRes.length > 0 && !hasUrgent;
             return (
-              <div key={i} onClick={() => setAnchor(d)} className="flex flex-col items-center shrink-0 w-10 cursor-pointer">
+              <div id={`mob-date-${dk}`} key={i} onClick={() => setAnchor(d)} className="flex flex-col items-center shrink-0 w-10 cursor-pointer snap-center">
                 <span className="text-[10px] mb-1.5 font-medium" style={{ color: C.faint }}>{WEEK[d.getDay()]}</span>
                 <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[14px] font-bold transition-colors ${isSel || isT ? (theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white') : ''}`} style={!(isSel || isT) ? { color: C.text } : {}}>
                   {d.getDate()}
@@ -1245,9 +1259,6 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 </button>
               )}
             </div>
-            {/* Background Icon Decoration */}
-            <div className="absolute -right-4 -bottom-4 opacity-10">
-              {mobCurrentMtg ? <Video size={100} /> : <CheckCircle2 size={100} />}
             </div>
           </div>
         )}
@@ -1673,10 +1684,6 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         </div>
       </nav>
 
-      {/* ===== FAB (book section) ===== */}
-      {section === "book" && (
-        <button onClick={() => tryCreate(roomId, defStart())} className="lift fixed right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full md:hidden" style={{ bottom: "calc(env(safe-area-inset-bottom) + 68px)", background: C.ink, color: "var(--bg)", boxShadow: "0 4px 12px rgba(0,0,0,.15)" }}><Plus size={26} /></button>
-      )}
 
       {/* ===== Booking modal ===== */}
       {form && (
