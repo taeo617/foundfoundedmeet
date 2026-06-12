@@ -1206,7 +1206,14 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         </div>
 
         {/* Date Picker */}
-        <div className="flex gap-3 overflow-x-auto sc mb-4 pb-2 -mx-4 px-4 md:mx-0 md:px-0">
+        <div 
+          className="flex gap-3 overflow-x-auto sc mb-4 pb-2 -mx-4 px-4 md:mx-0 md:px-0"
+          onWheel={(e) => {
+            if (e.deltaY !== 0) {
+              e.currentTarget.scrollLeft += e.deltaY;
+            }
+          }}
+        >
           {Array.from({length: 31}, (_, i) => addDays(today, i - 15)).map((d, i) => {
             const dk = keyOf(d);
             const isSel = dk === selKey;
@@ -1230,7 +1237,14 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         </div>
         
         {/* Room Selection */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4 -mx-4 px-4 pb-1 md:mx-0 md:px-0">
+        <div 
+          className="flex gap-2 overflow-x-auto no-scrollbar mb-4 -mx-4 px-4 pb-1 md:mx-0 md:px-0"
+          onWheel={(e) => {
+            if (e.deltaY !== 0) {
+              e.currentTarget.scrollLeft += e.deltaY;
+            }
+          }}
+        >
           {ROOMS.map(r => (
             <button key={r.id} onClick={() => setRoomId(r.id)} className="shrink-0 px-4 py-1.5 rounded-full text-[13px] font-semibold border" style={roomId === r.id ? { background: C.ink, color: "var(--bg)", borderColor: C.ink } : { borderColor: C.border, color: C.muted }}>
               {r.name}
