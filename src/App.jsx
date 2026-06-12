@@ -146,7 +146,7 @@ function StatusPill({ kind, text }) {
 }
 function Wordmark({ size = 18 }) {
   return (
-    <span className="font-sans" style={{ fontSize: size, color: C.ink, lineHeight: 1, letterSpacing: "-0.055em", display: "inline-flex", alignItems: "center", fontWeight: "normal" }}>
+    <span className="font-sans" style={{ fontSize: size, color: C.ink, lineHeight: 1, letterSpacing: "-0.01em", display: "inline-flex", alignItems: "center", fontWeight: "normal" }}>
       <span style={{ fontWeight: 500, color: C.text }}>found</span>
       <span style={{ fontWeight: 500, color: C.text, opacity: 0.8 }}>/</span>
       <span style={{ fontWeight: 800 }}>Founded</span>
