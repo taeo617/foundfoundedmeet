@@ -520,6 +520,14 @@ export default function App() {
   const [roomId, setRoomId] = useState("big");
   const [dashMonth, setDashMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [dashRoom, setDashRoom] = useState("all");
+
+  const today = dayOnly(now);
+  const selKey = keyOf(anchor);
+  const isToday = sameDay(anchor, today);
+  const isCurMonth = anchor.getFullYear() === today.getFullYear() && anchor.getMonth() === today.getMonth();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const room = ROOMS.find((r) => r.id === roomId);
+
   const [reservations, setReservations] = useState(() => {
     if (!isFirebaseConfigured) {
       try {
@@ -829,12 +837,6 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     }
   }, [view, roomId, section, anchor]);
 
-  const today = dayOnly(now);
-  const selKey = keyOf(anchor);
-  const isToday = sameDay(anchor, today);
-  const isCurMonth = anchor.getFullYear() === today.getFullYear() && anchor.getMonth() === today.getMonth();
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  const room = ROOMS.find((r) => r.id === roomId);
 
   const getMeId = () => { const u = user; const m = MEMBERS.find((x) => u && (x.name.includes(u) || u.includes(x.name))); return m ? m.id : null; };
   const isMine = (r) => !!user && r.owner === user;
