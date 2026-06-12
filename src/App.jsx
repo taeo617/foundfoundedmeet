@@ -1200,9 +1200,6 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             <div className="text-xl font-bold">{anchor.getMonth() + 1}월 {anchor.getDate()}일 {WEEK[anchor.getDay()]}요일</div>
             <div className="text-xs mt-1" style={{ color: C.faint }}>오늘 예약 {currentRoomRes.length}건</div>
           </div>
-          <button className="h-10 w-10 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/10" onClick={() => showToast("알림이 없습니다.")}>
-            <Bell size={20} />
-          </button>
         </div>
 
         {/* Date Picker */}
