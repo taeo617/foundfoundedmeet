@@ -244,14 +244,7 @@ body, header, section, .sheet, .cell, input, select, button {
   color: #ffffff;
   z-index: 3;
   text-align: center;
-  background: radial-gradient(circle at center, #1b1b19 0%, #0c0c0b 100%);
-  animation: splash-bg-shift 8s infinite alternate ease-in-out;
-}
-
-@keyframes splash-bg-shift {
-  0% { background: radial-gradient(circle at 45% 45%, #1d1c1a 0%, #0c0c0b 100%); }
-  50% { background: radial-gradient(circle at 55% 50%, #252420 0%, #0d0d0c 100%); }
-  100% { background: radial-gradient(circle at 50% 55%, #181716 0%, #080808 100%); }
+  background-color: #0c0c0b;
 }
 
 .splash-logo-container {
@@ -292,7 +285,6 @@ body, header, section, .sheet, .cell, input, select, button {
   opacity: 0;
   transform: translateX(15px);
   animation: logo-fade-slide-in 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.8s forwards;
-  text-shadow: 0 0 15px rgba(255, 255, 255, 0.15);
 }
 
 @keyframes logo-fade-slide-in {
