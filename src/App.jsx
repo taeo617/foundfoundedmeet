@@ -528,23 +528,23 @@ function CustomDatePicker({ anchor, onClose, onSelect, theme }) {
 
   const isDark = theme === "dark";
   
-  // Custom picker color system (always matches dark-mode look in screenshot, but with adaptive styles if light mode is selected)
-  const overlayBg = "rgba(0, 0, 0, 0.6)";
+  // Custom picker color system
+  const overlayBg = isDark ? "rgba(0, 0, 0, 0.5)" : "rgba(0, 0, 0, 0.25)";
   const cardBg = isDark
-    ? "linear-gradient(180deg, rgba(58,58,60,0.85) 0%, rgba(36,36,38,0.9) 100%)"
-    : "linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(240,240,245,0.95) 100%)";
+    ? "linear-gradient(180deg, rgba(30, 30, 30, 0.65) 0%, rgba(20, 20, 20, 0.75) 100%)"
+    : "linear-gradient(180deg, rgba(255, 255, 255, 0.65) 0%, rgba(240, 240, 245, 0.7) 100%)";
   const textColor = isDark ? "text-white" : "text-black";
   const subTextColor = isDark ? "text-white/50" : "text-black/50";
   const resetBtnStyle = isDark
     ? { background: "rgba(255, 255, 255, 0.1)", border: "1px solid rgba(255, 255, 255, 0.15)", color: "#ffffff" }
     : { background: "rgba(0, 0, 0, 0.06)", border: "1px solid rgba(0, 0, 0, 0.08)", color: "#000000" };
-  const cardBorder = isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)";
+  const cardBorder = isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(255, 255, 255, 0.4)";
   const arrowColor = "#2f80ed";
 
   return (
     <div 
       className="fixed inset-0 z-[100] flex items-center justify-center p-4"
-      style={{ backgroundColor: overlayBg, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
+      style={{ backgroundColor: overlayBg }}
       onClick={onClose}
     >
       {/* Modal Card */}
@@ -552,8 +552,8 @@ function CustomDatePicker({ anchor, onClose, onSelect, theme }) {
         className={`relative w-[380px] rounded-[32px] p-6 ${textColor} select-none shadow-2xl overflow-hidden flex flex-col`}
         style={{
           background: cardBg,
-          backdropFilter: "blur(25px)",
-          WebkitBackdropFilter: "blur(25px)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
           border: `1px solid ${cardBorder}`,
         }}
         onClick={(e) => e.stopPropagation()}
@@ -1819,7 +1819,6 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   <Avatar name={user} size={24} solid={section === "mypage"} />
                   <span style={{ color: C.text }}>{user}님</span>
                 </button>
-                <button onClick={() => { setUser(null); localStorage.removeItem("auth_token"); localStorage.removeItem("last_user"); if (section === "mypage" || section === "dash") setSection("book"); }} title="로그아웃" className="lift grid h-9 w-9 place-items-center rounded-[4px] border" style={{ borderColor: C.border, color: C.muted }}><LogOut size={15} /></button>
               </div>
             ) : (
               <button onClick={() => requireAuth(() => {}, "로그인")} className="lift flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium" style={{ background: C.ink, color: "var(--bg)", boxShadow: "0 1px 2px rgba(0,0,0,.05)" }}><LogIn size={15} /> 로그인</button>
