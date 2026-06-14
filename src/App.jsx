@@ -448,13 +448,13 @@ function SplashScreen({ onComplete }) {
   const [fade, setFade] = useState(false);
 
   useEffect(() => {
-    // 1.5배 빠른 애니메이션 속도에 맞춰 대기 시간을 단축 (1300ms)
+    // 로고와 자막이 나온 후 약 1.5초 대기 후 진입 (총 2350ms)
     const timer = setTimeout(() => {
       setFade(true);
       setTimeout(() => {
         onComplete();
       }, 500); // CSS opacity transition duration
-}, 1300);
+    }, 2350);
     return () => clearTimeout(timer);
   }, [onComplete]);
 
@@ -473,7 +473,7 @@ function SplashScreen({ onComplete }) {
             animationDelay: "0.85s" 
           }}
         >
-          회의실 예약서비스
+          회의실 예약하기
         </p>
       </div>
     </div>
