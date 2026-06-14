@@ -655,15 +655,22 @@ export default function App() {
   const [dz, setDz] = useState(false);
 
   useEffect(() => {
-    if (section === "book") {
-      setTimeout(() => {
+    if (section === "book" && !showSplash) {
+      const scrollToToday = () => {
         const el = document.getElementById(`mob-date-${keyOf(today)}`);
         if (el) {
-          el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+          el.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
         }
-      }, 50);
+      };
+      scrollToToday();
+      const t1 = setTimeout(scrollToToday, 50);
+      const t2 = setTimeout(scrollToToday, 300);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
     }
-  }, [section, today]);
+  }, [section, today, showSplash]);
 
   const [authOpen, setAuthOpen] = useState(false);
   const [authMsg, setAuthMsg] = useState("");
