@@ -5,7 +5,7 @@ import {
   Calendar, CalendarDays, Clock, Users, Monitor, Video, Plus, X, Check,
   CheckCircle2, Repeat, AlertCircle, ChevronLeft, ChevronRight, Trash2,
   Building2, List, LogOut, Lock, User, UserPlus, GripVertical, LogIn,
-  LayoutDashboard, HelpCircle, Sun, Moon, Download, FileText, Bell, Grid,
+  LayoutDashboard, HelpCircle, Sun, Moon, Download, FileText, Bell, Grid, ArrowUp,
 } from "lucide-react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
@@ -2207,10 +2207,13 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                               input.value = '';
                             }
                           }}
-                          className="lift rounded-lg px-4 py-2 text-xs font-bold transition-all" 
-                          style={{ background: "#2383E2", color: "#ffffff" }}
+                          className="lift w-9 h-9 rounded-full flex items-center justify-center shrink-0 shadow-sm active:scale-95 transition-all" 
+                          style={{ 
+                            backgroundColor: theme === 'dark' ? '#2a2a2a' : '#f0efea', 
+                            color: theme === 'dark' ? '#ffffff' : '#121212' 
+                          }}
                         >
-                          등록
+                          <ArrowUp size={18} strokeWidth={2.5} />
                         </button>
                       </div>
                     </div>
@@ -2465,10 +2468,13 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                           input.value = '';
                         }
                       }}
-                      className="lift rounded-lg px-4 py-2 text-xs font-bold transition-all" 
-                      style={{ background: "#2383E2", color: "#ffffff" }}
+                      className="lift w-9 h-9 rounded-full flex items-center justify-center shrink-0 shadow-sm active:scale-95 transition-all" 
+                      style={{ 
+                        backgroundColor: theme === 'dark' ? '#2a2a2a' : '#f0efea', 
+                        color: theme === 'dark' ? '#ffffff' : '#121212' 
+                      }}
                     >
-                      등록
+                      <ArrowUp size={18} strokeWidth={2.5} />
                     </button>
                   </div>
                 </div>
