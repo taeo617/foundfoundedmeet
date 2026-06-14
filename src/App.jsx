@@ -1466,10 +1466,10 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             const hasNormal = dRes.length > 0 && !hasUrgent;
             return (
               <div id={isDesktopSplit ? `desk-date-${dk}` : `mob-date-${dk}`} key={i} onClick={() => setAnchor(d)} className="flex flex-col items-center shrink-0 w-10 cursor-pointer snap-center">
-                <span className="text-[10px] mb-1.5 font-medium" style={{ color: C.faint }}>{WEEK[d.getDay()]}</span>
+                <span className="text-[10px] mb-1.5 font-medium" style={{ color: (d.getDay() === 0 || d.getDay() === 6) ? "#ef4444" : C.faint }}>{WEEK[d.getDay()]}</span>
                 <div 
                   className={`w-9 h-9 rounded-full flex items-center justify-center text-[14px] font-bold transition-colors ${isSel ? (theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white') : ''}`} 
-                  style={isSel ? {} : isT ? { color: "#2f80ed" } : { color: C.text }}
+                  style={isSel ? {} : (d.getDay() === 0 || d.getDay() === 6) ? { color: "#ef4444" } : isT ? { color: "#2f80ed" } : { color: C.text }}
                 >
                   {d.getDate()}
                 </div>
@@ -2025,9 +2025,19 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                       const m = M(id);
                       if (!m) return null;
                       return (
-                        <span key={id} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px]" style={{ background: "var(--bg-chip)", color: C.text }}>
+                        <span key={id} className="inline-flex items-center gap-1.5 rounded-full pl-2.5 pr-1.5 py-1 text-[13px]" style={{ background: "var(--bg-chip)", color: C.text }}>
                           <span className="h-2 w-2 rounded-full" style={{ background: C.muted }} />
                           <span><span className="font-bold">{m.team}</span> <span className="font-medium">{m.name}님</span></span>
+                          <button 
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setForm({ ...form, attendees: form.attendees.filter(x => x !== id) });
+                            }}
+                            className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 transition-all text-xs font-semibold ml-0.5 opacity-60 hover:opacity-100"
+                          >
+                            <X size={10} />
+                          </button>
                         </span>
                       );
                     }) : <span className="text-sm" style={{ color: C.faint }}>선택된 참석자가 없어요</span>}
