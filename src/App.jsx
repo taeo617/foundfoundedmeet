@@ -449,7 +449,7 @@ function SplashScreen({ onComplete }) {
       setTimeout(() => {
         onComplete();
       }, 500); // CSS opacity transition duration
-    }, 1300);
+}, 1300);
     return () => clearTimeout(timer);
   }, [onComplete]);
 
@@ -484,9 +484,11 @@ function CustomDatePicker({ anchor, onClose, onSelect, theme }) {
   };
 
   const days = [];
+  // Blank slots
   for (let i = 0; i < firstDayIndex; i++) {
-    days.push(<div key={`empty-${i}`} className="w-9 h-9" />);
+    days.push(<div key={`empty-${i}`} className="w-12 h-12" />);
   }
+  // Days of month
   for (let d = 1; d <= totalDays; d++) {
     const isSel = selectedDate.getFullYear() === year && selectedDate.getMonth() === month && selectedDate.getDate() === d;
     const nowD = new Date();
@@ -496,10 +498,11 @@ function CustomDatePicker({ anchor, onClose, onSelect, theme }) {
       <button
         key={`day-${d}`}
         onClick={() => handleDayClick(d)}
-        className="w-9 h-9 rounded-full flex items-center justify-center text-[14px] font-semibold transition-all relative"
+        className="w-12 h-12 rounded-full flex items-center justify-center text-[16px] font-medium transition-all relative"
         style={{
           background: isSel ? "#3b82f6" : "transparent",
-          color: isSel ? "#ffffff" : isToday ? "#3b82f6" : "inherit",
+          color: isSel ? "#ffffff" : "#ffffff", // In dark modal days are white
+          border: isToday && !isSel ? "1.5px solid rgba(255,255,255,0.4)" : "none",
         }}
       >
         {d}
@@ -508,63 +511,119 @@ function CustomDatePicker({ anchor, onClose, onSelect, theme }) {
   }
 
   const isDark = theme === "dark";
-  const bg = isDark ? "bg-[#2c2c2e] text-white" : "bg-white text-black";
-  const resetBg = isDark ? "bg-[#3a3a3c] text-white" : "bg-[#f2f2f7] text-[#3a3a3c]";
-  const border = isDark ? "border border-[#3a3a3c]" : "border border-[#e5e5ea] shadow-xl";
+  
+  // Custom picker color system (always matches dark-mode look in screenshot, but with adaptive styles if light mode is selected)
+  const overlayBg = "rgba(0, 0, 0, 0.6)";
+  const cardBg = isDark
+    ? "linear-gradient(180deg, rgba(58,58,60,0.85) 0%, rgba(36,36,38,0.9) 100%)"
+    : "linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(240,240,245,0.95) 100%)";
+  const textColor = isDark ? "text-white" : "text-black";
+  const subTextColor = isDark ? "text-white/50" : "text-black/50";
+  const resetBtnStyle = isDark
+    ? { background: "rgba(255, 255, 255, 0.1)", border: "1px solid rgba(255, 255, 255, 0.15)", color: "#ffffff" }
+    : { background: "rgba(0, 0, 0, 0.06)", border: "1px solid rgba(0, 0, 0, 0.08)", color: "#000000" };
+  const cardBorder = isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)";
+  const arrowColor = "#2f80ed";
 
   return (
     <div 
-      className={`absolute top-full left-0 mt-2 p-5 rounded-[24px] ${bg} ${border} w-[280px] z-[80] select-none`}
-      onClick={(e) => e.stopPropagation()}
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      style={{ backgroundColor: overlayBg, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
+      onClick={onClose}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1">
-          <span className="text-[16px] font-bold">{year}년 {month + 1}월</span>
-          <ChevronRight size={14} className="text-[#3b82f6]" />
-        </div>
-        <div className="flex items-center gap-3">
-          <button onClick={() => changeMonth(-1)} className="p-1 text-[#3b82f6] hover:opacity-85 active:scale-95 transition-all">
-            <ChevronLeft size={20} />
-          </button>
-          <button onClick={() => changeMonth(1)} className="p-1 text-[#3b82f6] hover:opacity-85 active:scale-95 transition-all">
-            <ChevronRight size={20} />
-          </button>
-        </div>
-      </div>
+      {/* Modal Card */}
+      <div 
+        className={`relative w-[380px] rounded-[32px] p-6 ${textColor} select-none shadow-2xl overflow-hidden flex flex-col`}
+        style={{
+          background: cardBg,
+          backdropFilter: "blur(25px)",
+          WebkitBackdropFilter: "blur(25px)",
+          border: `1px solid ${cardBorder}`,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Top Close Button (X) */}
+        <button 
+          onClick={onClose}
+          className={`absolute top-4 right-4 w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95`}
+          style={{ background: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)" }}
+        >
+          <X size={14} className={textColor} />
+        </button>
 
-      {/* Weekday Row */}
-      <div className="grid grid-cols-7 gap-y-2 mt-4 text-[12px] font-semibold text-center opacity-60">
-        {["일", "월", "화", "수", "목", "금", "토"].map((w, idx) => (
-          <div key={idx} style={{ color: idx === 0 ? "#ef4444" : idx === 6 ? "#3b82f6" : "inherit" }}>
-            {w}
+        {/* Header */}
+        <div className="flex items-center justify-between mt-2">
+          <div className="flex items-center gap-1 cursor-pointer">
+            <span className="text-[20px] font-bold">{year}년 {month + 1}월</span>
+            <span className="text-[15px] font-bold" style={{ color: arrowColor }}>＞</span>
           </div>
-        ))}
-      </div>
+          <div className="flex items-center gap-4 mr-8">
+            <button onClick={() => changeMonth(-1)} className="p-1 hover:opacity-85 active:scale-95 transition-all" style={{ color: arrowColor }}>
+              <ChevronLeft size={24} />
+            </button>
+            <button onClick={() => changeMonth(1)} className="p-1 hover:opacity-85 active:scale-95 transition-all" style={{ color: arrowColor }}>
+              <ChevronRight size={24} />
+            </button>
+          </div>
+        </div>
 
-      {/* Days Grid */}
-      <div className="grid grid-cols-7 gap-y-1 mt-2 text-center">
-        {days}
-      </div>
+        {/* Weekday Row */}
+        <div className={`grid grid-cols-7 mt-6 text-[14px] font-semibold text-center ${subTextColor}`}>
+          {["일", "월", "화", "수", "목", "금", "토"].map((w, idx) => (
+            <div key={idx} className="w-12 h-6" style={{ color: idx === 0 ? "#ef4444" : idx === 6 ? "#2f80ed" : "inherit" }}>
+              {w}
+            </div>
+          ))}
+        </div>
 
-      {/* Footer */}
-      <div className="flex justify-between items-center mt-5">
-        <button
-          onClick={() => {
-            const td = new Date();
-            setSelectedDate(td);
-            setPickerDate(td);
-          }}
-          className={`px-4 py-2 rounded-full text-[13px] font-bold transition-all active:scale-95 ${resetBg}`}
-        >
-          재설정
-        </button>
-        <button
-          onClick={() => onSelect(selectedDate)}
-          className="w-10 h-10 rounded-full bg-[#3b82f6] flex items-center justify-center text-white transition-all active:scale-95 shadow-md"
-        >
-          <Check size={20} />
-        </button>
+        {/* Days Grid */}
+        <div className="grid grid-cols-7 gap-y-1 mt-2 text-center">
+          {days.map((dayElem, idx) => {
+            if (dayElem.key && dayElem.key.startsWith("day-")) {
+              const dNum = parseInt(dayElem.key.replace("day-", ""), 10);
+              const isSel = selectedDate.getFullYear() === year && selectedDate.getMonth() === month && selectedDate.getDate() === dNum;
+              const isToday = new Date().getFullYear() === year && new Date().getMonth() === month && new Date().getDate() === dNum;
+              
+              return (
+                <button
+                  key={dayElem.key}
+                  onClick={() => handleDayClick(dNum)}
+                  className="w-12 h-12 rounded-full flex items-center justify-center text-[16px] font-medium transition-all relative mx-auto"
+                  style={{
+                    background: isSel ? "#2f80ed" : "transparent",
+                    color: isSel ? "#ffffff" : isDark ? "#ffffff" : "#000000",
+                    border: isToday && !isSel ? (isDark ? "1.5px solid rgba(255,255,255,0.4)" : "1.5px solid rgba(0,0,0,0.2)") : "none",
+                  }}
+                >
+                  {dNum}
+                </button>
+              );
+            }
+            return dayElem;
+          })}
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-between items-center mt-6">
+          <button
+            onClick={() => {
+              const td = new Date();
+              setSelectedDate(td);
+              setPickerDate(td);
+            }}
+            className="px-6 py-2.5 rounded-full text-[14px] font-bold transition-all active:scale-95"
+            style={resetBtnStyle}
+          >
+            재설정
+          </button>
+          <button
+            onClick={() => onSelect(selectedDate)}
+            className="w-12 h-12 rounded-full flex items-center justify-center text-white transition-all active:scale-95 shadow-md"
+            style={{ backgroundColor: "#2f80ed" }}
+          >
+            <Check size={24} />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1388,7 +1447,10 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             return (
               <div id={isDesktopSplit ? `desk-date-${dk}` : `mob-date-${dk}`} key={i} onClick={() => setAnchor(d)} className="flex flex-col items-center shrink-0 w-10 cursor-pointer snap-center">
                 <span className="text-[10px] mb-1.5 font-medium" style={{ color: C.faint }}>{WEEK[d.getDay()]}</span>
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[14px] font-bold transition-colors ${isSel || isT ? (theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white') : ''}`} style={!(isSel || isT) ? { color: C.text } : {}}>
+                <div 
+                  className={`w-9 h-9 rounded-full flex items-center justify-center text-[14px] font-bold transition-colors ${isSel ? (theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white') : ''}`} 
+                  style={isSel ? {} : isT ? { color: "#2f80ed" } : { color: C.text }}
+                >
                   {d.getDate()}
                 </div>
                 <div className="h-1.5 mt-1.5 flex gap-0.5">
