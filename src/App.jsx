@@ -1424,28 +1424,6 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             </div>
             <div className="text-xs mt-1" style={{ color: C.faint }}>오늘 예약 {currentRoomRes.length}건</div>
           </div>
-
-          {/* Right: Theme Toggle and Hamburger Menu (Mobile Only) */}
-          <div className="flex items-center gap-1.5 md:hidden">
-            <button
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="lift grid h-9 w-9 place-items-center rounded-lg transition-all duration-200 active:scale-90"
-              style={{ color: C.muted }}
-            >
-              {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
-            </button>
-            <button
-              onClick={() => setMenuDrawerOpen(true)}
-              className="lift grid h-9 w-9 place-items-center rounded-lg transition-all duration-200 active:scale-90"
-              style={{ color: C.muted }}
-            >
-              <span className="flex flex-col gap-[4px] w-[17px] items-center justify-center">
-                <span className="h-[2px] w-full bg-current rounded-sm"></span>
-                <span className="h-[2px] w-full bg-current rounded-sm"></span>
-                <span className="h-[2px] w-full bg-current rounded-sm"></span>
-              </span>
-            </button>
-          </div>
         </div>
 
         {/* Date Picker */}
@@ -1685,7 +1663,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       )}
 
       {/* ===== Header ===== */}
-      <header className={`sticky top-0 z-30 border-b ${section === "book" ? "hidden md:block" : ""}`} style={{ background: "var(--bg-header)", borderColor: C.border, backdropFilter: "blur(10px)" }}>
+      <header className="sticky top-0 z-30 border-b" style={{ background: "var(--bg-header)", borderColor: C.border, backdropFilter: "blur(10px)" }}>
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-5 relative">
           <button onClick={() => { sessionStorage.setItem('skipSplash', 'true'); window.location.href = '/'; }} className="flex items-center"><Wordmark size={19} /></button>
           {user && (
@@ -1931,6 +1909,11 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               </div>
             </div>
           )
+        )}
+        {section === "dash" && (
+          <div className="pt-2">
+            <Dashboard month={dashMonth} setMonth={setDashMonth} roomF={dashRoom} setRoomF={setDashRoom} now={now} reservations={reservations} />
+          </div>
         )}
       </main>
 
