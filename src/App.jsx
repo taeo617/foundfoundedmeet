@@ -460,10 +460,21 @@ function SplashScreen({ onComplete }) {
 
   return (
     <div className={`splash-container ${fade ? "fade-out" : ""}`}>
-      <div className="splash-fallback">
+      <div className="splash-fallback flex flex-col items-center justify-center gap-2.5">
         <div className="splash-logo-container">
           <span className="splash-char w600 del-1">f</span><span className="splash-char w600 del-2">o</span><span className="splash-char w600 del-3">u</span><span className="splash-char w600 del-4">n</span><span className="splash-char w600 del-5">d</span><span className="splash-char w600 del-6">/</span><span className="splash-char w800 del-7">F</span><span className="splash-char w800 del-8">o</span><span className="splash-char w800 del-9">u</span><span className="splash-char w800 del-10">n</span><span className="splash-char w800 del-11">d</span><span className="splash-char w800 del-12">e</span><span className="splash-char w800 del-13">d</span>
         </div>
+        <p 
+          className="text-[12px] font-medium tracking-wide" 
+          style={{ 
+            color: "#888888", 
+            opacity: 0, 
+            animation: "fade 0.6s ease forwards", 
+            animationDelay: "0.85s" 
+          }}
+        >
+          회의실 예약서비스
+        </p>
       </div>
     </div>
   );
