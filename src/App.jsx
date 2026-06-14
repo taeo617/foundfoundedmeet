@@ -1566,7 +1566,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               <div id={isDesktopSplit ? `desk-date-${dk}` : `mob-date-${dk}`} key={i} onClick={() => setAnchor(d)} className="flex flex-col items-center shrink-0 w-10 cursor-pointer snap-center">
                 <span className="text-[10px] mb-1.5 font-medium" style={{ color: (d.getDay() === 0 || d.getDay() === 6) ? "#ef4444" : C.faint }}>{WEEK[d.getDay()]}</span>
                 <div 
-                  className={`w-9 h-9 rounded-full flex items-center justify-center text-[14px] font-bold transition-all ${isSel ? 'bg-white text-black shadow-sm border' : ''}`} 
+                  className={`w-9 h-9 rounded-full flex items-center justify-center text-[14px] font-bold transition-all ${isSel ? 'active-date-circle shadow-sm border' : ''}`} 
                   style={isSel ? { borderColor: theme === 'dark' ? '#ffffff' : '#333333' } : (d.getDay() === 0 || d.getDay() === 6) ? { color: "#ef4444" } : isT ? { color: "#2f80ed" } : { color: C.text }}
                 >
                   {d.getDate()}

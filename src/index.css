@@ -357,3 +357,8 @@ body, header, section, .sheet, .cell, input, select, button {
   animation: status-glow-busy 1.6s infinite ease-in-out;
 }
 
+.active-date-circle {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
