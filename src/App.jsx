@@ -659,15 +659,21 @@ export default function App() {
       const scrollToToday = () => {
         const el = document.getElementById(`mob-date-${keyOf(today)}`);
         if (el) {
-          el.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+          const container = el.parentElement;
+          if (container) {
+            const elementLeft = el.getBoundingClientRect().left - container.getBoundingClientRect().left + container.scrollLeft;
+            container.scrollLeft = elementLeft - (container.clientWidth / 2) + (el.clientWidth / 2);
+          }
         }
       };
       scrollToToday();
       const t1 = setTimeout(scrollToToday, 50);
-      const t2 = setTimeout(scrollToToday, 300);
+      const t2 = setTimeout(scrollToToday, 150);
+      const t3 = setTimeout(scrollToToday, 400);
       return () => {
         clearTimeout(t1);
         clearTimeout(t2);
+        clearTimeout(t3);
       };
     }
   }, [section, today, showSplash]);
