@@ -1388,7 +1388,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     return (
       <div className={`${isDesktopSplit ? "hidden md:flex h-full overflow-y-auto no-scrollbar" : "flex md:hidden"} flex-col flex-1 w-full pt-2 ${isDesktopSplit ? "pb-0" : "pb-20"} relative`}>
         {/* Mobile Header / Desktop Timeline Header */}
-        <div className="flex items-start justify-between mb-4 px-1 md:px-0">
+        <div className="flex items-center justify-between mb-4 px-1 md:px-0">
           <div>
             <div className="flex items-center gap-2">
               <div className="relative flex items-center">
@@ -1426,20 +1426,20 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           </div>
 
           {/* Right: Theme Toggle and Hamburger Menu (Mobile Only) */}
-          <div className="flex items-center gap-2 md:hidden">
+          <div className="flex items-center gap-1.5 md:hidden">
             <button
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="lift grid h-9 w-9 place-items-center rounded-lg border transition-all duration-200 active:scale-90"
-              style={{ borderColor: C.border, color: C.muted }}
+              className="lift grid h-9 w-9 place-items-center rounded-lg transition-all duration-200 active:scale-90"
+              style={{ color: C.muted }}
             >
-              {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+              {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
             </button>
             <button
               onClick={() => setMenuDrawerOpen(true)}
-              className="lift grid h-9 w-9 place-items-center rounded-lg border transition-all duration-200 active:scale-90"
-              style={{ borderColor: C.border, color: C.muted }}
+              className="lift grid h-9 w-9 place-items-center rounded-lg transition-all duration-200 active:scale-90"
+              style={{ color: C.muted }}
             >
-              <span className="flex flex-col gap-[3.5px] w-[14px]">
+              <span className="flex flex-col gap-[4px] w-[17px] items-center justify-center">
                 <span className="h-[2px] w-full bg-current rounded-sm"></span>
                 <span className="h-[2px] w-full bg-current rounded-sm"></span>
                 <span className="h-[2px] w-full bg-current rounded-sm"></span>
@@ -1533,7 +1533,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             {mobDayList.length === 0 ? (
               <div className="py-10 flex flex-col items-center justify-center text-center">
                 <Calendar size={28} className="mb-2" style={{ color: C.faint }} />
-                <span className="text-[13px] font-medium" style={{ color: C.faint }}>이후 예약 없음</span>
+                <span className="text-[13px] font-medium" style={{ color: C.faint }}>오늘 예약 없음</span>
               </div>
             ) : (
               mobDayList.map((r) => {
@@ -1729,20 +1729,20 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           </div>
 
           {/* Mobile header controls */}
-          <div className="flex md:hidden items-center gap-2">
+          <div className="flex md:hidden items-center gap-1.5">
             <button
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="lift grid h-9 w-9 place-items-center rounded-lg border transition-all duration-200 active:scale-90"
-              style={{ borderColor: C.border, color: C.muted }}
+              className="lift grid h-9 w-9 place-items-center rounded-lg transition-all duration-200 active:scale-90"
+              style={{ color: C.muted }}
             >
-              {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+              {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
             </button>
             <button
               onClick={() => setMenuDrawerOpen(true)}
-              className="lift grid h-9 w-9 place-items-center rounded-lg border transition-all duration-200 active:scale-90"
-              style={{ borderColor: C.border, color: C.muted }}
+              className="lift grid h-9 w-9 place-items-center rounded-lg transition-all duration-200 active:scale-90"
+              style={{ color: C.muted }}
             >
-              <span className="flex flex-col gap-[3.5px] w-[14px]">
+              <span className="flex flex-col gap-[4px] w-[17px] items-center justify-center">
                 <span className="h-[2px] w-full bg-current rounded-sm"></span>
                 <span className="h-[2px] w-full bg-current rounded-sm"></span>
                 <span className="h-[2px] w-full bg-current rounded-sm"></span>
