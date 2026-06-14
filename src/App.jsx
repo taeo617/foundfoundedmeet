@@ -979,10 +979,51 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       }
       
       showToast("코멘트를 등록했습니다.");
-      sendPushNotification('💬 새 코멘트가 달렸어요', `${user}: ${text.trim()}`, target.attendees);
+      
+      const notifyIds = new Set(target.attendees || []);
+      const ownerId = MEMBERS.find(m => m.name === target.owner)?.id;
+      if (ownerId) notifyIds.add(ownerId);
+      
+      sendPushNotification('💬 새 코멘트가 달렸어요', `${user}: ${text.trim()}`, Array.from(notifyIds));
     } catch (err) {
       console.error(err);
       showToast("코멘트 등록 중 오류가 발생했습니다.");
+    }
+  };
+
+  const handleDeleteComment = async (resId, commentId) => {
+    if (!user) return;
+    const target = reservations.find(r => r.id === resId);
+    if (!target) return;
+    
+    const comment = (target.comments || []).find(c => c.id === commentId);
+    if (!comment) return;
+    if (comment.user !== user && user !== "admin") {
+      showToast("본인이 작성한 코멘트만 삭제할 수 있습니다.");
+      return;
+    }
+    
+    const updatedComments = (target.comments || []).filter(c => c.id !== commentId);
+    const updatedRes = { ...target, comments: updatedComments };
+    
+    try {
+      if (isFirebaseConfigured) {
+        await updateDoc(doc(db, "reservations", resId), { comments: updatedComments });
+      } else {
+        setReservations(prev => prev.map(r => r.id === resId ? updatedRes : r));
+      }
+      
+      if (detail && detail.id === resId) {
+        setDetail(updatedRes);
+      }
+      if (form && form.id === resId) {
+        setForm(updatedRes);
+      }
+      
+      showToast("코멘트를 삭제했습니다.");
+    } catch (err) {
+      console.error(err);
+      showToast("코멘트 삭제 중 오류가 발생했습니다.");
     }
   };
 
@@ -1551,7 +1592,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             <div className="relative z-10">
               {mobCurrentMtg ? (
                 <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => requireAuth(() => setDetail(mobCurrentMtg), "코멘트를 남기려면 로그인이 필요해요.")}>
-                  코멘트 남기기 · 연장 요청
+                  코멘트 남기기
                 </button>
               ) : (
                 <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => tryCreate(roomId, defStart(), selKey)}>
@@ -1637,7 +1678,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         </div>
 
         {/* Bottom Fixed FAB for Mobile/Desktop */}
-        <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+68px)] left-4 right-4 z-30 ${isDesktopSplit ? "md:sticky md:bottom-0 md:mt-auto md:pt-4 md:pb-2 md:bg-[var(--bg)]" : ""}`}>
+        <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+56px)] left-4 right-4 z-30 ${isDesktopSplit ? "md:sticky md:bottom-0 md:mt-auto md:pt-4 md:pb-2 md:bg-[var(--bg)]" : ""}`}>
           <button className="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 text-[14px] font-bold shadow-lg transition-transform active:scale-95" style={{ background: "var(--ink)", color: "var(--bg)" }} onClick={() => tryCreate(roomId, defStart(), selKey)}>
             <Plus size={18} /> 예약하기
           </button>
@@ -2094,7 +2135,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 {form.id && (
                   <div className="mt-4 border-t pt-4" style={{ borderColor: C.border }}>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold" style={{ color: C.text }}>💬 코멘트 & 연장 요청</span>
+                      <span className="text-xs font-bold" style={{ color: C.text }}>💬 코멘트</span>
                       <span className="text-[10px]" style={{ color: C.faint }}>{(form.comments || []).length}개</span>
                     </div>
                     <div className="max-h-[120px] overflow-y-auto space-y-2 mb-3 pr-1 sc no-scrollbar">
@@ -2104,8 +2145,21 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                         (form.comments || []).map(c => (
                           <div key={c.id} className="text-[11px] p-2 rounded-lg" style={{ background: "var(--bg-secondary)", border: `1px solid ${C.border}` }}>
                             <div className="flex justify-between items-center mb-1">
-                              <span className="font-semibold">{c.user}님</span>
-                              <span className="text-[9px]" style={{ color: C.faint }}>{c.createdAt ? new Date(c.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold">{c.user}님</span>
+                                <span className="text-[9px]" style={{ color: C.faint }}>{c.createdAt ? new Date(c.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</span>
+                              </div>
+                              {user && (c.user === user || user === "admin") && (
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteComment(form.id, c.id);
+                                  }}
+                                  className="p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 opacity-60 hover:opacity-100 transition-all cursor-pointer"
+                                >
+                                  <X size={10} />
+                                </button>
+                              )}
                             </div>
                             <p style={{ color: C.text }} className="break-all whitespace-pre-wrap">{c.text}</p>
                           </div>
@@ -2117,7 +2171,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                         <input 
                           type="text" 
                           id="comment-input-edit"
-                          placeholder="코멘트나 연장 요청 내용을 입력하세요..." 
+                          placeholder="코멘트 내용을 입력하세요..." 
                           className="inp flex-1 rounded border px-3 py-2 text-xs outline-none bg-white" 
                           style={{ borderColor: C.border }}
                           onKeyDown={(e) => {
@@ -2140,29 +2194,6 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                           style={{ background: C.ink }}
                         >
                           등록
-                        </button>
-                      </div>
-                      <div className="flex gap-1.5">
-                        <button 
-                          onClick={() => handleAddComment(form.id, "[연장 요청] 10분 연장 희망합니다.")}
-                          className="lift rounded-lg border px-2 py-1 text-[10px] font-semibold flex-1 text-center" 
-                          style={{ borderColor: C.border, color: C.muted, background: "var(--bg-input)" }}
-                        >
-                          +10분 연장
-                        </button>
-                        <button 
-                          onClick={() => handleAddComment(form.id, "[연장 요청] 20분 연장 희망합니다.")}
-                          className="lift rounded-lg border px-2 py-1 text-[10px] font-semibold flex-1 text-center" 
-                          style={{ borderColor: C.border, color: C.muted, background: "var(--bg-input)" }}
-                        >
-                          +20분 연장
-                        </button>
-                        <button 
-                          onClick={() => handleAddComment(form.id, "[연장 요청] 30분 연장 희망합니다.")}
-                          className="lift rounded-lg border px-2 py-1 text-[10px] font-semibold flex-1 text-center" 
-                          style={{ borderColor: C.border, color: C.muted, background: "var(--bg-input)" }}
-                        >
-                          +30분 연장
                         </button>
                       </div>
                     </div>
@@ -2341,10 +2372,10 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               <DetailRow icon={User} label="등록자" value={`${detail.owner}님`} />
             </div>
             
-            {/* 💬 코멘트 & 연장 요청 목록 */}
+            {/* 💬 코멘트 목록 */}
             <div className="mt-4 border-t pt-4" style={{ borderColor: C.border }}>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[12px] font-bold" style={{ color: C.text }}>💬 코멘트 & 연장 요청</span>
+                <span className="text-[12px] font-bold" style={{ color: C.text }}>💬 코멘트</span>
                 <span className="text-[10px]" style={{ color: C.faint }}>{(detail.comments || []).length}개</span>
               </div>
               <div className="max-h-[120px] overflow-y-auto space-y-2 mb-3 pr-1 sc no-scrollbar">
@@ -2354,8 +2385,21 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   (detail.comments || []).map(c => (
                     <div key={c.id} className="text-[11px] p-2 rounded-lg" style={{ background: "var(--bg-secondary)", border: `1px solid ${C.border}` }}>
                       <div className="flex justify-between items-center mb-1">
-                        <span className="font-semibold">{c.user}님</span>
-                        <span className="text-[9px]" style={{ color: C.faint }}>{c.createdAt ? new Date(c.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold">{c.user}님</span>
+                          <span className="text-[9px]" style={{ color: C.faint }}>{c.createdAt ? new Date(c.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</span>
+                        </div>
+                        {user && (c.user === user || user === "admin") && (
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteComment(detail.id, c.id);
+                            }}
+                            className="p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 opacity-60 hover:opacity-100 transition-all cursor-pointer"
+                          >
+                            <X size={10} />
+                          </button>
+                        )}
                       </div>
                       <p style={{ color: C.text }} className="break-all whitespace-pre-wrap">{c.text}</p>
                     </div>
@@ -2368,7 +2412,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     <input 
                       type="text" 
                       id="comment-input-detail"
-                      placeholder="코멘트나 연장 요청 내용을 입력하세요..." 
+                      placeholder="코멘트 내용을 입력하세요..." 
                       className="inp flex-1 rounded border px-3 py-2 text-xs outline-none bg-white" 
                       style={{ borderColor: C.border }}
                       onKeyDown={(e) => {
@@ -2391,29 +2435,6 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                       style={{ background: C.ink }}
                     >
                       등록
-                    </button>
-                  </div>
-                  <div className="flex gap-1.5">
-                    <button 
-                      onClick={() => handleAddComment(detail.id, "[연장 요청] 10분 연장 희망합니다.")}
-                      className="lift rounded-lg border px-2 py-1 text-[10px] font-semibold flex-1 text-center" 
-                      style={{ borderColor: C.border, color: C.muted, background: "var(--bg-input)" }}
-                    >
-                      +10분 연장
-                    </button>
-                    <button 
-                      onClick={() => handleAddComment(detail.id, "[연장 요청] 20분 연장 희망합니다.")}
-                      className="lift rounded-lg border px-2 py-1 text-[10px] font-semibold flex-1 text-center" 
-                      style={{ borderColor: C.border, color: C.muted, background: "var(--bg-input)" }}
-                    >
-                      +20분 연장
-                    </button>
-                    <button 
-                      onClick={() => handleAddComment(detail.id, "[연장 요청] 30분 연장 희망합니다.")}
-                      className="lift rounded-lg border px-2 py-1 text-[10px] font-semibold flex-1 text-center" 
-                      style={{ borderColor: C.border, color: C.muted, background: "var(--bg-input)" }}
-                    >
-                      +30분 연장
                     </button>
                   </div>
                 </div>
