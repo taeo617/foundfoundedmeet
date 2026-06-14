@@ -2058,7 +2058,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               <div className="flex items-center justify-between"><h3 className="text-lg font-medium">{form.id ? "예약 수정" : "회의실 예약"}</h3><button onClick={() => setForm(null)} className="grid h-8 w-8 place-items-center rounded-lg" style={{ color: C.faint }}><X size={18} /></button></div>
               <div className="mt-5 space-y-4">
                 <Field label="회의 제목" error={errs.title}>
-                  <input value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value }); setErrs((x) => ({ ...x, title: undefined })); }} placeholder="예: 제품팀 스프린트 플래닝" className="inp w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none" style={{ borderColor: errs.title ? "#C0392B" : C.border }} />
+                  <input value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value }); setErrs((x) => ({ ...x, title: undefined })); }} placeholder="예: OOO 프로젝트_아이데이션 회의" className="inp w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none" style={{ borderColor: errs.title ? "#C0392B" : C.border }} />
                 </Field>
                 <Field label="회의실"><SelectBox value={form.roomId} onChange={(v) => setForm({ ...form, roomId: v })} options={ROOMS.map((r) => [r.id, `${r.name} · ${r.capacity}명`])} /></Field>
                 <Field label="날짜">
