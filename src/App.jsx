@@ -680,6 +680,7 @@ export default function App() {
 
   const [section, setSection] = useState("book");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [menuDrawerOpen, setMenuDrawerOpen] = useState(false);
   const [view, setView] = useState("timeline");
   const [anchor, setAnchor] = useState(() => dayOnly(new Date()));
   const [mineDate, setMineDate] = useState(() => keyOf(new Date()));
@@ -1387,7 +1388,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     return (
       <div className={`${isDesktopSplit ? "hidden md:flex h-full overflow-y-auto no-scrollbar" : "flex md:hidden"} flex-col flex-1 w-full pt-2 ${isDesktopSplit ? "pb-0" : "pb-20"} relative`}>
         {/* Mobile Header / Desktop Timeline Header */}
-        <div className="flex items-center justify-between mb-4 px-1 md:px-0">
+        <div className="flex items-start justify-between mb-4 px-1 md:px-0">
           <div>
             <div className="flex items-center gap-2">
               <div className="relative flex items-center">
@@ -1399,18 +1400,15 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   <span className="text-[10px] opacity-40 ml-1">▼</span>
                 </button>
                 {datePickerOpen && (
-                  <>
-                    <div className="fixed inset-0 z-[75]" onClick={() => setDatePickerOpen(false)} />
-                    <CustomDatePicker
-                      anchor={anchor}
-                      onClose={() => setDatePickerOpen(false)}
-                      onSelect={(d) => {
-                        setAnchor(d);
-                        setDatePickerOpen(false);
-                      }}
-                      theme={theme}
-                    />
-                  </>
+                  <CustomDatePicker
+                    anchor={anchor}
+                    onClose={() => setDatePickerOpen(false)}
+                    onSelect={(d) => {
+                      setAnchor(d);
+                      setDatePickerOpen(false);
+                    }}
+                    theme={theme}
+                  />
                 )}
               </div>
               <button 
@@ -1425,6 +1423,28 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               </button>
             </div>
             <div className="text-xs mt-1" style={{ color: C.faint }}>오늘 예약 {currentRoomRes.length}건</div>
+          </div>
+
+          {/* Right: Theme Toggle and Hamburger Menu (Mobile Only) */}
+          <div className="flex items-center gap-2 md:hidden">
+            <button
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="lift grid h-9 w-9 place-items-center rounded-lg border transition-all duration-200 active:scale-90"
+              style={{ borderColor: C.border, color: C.muted }}
+            >
+              {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+            <button
+              onClick={() => setMenuDrawerOpen(true)}
+              className="lift grid h-9 w-9 place-items-center rounded-lg border transition-all duration-200 active:scale-90"
+              style={{ borderColor: C.border, color: C.muted }}
+            >
+              <span className="flex flex-col gap-[3.5px] w-[14px]">
+                <span className="h-[2px] w-full bg-current rounded-sm"></span>
+                <span className="h-[2px] w-full bg-current rounded-sm"></span>
+                <span className="h-[2px] w-full bg-current rounded-sm"></span>
+              </span>
+            </button>
           </div>
         </div>
 
@@ -1677,7 +1697,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               </nav>
             </div>
           )}
-          <div className="flex items-center gap-2">
+          {/* Desktop header controls */}
+          <div className="hidden md:flex items-center gap-2">
             <div className="hidden text-right leading-tight sm:block"><div className="text-[12px] font-medium">{fmtK(now)}</div><div className="text-[11px]" style={{ color: C.faint }}>{now.getHours() < 12 ? "오전" : "오후"} {pad(((now.getHours() + 11) % 12) + 1)}:{pad(now.getMinutes())}</div></div>
             <button
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
@@ -1705,6 +1726,28 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             ) : (
               <button onClick={() => requireAuth(() => {}, "로그인")} className="lift flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium" style={{ background: C.ink, color: "var(--bg)", boxShadow: "0 1px 2px rgba(0,0,0,.05)" }}><LogIn size={15} /> 로그인</button>
             )}
+          </div>
+
+          {/* Mobile header controls */}
+          <div className="flex md:hidden items-center gap-2">
+            <button
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="lift grid h-9 w-9 place-items-center rounded-lg border transition-all duration-200 active:scale-90"
+              style={{ borderColor: C.border, color: C.muted }}
+            >
+              {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+            <button
+              onClick={() => setMenuDrawerOpen(true)}
+              className="lift grid h-9 w-9 place-items-center rounded-lg border transition-all duration-200 active:scale-90"
+              style={{ borderColor: C.border, color: C.muted }}
+            >
+              <span className="flex flex-col gap-[3.5px] w-[14px]">
+                <span className="h-[2px] w-full bg-current rounded-sm"></span>
+                <span className="h-[2px] w-full bg-current rounded-sm"></span>
+                <span className="h-[2px] w-full bg-current rounded-sm"></span>
+              </span>
+            </button>
           </div>
         </div>
       </header>
@@ -2248,6 +2291,112 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               >
                 취소
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Hamburger Menu Drawer ===== */}
+      {menuDrawerOpen && (
+        <div className="fixed inset-0 z-[110] flex justify-end">
+          {/* Backdrop overlay */}
+          <div 
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" 
+            onClick={() => setMenuDrawerOpen(false)}
+          />
+          {/* Drawer Panel */}
+          <div 
+            className="relative w-[280px] h-full flex flex-col justify-between p-6 shadow-2xl transition-transform duration-300 ease-out"
+            style={{ 
+              background: theme === "dark" ? "rgba(30, 30, 30, 0.95)" : "rgba(255, 255, 255, 0.95)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              borderLeft: `1px solid ${C.border}`,
+              color: C.text
+            }}
+          >
+            <div>
+              {/* Header inside Drawer */}
+              <div className="flex items-center justify-between pb-4 border-b" style={{ borderColor: C.border }}>
+                <Wordmark size={18} />
+                <button 
+                  onClick={() => setMenuDrawerOpen(false)} 
+                  className="p-1 hover:opacity-80"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* User profile section */}
+              <div className="py-5">
+                {user ? (
+                  <div className="flex items-center gap-3">
+                    <Avatar name={user} size={36} />
+                    <div>
+                      <div className="font-bold text-[15px]">{user}님</div>
+                      <button 
+                        onClick={() => {
+                          setUser(null);
+                          localStorage.removeItem("auth_token");
+                          localStorage.removeItem("last_user");
+                          setMenuDrawerOpen(false);
+                          setSection("book");
+                        }}
+                        className="text-xs text-red-500 font-semibold mt-0.5 hover:underline"
+                      >
+                        로그아웃
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={() => {
+                      setMenuDrawerOpen(false);
+                      requireAuth(() => {}, "로그인");
+                    }} 
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold w-full justify-center transition-all hover:scale-[1.02] active:scale-95" 
+                    style={{ background: C.ink, color: "var(--bg)" }}
+                  >
+                    <LogIn size={15} /> 로그인
+                  </button>
+                )}
+              </div>
+
+              {/* Menu Items */}
+              <nav className="flex flex-col gap-2 mt-2">
+                <button 
+                  onClick={() => { setSection("book"); setMenuDrawerOpen(false); }}
+                  className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-black/5 dark:hover:bg-white/5"
+                  style={section === "book" ? { background: "var(--bg-secondary)", color: C.ink } : {}}
+                >
+                  <Calendar size={18} />
+                  <span>예약하기</span>
+                </button>
+                <button 
+                  onClick={() => { 
+                    setMenuDrawerOpen(false);
+                    requireAuth(() => setSection("mine"), "이용하시려면 로그인이 필요해요."); 
+                  }}
+                  className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-black/5 dark:hover:bg-white/5"
+                  style={section === "mine" ? { background: "var(--bg-secondary)", color: C.ink } : {}}
+                >
+                  <List size={18} />
+                  <span>내 예약</span>
+                </button>
+                <button 
+                  onClick={() => { setSection("dash"); setMenuDrawerOpen(false); }}
+                  className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-black/5 dark:hover:bg-white/5"
+                  style={section === "dash" ? { background: "var(--bg-secondary)", color: C.ink } : {}}
+                >
+                  <LayoutDashboard size={18} />
+                  <span>대시보드</span>
+                </button>
+              </nav>
+            </div>
+
+            {/* Footer inside Drawer */}
+            <div className="text-center text-xs opacity-40 border-t pt-4 font-medium" style={{ borderColor: C.border }}>
+              v1.0 / made by taeo
             </div>
           </div>
         </div>
