@@ -1566,8 +1566,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               <div id={isDesktopSplit ? `desk-date-${dk}` : `mob-date-${dk}`} key={i} onClick={() => setAnchor(d)} className="flex flex-col items-center shrink-0 w-10 cursor-pointer snap-center">
                 <span className="text-[10px] mb-1.5 font-medium" style={{ color: (d.getDay() === 0 || d.getDay() === 6) ? "#ef4444" : C.faint }}>{WEEK[d.getDay()]}</span>
                 <div 
-                  className={`w-9 h-9 rounded-full flex items-center justify-center text-[14px] font-bold transition-colors ${isSel ? (theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white') : ''}`} 
-                  style={isSel ? {} : (d.getDay() === 0 || d.getDay() === 6) ? { color: "#ef4444" } : isT ? { color: "#2f80ed" } : { color: C.text }}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center text-[14px] font-bold transition-all ${isSel ? 'bg-white text-black shadow-sm border' : ''}`} 
+                  style={isSel ? { borderColor: theme === 'dark' ? '#ffffff' : '#333333' } : (d.getDay() === 0 || d.getDay() === 6) ? { color: "#ef4444" } : isT ? { color: "#2f80ed" } : { color: C.text }}
                 >
                   {d.getDate()}
                 </div>
@@ -1695,7 +1695,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         </div>
 
         {/* Bottom Fixed FAB for Mobile/Desktop */}
-        <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+56px)] left-4 right-4 z-30 ${isDesktopSplit ? "md:sticky md:bottom-0 md:mt-auto md:pt-4 md:pb-2 md:bg-[var(--bg)]" : ""}`}>
+        <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+76px)] left-4 right-4 z-30 ${isDesktopSplit ? "md:sticky md:bottom-0 md:mt-auto md:pt-4 md:pb-2 md:bg-[var(--bg)]" : ""}`}>
           <button className="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 text-[14px] font-bold shadow-lg transition-transform active:scale-95" style={{ background: "var(--ink)", color: "var(--bg)" }} onClick={() => tryCreate(roomId, defStart(), selKey)}>
             <Plus size={18} /> 예약하기
           </button>
