@@ -932,6 +932,25 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === "Escape") {
+        setDatePickerOpen(false);
+        setMenuDrawerOpen(false);
+        setForm(null);
+        setDetail(null);
+        setPickerOpen(false);
+        setAuthOpen(false);
+        setAuthPending(null);
+        setShowProfileMenu(false);
+        setDayEventsDate(null);
+        setRequestUrgentOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, []);
+
   
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
