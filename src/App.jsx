@@ -5,7 +5,7 @@ import {
   Calendar, CalendarDays, Clock, Users, Monitor, Video, Plus, X, Check,
   CheckCircle2, Repeat, AlertCircle, ChevronLeft, ChevronRight, Trash2,
   Building2, List, LogOut, Lock, User, UserPlus, GripVertical, LogIn,
-  LayoutDashboard, HelpCircle, Sun, Moon, Download, FileText, Bell,
+  LayoutDashboard, HelpCircle, Sun, Moon, Download, FileText, Bell, Grid,
 } from "lucide-react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
@@ -944,9 +944,52 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     reader.readAsDataURL(file);
   };
 
+  const handleAddComment = async (resId, text) => {
+    if (!user) {
+      showToast("로그인이 필요합니다.");
+      return;
+    }
+    if (!text || !text.trim()) return;
+    
+    const newComment = {
+      id: nid(),
+      user: user,
+      text: text.trim(),
+      createdAt: new Date().toISOString()
+    };
+    
+    const target = reservations.find(r => r.id === resId);
+    if (!target) return;
+    
+    const updatedComments = [...(target.comments || []), newComment];
+    const updatedRes = { ...target, comments: updatedComments };
+    
+    try {
+      if (isFirebaseConfigured) {
+        await updateDoc(doc(db, "reservations", resId), { comments: updatedComments });
+      } else {
+        setReservations(prev => prev.map(r => r.id === resId ? updatedRes : r));
+      }
+      
+      if (detail && detail.id === resId) {
+        setDetail(updatedRes);
+      }
+      if (form && form.id === resId) {
+        setForm(updatedRes);
+      }
+      
+      showToast("코멘트를 등록했습니다.");
+      sendPushNotification('💬 새 코멘트가 달렸어요', `${user}: ${text.trim()}`, target.attendees);
+    } catch (err) {
+      console.error(err);
+      showToast("코멘트 등록 중 오류가 발생했습니다.");
+    }
+  };
+
   const handleDeleteProfileImage = () => {
     const updated = { ...profiles };
-    delete updated[user];
+    const myProfileImg = profiles["태영"] || defaultProfiles["태영"] || "/avatar_taeyoung.png";
+    updated[user] = myProfileImg;
     setProfiles(updated);
     localStorage.setItem("profile_images", JSON.stringify(updated));
     setShowProfileMenu(false);
@@ -1499,7 +1542,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         {isTodayAnchor && (
           <div className="mb-6 rounded-[14px] p-4 text-white relative overflow-hidden" style={{ background: mobCurrentMtg ? "var(--mob-busy-bg)" : "var(--mob-free-bg)", margin: "6px 0", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
             <div className="flex items-center gap-2 mb-2 relative z-10">
-              <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+              <span className={`w-2.5 h-2.5 rounded-full ${mobCurrentMtg ? "glow-dot-busy" : "glow-dot-free"}`} />
               <span className="text-[18px] font-bold" style={{ color: mobCurrentMtg ? "var(--mob-busy-text)" : "var(--mob-free-text)" }}>{mobCurrentMtg ? "지금 회의 중" : "지금 비어있음"}</span>
             </div>
             <div className="text-[13px] font-medium mb-5" style={{ color: mobCurrentMtg ? "var(--mob-busy-text)" : "var(--mob-free-text)", opacity: 0.8 }}>
@@ -1507,7 +1550,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             </div>
             <div className="relative z-10">
               {mobCurrentMtg ? (
-                <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => showToast("코멘트 남기기 기능 준비 중입니다.")}>
+                <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => requireAuth(() => setDetail(mobCurrentMtg), "코멘트를 남기려면 로그인이 필요해요.")}>
                   코멘트 남기기 · 연장 요청
                 </button>
               ) : (
@@ -2047,6 +2090,84 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   {errs.att && <div className="mt-1.5 flex items-center gap-1 text-xs font-semibold" style={{ color: PASTEL.red.text }}><AlertCircle size={12} />{errs.att}</div>}
                   <button onClick={openPicker} className="lift mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border py-2.5 text-sm font-medium" style={{ borderColor: C.ink, color: C.ink }}><UserPlus size={16} /> 참석자 선택</button>
                 </div>
+
+                {form.id && (
+                  <div className="mt-4 border-t pt-4" style={{ borderColor: C.border }}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold" style={{ color: C.text }}>💬 코멘트 & 연장 요청</span>
+                      <span className="text-[10px]" style={{ color: C.faint }}>{(form.comments || []).length}개</span>
+                    </div>
+                    <div className="max-h-[120px] overflow-y-auto space-y-2 mb-3 pr-1 sc no-scrollbar">
+                      {(form.comments || []).length === 0 ? (
+                        <p className="text-[11px] text-center py-2" style={{ color: C.faint }}>등록된 코멘트가 없습니다.</p>
+                      ) : (
+                        (form.comments || []).map(c => (
+                          <div key={c.id} className="text-[11px] p-2 rounded-lg" style={{ background: "var(--bg-secondary)", border: `1px solid ${C.border}` }}>
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="font-semibold">{c.user}님</span>
+                              <span className="text-[9px]" style={{ color: C.faint }}>{c.createdAt ? new Date(c.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</span>
+                            </div>
+                            <p style={{ color: C.text }} className="break-all whitespace-pre-wrap">{c.text}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          id="comment-input-edit"
+                          placeholder="코멘트나 연장 요청 내용을 입력하세요..." 
+                          className="inp flex-1 rounded border px-3 py-2 text-xs outline-none bg-white" 
+                          style={{ borderColor: C.border }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const val = e.target.value;
+                              handleAddComment(form.id, val);
+                              e.target.value = '';
+                            }
+                          }}
+                        />
+                        <button 
+                          onClick={() => {
+                            const input = document.getElementById("comment-input-edit");
+                            if (input) {
+                              handleAddComment(form.id, input.value);
+                              input.value = '';
+                            }
+                          }}
+                          className="lift rounded px-3 py-1.5 text-xs font-semibold text-white" 
+                          style={{ background: C.ink }}
+                        >
+                          등록
+                        </button>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <button 
+                          onClick={() => handleAddComment(form.id, "[연장 요청] 10분 연장 희망합니다.")}
+                          className="lift rounded-lg border px-2 py-1 text-[10px] font-semibold flex-1 text-center" 
+                          style={{ borderColor: C.border, color: C.muted, background: "var(--bg-input)" }}
+                        >
+                          +10분 연장
+                        </button>
+                        <button 
+                          onClick={() => handleAddComment(form.id, "[연장 요청] 20분 연장 희망합니다.")}
+                          className="lift rounded-lg border px-2 py-1 text-[10px] font-semibold flex-1 text-center" 
+                          style={{ borderColor: C.border, color: C.muted, background: "var(--bg-input)" }}
+                        >
+                          +20분 연장
+                        </button>
+                        <button 
+                          onClick={() => handleAddComment(form.id, "[연장 요청] 30분 연장 희망합니다.")}
+                          className="lift rounded-lg border px-2 py-1 text-[10px] font-semibold flex-1 text-center" 
+                          style={{ borderColor: C.border, color: C.muted, background: "var(--bg-input)" }}
+                        >
+                          +30분 연장
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="mt-6 flex gap-2.5">
                 {form.id && canDelete(form) && (
@@ -2218,6 +2339,87 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               <DetailRow icon={Clock} label="시간" value={`${detail.date} ${detail.start} ~ ${detail.end}`} />
               <DetailRow icon={Users} label="참석자" value={detail.attendees.length ? detail.attendees.map(memLabel).join(", ") : "없음"} />
               <DetailRow icon={User} label="등록자" value={`${detail.owner}님`} />
+            </div>
+            
+            {/* 💬 코멘트 & 연장 요청 목록 */}
+            <div className="mt-4 border-t pt-4" style={{ borderColor: C.border }}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[12px] font-bold" style={{ color: C.text }}>💬 코멘트 & 연장 요청</span>
+                <span className="text-[10px]" style={{ color: C.faint }}>{(detail.comments || []).length}개</span>
+              </div>
+              <div className="max-h-[120px] overflow-y-auto space-y-2 mb-3 pr-1 sc no-scrollbar">
+                {(detail.comments || []).length === 0 ? (
+                  <p className="text-[11px] text-center py-2" style={{ color: C.faint }}>등록된 코멘트가 없습니다.</p>
+                ) : (
+                  (detail.comments || []).map(c => (
+                    <div key={c.id} className="text-[11px] p-2 rounded-lg" style={{ background: "var(--bg-secondary)", border: `1px solid ${C.border}` }}>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-semibold">{c.user}님</span>
+                        <span className="text-[9px]" style={{ color: C.faint }}>{c.createdAt ? new Date(c.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</span>
+                      </div>
+                      <p style={{ color: C.text }} className="break-all whitespace-pre-wrap">{c.text}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+              {user ? (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      id="comment-input-detail"
+                      placeholder="코멘트나 연장 요청 내용을 입력하세요..." 
+                      className="inp flex-1 rounded border px-3 py-2 text-xs outline-none bg-white" 
+                      style={{ borderColor: C.border }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const val = e.target.value;
+                          handleAddComment(detail.id, val);
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                    <button 
+                      onClick={() => {
+                        const input = document.getElementById("comment-input-detail");
+                        if (input) {
+                          handleAddComment(detail.id, input.value);
+                          input.value = '';
+                        }
+                      }}
+                      className="lift rounded px-3 py-1.5 text-xs font-semibold text-white" 
+                      style={{ background: C.ink }}
+                    >
+                      등록
+                    </button>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <button 
+                      onClick={() => handleAddComment(detail.id, "[연장 요청] 10분 연장 희망합니다.")}
+                      className="lift rounded-lg border px-2 py-1 text-[10px] font-semibold flex-1 text-center" 
+                      style={{ borderColor: C.border, color: C.muted, background: "var(--bg-input)" }}
+                    >
+                      +10분 연장
+                    </button>
+                    <button 
+                      onClick={() => handleAddComment(detail.id, "[연장 요청] 20분 연장 희망합니다.")}
+                      className="lift rounded-lg border px-2 py-1 text-[10px] font-semibold flex-1 text-center" 
+                      style={{ borderColor: C.border, color: C.muted, background: "var(--bg-input)" }}
+                    >
+                      +20분 연장
+                    </button>
+                    <button 
+                      onClick={() => handleAddComment(detail.id, "[연장 요청] 30분 연장 희망합니다.")}
+                      className="lift rounded-lg border px-2 py-1 text-[10px] font-semibold flex-1 text-center" 
+                      style={{ borderColor: C.border, color: C.muted, background: "var(--bg-input)" }}
+                    >
+                      +30분 연장
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-center" style={{ color: C.faint }}>로그인 후 코멘트를 작성할 수 있습니다.</p>
+              )}
             </div>
             
             {/* 🚨 긴급 사용 요청 */}
@@ -2400,7 +2602,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-black/5 dark:hover:bg-white/5"
                   style={section === "dash" ? { background: "var(--bg-secondary)", color: C.ink } : {}}
                 >
-                  <LayoutDashboard size={18} />
+                  <Grid size={18} />
                   <span>대시보드</span>
                 </button>
               </nav>

@@ -320,3 +320,40 @@ body, header, section, .sheet, .cell, input, select, button {
   scrollbar-width: none;  /* Firefox */
 }
 
+/* Glowing/Blinking status dots */
+@keyframes status-glow-free {
+  0%, 100% {
+    opacity: 0.55;
+    transform: scale(0.92);
+    box-shadow: 0 0 3px rgba(0, 255, 102, 0.4), 0 0 6px rgba(0, 255, 102, 0.2);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+    box-shadow: 0 0 10px rgba(0, 255, 102, 0.9), 0 0 20px rgba(0, 255, 102, 0.5);
+  }
+}
+
+.glow-dot-free {
+  background-color: #00ff66 !important;
+  animation: status-glow-free 1.6s infinite ease-in-out;
+}
+
+@keyframes status-glow-busy {
+  0%, 100% {
+    opacity: 0.55;
+    transform: scale(0.92);
+    box-shadow: 0 0 3px rgba(255, 59, 48, 0.4), 0 0 6px rgba(255, 59, 48, 0.2);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+    box-shadow: 0 0 10px rgba(255, 59, 48, 0.9), 0 0 20px rgba(255, 59, 48, 0.5);
+  }
+}
+
+.glow-dot-busy {
+  background-color: #ff3b30 !important;
+  animation: status-glow-busy 1.6s infinite ease-in-out;
+}
+
