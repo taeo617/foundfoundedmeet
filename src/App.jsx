@@ -763,29 +763,34 @@ export default function App() {
 
   useEffect(() => {
     if (section === "book" && !showSplash) {
-      const scrollToSelected = () => {
-        const mobEl = document.getElementById(`mob-date-${keyOf(anchor)}`);
-        if (mobEl) {
-          const container = mobEl.parentElement;
-          if (container) {
-            const elementLeft = mobEl.getBoundingClientRect().left - container.getBoundingClientRect().left + container.scrollLeft;
-            container.scrollLeft = elementLeft - (container.clientWidth / 2) + (mobEl.clientWidth / 2);
-          }
-        }
-        const deskEl = document.getElementById(`desk-date-${keyOf(anchor)}`);
-        if (deskEl) {
-          const container = deskEl.parentElement;
-          if (container) {
-            const elementLeft = deskEl.getBoundingClientRect().left - container.getBoundingClientRect().left + container.scrollLeft;
-            container.scrollLeft = elementLeft - (container.clientWidth / 2) + (deskEl.clientWidth / 2);
-          }
-        }
+      const mobEl = document.getElementById(`mob-date-${keyOf(anchor)}`);
+      const deskEl = document.getElementById(`desk-date-${keyOf(anchor)}`);
+
+      const centerElement = (el) => {
+        if (!el) return;
+        const container = el.parentElement;
+        if (!container || container.clientWidth === 0) return;
+        const elementLeft = el.getBoundingClientRect().left - container.getBoundingClientRect().left + container.scrollLeft;
+        container.scrollLeft = elementLeft - (container.clientWidth / 2) + (el.clientWidth / 2);
       };
-      scrollToSelected();
-      const t1 = setTimeout(scrollToSelected, 50);
-      const t2 = setTimeout(scrollToSelected, 150);
-      const t3 = setTimeout(scrollToSelected, 400);
+
+      const observer = new ResizeObserver(() => {
+        centerElement(mobEl);
+        centerElement(deskEl);
+      });
+
+      if (mobEl && mobEl.parentElement) observer.observe(mobEl.parentElement);
+      if (deskEl && deskEl.parentElement) observer.observe(deskEl.parentElement);
+
+      // Trigger immediate and fallback timeouts
+      centerElement(mobEl);
+      centerElement(deskEl);
+      const t1 = setTimeout(() => { centerElement(mobEl); centerElement(deskEl); }, 50);
+      const t2 = setTimeout(() => { centerElement(mobEl); centerElement(deskEl); }, 150);
+      const t3 = setTimeout(() => { centerElement(mobEl); centerElement(deskEl); }, 400);
+
       return () => {
+        observer.disconnect();
         clearTimeout(t1);
         clearTimeout(t2);
         clearTimeout(t3);
