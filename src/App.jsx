@@ -464,6 +464,112 @@ function SplashScreen({ onComplete }) {
   );
 }
 
+/* ===================== custom date picker (ios style) ===================== */
+function CustomDatePicker({ anchor, onClose, onSelect, theme }) {
+  const [pickerDate, setPickerDate] = useState(() => new Date(anchor));
+  const [selectedDate, setSelectedDate] = useState(() => new Date(anchor));
+
+  const year = pickerDate.getFullYear();
+  const month = pickerDate.getMonth();
+
+  const firstDayIndex = new Date(year, month, 1).getDay();
+  const totalDays = new Date(year, month + 1, 0).getDate();
+
+  const changeMonth = (offset) => {
+    setPickerDate(new Date(year, month + offset, 1));
+  };
+
+  const handleDayClick = (day) => {
+    setSelectedDate(new Date(year, month, day));
+  };
+
+  const days = [];
+  for (let i = 0; i < firstDayIndex; i++) {
+    days.push(<div key={`empty-${i}`} className="w-9 h-9" />);
+  }
+  for (let d = 1; d <= totalDays; d++) {
+    const isSel = selectedDate.getFullYear() === year && selectedDate.getMonth() === month && selectedDate.getDate() === d;
+    const nowD = new Date();
+    const isToday = nowD.getFullYear() === year && nowD.getMonth() === month && nowD.getDate() === d;
+
+    days.push(
+      <button
+        key={`day-${d}`}
+        onClick={() => handleDayClick(d)}
+        className="w-9 h-9 rounded-full flex items-center justify-center text-[14px] font-semibold transition-all relative"
+        style={{
+          background: isSel ? "#3b82f6" : "transparent",
+          color: isSel ? "#ffffff" : isToday ? "#3b82f6" : "inherit",
+        }}
+      >
+        {d}
+      </button>
+    );
+  }
+
+  const isDark = theme === "dark";
+  const bg = isDark ? "bg-[#2c2c2e] text-white" : "bg-white text-black";
+  const resetBg = isDark ? "bg-[#3a3a3c] text-white" : "bg-[#f2f2f7] text-[#3a3a3c]";
+  const border = isDark ? "border border-[#3a3a3c]" : "border border-[#e5e5ea] shadow-xl";
+
+  return (
+    <div 
+      className={`absolute top-full left-0 mt-2 p-5 rounded-[24px] ${bg} ${border} w-[280px] z-[80] select-none`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1">
+          <span className="text-[16px] font-bold">{year}년 {month + 1}월</span>
+          <ChevronRight size={14} className="text-[#3b82f6]" />
+        </div>
+        <div className="flex items-center gap-3">
+          <button onClick={() => changeMonth(-1)} className="p-1 text-[#3b82f6] hover:opacity-85 active:scale-95 transition-all">
+            <ChevronLeft size={20} />
+          </button>
+          <button onClick={() => changeMonth(1)} className="p-1 text-[#3b82f6] hover:opacity-85 active:scale-95 transition-all">
+            <ChevronRight size={20} />
+          </button>
+        </div>
+      </div>
+
+      {/* Weekday Row */}
+      <div className="grid grid-cols-7 gap-y-2 mt-4 text-[12px] font-semibold text-center opacity-60">
+        {["일", "월", "화", "수", "목", "금", "토"].map((w, idx) => (
+          <div key={idx} style={{ color: idx === 0 ? "#ef4444" : idx === 6 ? "#3b82f6" : "inherit" }}>
+            {w}
+          </div>
+        ))}
+      </div>
+
+      {/* Days Grid */}
+      <div className="grid grid-cols-7 gap-y-1 mt-2 text-center">
+        {days}
+      </div>
+
+      {/* Footer */}
+      <div className="flex justify-between items-center mt-5">
+        <button
+          onClick={() => {
+            const td = new Date();
+            setSelectedDate(td);
+            setPickerDate(td);
+          }}
+          className={`px-4 py-2 rounded-full text-[13px] font-bold transition-all active:scale-95 ${resetBg}`}
+        >
+          재설정
+        </button>
+        <button
+          onClick={() => onSelect(selectedDate)}
+          className="w-10 h-10 rounded-full bg-[#3b82f6] flex items-center justify-center text-white transition-all active:scale-95 shadow-md"
+        >
+          <Check size={20} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ===================== app ===================== */
 export default function App() {
   const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem('skipSplash'));
@@ -514,6 +620,7 @@ export default function App() {
   }, [theme]);
 
   const [section, setSection] = useState("book");
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [view, setView] = useState("timeline");
   const [anchor, setAnchor] = useState(() => dayOnly(new Date()));
   const [mineDate, setMineDate] = useState(() => keyOf(new Date()));
@@ -1220,20 +1327,27 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           <div>
             <div className="flex items-center gap-2">
               <div className="relative flex items-center">
-                <div className="text-xl font-bold flex items-center gap-1 cursor-pointer hover:opacity-80 active:opacity-60 transition-opacity">
+                <button 
+                  onClick={() => setDatePickerOpen(!datePickerOpen)}
+                  className="text-xl font-bold flex items-center gap-1 cursor-pointer hover:opacity-80 active:opacity-60 transition-opacity"
+                >
                   {anchor.getMonth() + 1}월 {anchor.getDate()}일 {WEEK[anchor.getDay()]}요일
                   <span className="text-[10px] opacity-40 ml-1">▼</span>
-                </div>
-                <input 
-                  type="date"
-                  value={`${anchor.getFullYear()}-${pad(anchor.getMonth() + 1)}-${pad(anchor.getDate())}`}
-                  onChange={(e) => {
-                    if (!e.target.value) return;
-                    const newD = new Date(e.target.value);
-                    setAnchor(dayOnly(newD));
-                  }}
-                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                />
+                </button>
+                {datePickerOpen && (
+                  <>
+                    <div className="fixed inset-0 z-[75]" onClick={() => setDatePickerOpen(false)} />
+                    <CustomDatePicker
+                      anchor={anchor}
+                      onClose={() => setDatePickerOpen(false)}
+                      onSelect={(d) => {
+                        setAnchor(d);
+                        setDatePickerOpen(false);
+                      }}
+                      theme={theme}
+                    />
+                  </>
+                )}
               </div>
               <button 
                 onClick={() => {
