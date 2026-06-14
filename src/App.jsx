@@ -657,12 +657,20 @@ export default function App() {
   useEffect(() => {
     if (section === "book" && !showSplash) {
       const scrollToSelected = () => {
-        const el = document.getElementById(`mob-date-${keyOf(anchor)}`);
-        if (el) {
-          const container = el.parentElement;
+        const mobEl = document.getElementById(`mob-date-${keyOf(anchor)}`);
+        if (mobEl) {
+          const container = mobEl.parentElement;
           if (container) {
-            const elementLeft = el.getBoundingClientRect().left - container.getBoundingClientRect().left + container.scrollLeft;
-            container.scrollLeft = elementLeft - (container.clientWidth / 2) + (el.clientWidth / 2);
+            const elementLeft = mobEl.getBoundingClientRect().left - container.getBoundingClientRect().left + container.scrollLeft;
+            container.scrollLeft = elementLeft - (container.clientWidth / 2) + (mobEl.clientWidth / 2);
+          }
+        }
+        const deskEl = document.getElementById(`desk-date-${keyOf(anchor)}`);
+        if (deskEl) {
+          const container = deskEl.parentElement;
+          if (container) {
+            const elementLeft = deskEl.getBoundingClientRect().left - container.getBoundingClientRect().left + container.scrollLeft;
+            container.scrollLeft = elementLeft - (container.clientWidth / 2) + (deskEl.clientWidth / 2);
           }
         }
       };
@@ -1259,7 +1267,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             const hasUrgent = dRes.some(r => r.isUrgent);
             const hasNormal = dRes.length > 0 && !hasUrgent;
             return (
-              <div id={`mob-date-${dk}`} key={i} onClick={() => setAnchor(d)} className="flex flex-col items-center shrink-0 w-10 cursor-pointer snap-center">
+              <div id={isDesktopSplit ? `desk-date-${dk}` : `mob-date-${dk}`} key={i} onClick={() => setAnchor(d)} className="flex flex-col items-center shrink-0 w-10 cursor-pointer snap-center">
                 <span className="text-[10px] mb-1.5 font-medium" style={{ color: C.faint }}>{WEEK[d.getDay()]}</span>
                 <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[14px] font-bold transition-colors ${isSel || isT ? (theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white') : ''}`} style={!(isSel || isT) ? { color: C.text } : {}}>
                   {d.getDate()}
