@@ -266,7 +266,7 @@ function lcg(seed) { let s = seed % 2147483647; if (s <= 0) s += 2147483646; ret
 function genDash(year, month, roomFilter, reservations) {
   const days = new Date(year, month + 1, 0).getDate();
   const daily = [];
-  let big = 0, small = 0;
+  let bigMin = 0, smallMin = 0;
   
   for (let d = 1; d <= days; d++) {
     daily.push({ d, wd: new Date(year, month, d).getDay(), big: 0, small: 0, total: 0 });
@@ -280,13 +280,12 @@ function genDash(year, month, roomFilter, reservations) {
           const dObj = daily[rd - 1];
           if (dObj) {
             const durationMin = toMin(r.end) - toMin(r.start);
-            const durationHours = durationMin / 60;
             if (r.roomId === "big") {
               dObj.big += 1;
-              big += durationHours;
+              bigMin += durationMin;
             } else if (r.roomId === "small") {
               dObj.small += 1;
-              small += durationHours;
+              smallMin += durationMin;
             }
             dObj.total += 1;
           }
@@ -296,18 +295,18 @@ function genDash(year, month, roomFilter, reservations) {
   }
 
   const total = daily.reduce((acc, curr) => acc + curr.total, 0);
-  const totalHours = Math.round(big + small);
-  const mostUsed = big > small ? "큰 회의실" : small > big ? "작은 회의실" : "-";
-  const leastUsed = big > small ? "작은 회의실" : small > big ? "큰 회의실" : "-";
+  const totalMinutes = bigMin + smallMin;
+  const mostUsed = bigMin > smallMin ? "큰 회의실" : smallMin > bigMin ? "작은 회의실" : "-";
+  const leastUsed = bigMin > smallMin ? "작은 회의실" : smallMin > bigMin ? "큰 회의실" : "-";
   return { 
     days, 
     daily, 
     total, 
-    totalHours, 
+    totalMinutes, 
     mostUsed, 
     leastUsed, 
-    mostHours: Math.round(big), 
-    leastHours: Math.round(small)
+    mostMinutes: bigMin, 
+    leastMinutes: smallMin
   };
 }
 const HEAT = ["var(--heat-0)", "var(--heat-1)", "var(--heat-2)", "var(--heat-3)", "var(--heat-4)"];
@@ -357,9 +356,9 @@ function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations }) {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="총 회의실 예약 수" value={`${data.total}건`} delay={0} />
-        <StatCard label="총 회의실 사용 시간" value={`${data.totalHours}시간`} delay={40} />
-        <StatCard label="가장 많이 사용된 회의실" sub={`${data.mostHours}시간`} value={data.mostUsed} delay={80} />
-        <StatCard label="가장 적게 사용된 회의실" sub={`${data.leastHours}시간`} value={data.leastUsed} delay={120} />
+        <StatCard label="총 회의실 사용 시간" value={`${data.totalMinutes}분`} delay={40} />
+        <StatCard label="가장 많이 사용된 회의실" sub={`${data.mostMinutes}분`} value={data.mostUsed} delay={80} />
+        <StatCard label="가장 적게 사용된 회의실" sub={`${data.leastMinutes}분`} value={data.leastUsed} delay={120} />
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -812,6 +811,26 @@ export default function App() {
       }
     }
   }, [reservations]);
+
+  const touchStart = useRef({ x: 0, y: 0 });
+  const handleTouchStart = (e) => {
+    touchStart.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY
+    };
+  };
+  const handleTouchEnd = (e) => {
+    if (!touchStart.current) return;
+    const diffX = e.changedTouches[0].clientX - touchStart.current.x;
+    const diffY = e.changedTouches[0].clientY - touchStart.current.y;
+    if (Math.abs(diffX) > 60 && Math.abs(diffY) < 50) {
+      if (diffX > 0) {
+        setAnchor(addDays(anchor, -1));
+      } else {
+        setAnchor(addDays(anchor, 1));
+      }
+    }
+  };
 
   const [form, setForm] = useState(null);
   const [errs, setErrs] = useState({});
@@ -1501,7 +1520,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         )}
 
         {/* Timeline List */}
-        <div className="flex-1">
+        <div className="flex-1" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
           <div className="flex items-center gap-2 mb-3">
             <span className="text-[12px] font-medium" style={{ color: C.faint }}>{isTodayAnchor ? "오늘 일정" : `${anchor.getMonth() + 1}월 ${anchor.getDate()}일 일정`}</span>
             <div className="flex-1 h-px" style={{ background: C.border }} />
