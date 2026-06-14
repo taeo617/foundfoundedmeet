@@ -656,8 +656,8 @@ export default function App() {
 
   useEffect(() => {
     if (section === "book" && !showSplash) {
-      const scrollToToday = () => {
-        const el = document.getElementById(`mob-date-${keyOf(today)}`);
+      const scrollToSelected = () => {
+        const el = document.getElementById(`mob-date-${keyOf(anchor)}`);
         if (el) {
           const container = el.parentElement;
           if (container) {
@@ -666,17 +666,17 @@ export default function App() {
           }
         }
       };
-      scrollToToday();
-      const t1 = setTimeout(scrollToToday, 50);
-      const t2 = setTimeout(scrollToToday, 150);
-      const t3 = setTimeout(scrollToToday, 400);
+      scrollToSelected();
+      const t1 = setTimeout(scrollToSelected, 50);
+      const t2 = setTimeout(scrollToSelected, 150);
+      const t3 = setTimeout(scrollToSelected, 400);
       return () => {
         clearTimeout(t1);
         clearTimeout(t2);
         clearTimeout(t3);
       };
     }
-  }, [section, today, showSplash]);
+  }, [section, anchor, showSplash]);
 
   const [authOpen, setAuthOpen] = useState(false);
   const [authMsg, setAuthMsg] = useState("");
@@ -1210,7 +1210,34 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         {/* Mobile Header / Desktop Timeline Header */}
         <div className="flex items-center justify-between mb-4 px-1 md:px-0">
           <div>
-            <div className="text-xl font-bold">{anchor.getMonth() + 1}월 {anchor.getDate()}일 {WEEK[anchor.getDay()]}요일</div>
+            <div className="flex items-center gap-2">
+              <div className="relative flex items-center">
+                <div className="text-xl font-bold flex items-center gap-1 cursor-pointer hover:opacity-80 active:opacity-60 transition-opacity">
+                  {anchor.getMonth() + 1}월 {anchor.getDate()}일 {WEEK[anchor.getDay()]}요일
+                  <span className="text-[10px] opacity-40 ml-1">▼</span>
+                </div>
+                <input 
+                  type="date"
+                  value={`${anchor.getFullYear()}-${pad(anchor.getMonth() + 1)}-${pad(anchor.getDate())}`}
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    const newD = new Date(e.target.value);
+                    setAnchor(dayOnly(newD));
+                  }}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                />
+              </div>
+              <button 
+                onClick={() => {
+                  const td = dayOnly(new Date());
+                  setAnchor(td);
+                }}
+                className="px-2 py-0.5 rounded-md text-[11px] font-bold transition-all ml-1.5"
+                style={{ background: "var(--bg-input)", border: `1px solid ${C.border}`, color: C.text }}
+              >
+                오늘
+              </button>
+            </div>
             <div className="text-xs mt-1" style={{ color: C.faint }}>오늘 예약 {currentRoomRes.length}건</div>
           </div>
         </div>
@@ -1224,7 +1251,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             }
           }}
         >
-          {Array.from({length: 31}, (_, i) => addDays(today, i - 15)).map((d, i) => {
+          {Array.from({length: 31}, (_, i) => addDays(anchor, i - 15)).map((d, i) => {
             const dk = keyOf(d);
             const isSel = dk === selKey;
             const isT = dk === todayKey;
