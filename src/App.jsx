@@ -54,6 +54,8 @@ const MEMBERS = [
   { id: "m13", name: "지민", team: "VD", role: "디자이너",         group: "staff" },
   { id: "m4",  name: "도영", team: "VD", role: "인턴",            group: "staff" },
   { id: "m14", name: "정수", team: "ID", role: "인턴",            group: "staff" },
+  { id: "m_guest", name: "Guest", team: "게스트", role: "게스트", group: "guest" },
+  { id: "m_client", name: "클라이언트", team: "외부", role: "클라이언트", group: "client" },
 ];
 const M = (id) => MEMBERS.find((x) => x.id === id);
 const memLabel = (id) => { const m = M(id); return m ? `${m.team} ${m.name}님` : id; };
@@ -233,6 +235,10 @@ function LoginModal({ message, onClose, onLogin }) {
     if (trimmedName.toLowerCase() === "admin") {
       if (pw !== "3913") return setErr("비밀번호가 올바르지 않아요.");
       return onLogin("admin");
+    }
+    if (trimmedName.toLowerCase() === "guest") {
+      if (pw !== "1234") return setErr("비밀번호가 올바르지 않아요.");
+      return onLogin("Guest");
     }
     const memberExists = MEMBERS.some((m) => m.name === trimmedName);
     if (!memberExists) return setErr("등록되지 않은 멤버 이름입니다. 등록된 이름으로 로그인해 주세요.");
@@ -2238,13 +2244,30 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               <div className="order-1 flex shrink-0 flex-col border-b p-3 md:order-2 md:w-1/2 md:border-b-0 md:border-l" style={{ borderColor: C.border }}>
                 <div className="mb-2 px-1 flex justify-between items-center text-xs font-medium" style={{ color: C.muted }}>
                   <span>참석자 ({temp.length})</span>
-                  <button 
-                    onClick={() => setTemp(temp.length === MEMBERS.length ? [] : MEMBERS.map(m => m.id))}
-                    className="hover:underline text-[11px] px-1 py-0.5 rounded"
-                    style={{ color: C.ink }}
-                  >
-                    {temp.length === MEMBERS.length ? "전체 해제" : "전체 선택"}
-                  </button>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => toggleTemp("m_client")}
+                      className={`hover:underline text-[11px] px-2 py-0.5 rounded font-semibold transition-colors ${temp.includes("m_client") ? "bg-red-50 text-red-600 dark:bg-red-950/20 dark:text-red-400" : "bg-black/5 text-slate-700 dark:bg-white/5 dark:text-slate-300"}`}
+                    >
+                      {temp.includes("m_client") ? "클라이언트 제거" : "+ 클라이언트 추가"}
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const normalMembers = MEMBERS.filter(m => m.group === "director" || m.group === "staff");
+                        const allSelected = normalMembers.every(m => temp.includes(m.id));
+                        if (allSelected) {
+                          setTemp(temp.filter(id => !normalMembers.some(nm => nm.id === id)));
+                        } else {
+                          const newTemp = new Set([...temp, ...normalMembers.map(m => m.id)]);
+                          setTemp(Array.from(newTemp));
+                        }
+                      }}
+                      className="hover:underline text-[11px] px-1 py-0.5 rounded"
+                      style={{ color: C.ink }}
+                    >
+                      {MEMBERS.filter(m => m.group === "director" || m.group === "staff").every(m => temp.includes(m.id)) ? "전체 해제" : "전체 선택"}
+                    </button>
+                  </div>
                 </div>
                 <div onDragOver={(e) => { e.preventDefault(); setDz(true); }} onDragLeave={() => setDz(false)} onDrop={(e) => { e.preventDefault(); addTemp(e.dataTransfer.getData("text/plain")); setDz(false); }}
                   className="sc overflow-y-auto rounded-lg border-2 border-dashed p-3" style={{ borderColor: dz ? C.ink : C.border, background: dz ? C.yellowSoft : "var(--bg-secondary)", minHeight: 120, maxHeight: 220 }}>
@@ -2601,10 +2624,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               <nav className="flex flex-col gap-2 mt-2">
                 <button 
                   onClick={() => { setSection("book"); setMenuDrawerOpen(false); }}
-                  className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-black/5 dark:hover:bg-white/5"
+                  className="flex items-center w-full px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-black/5 dark:hover:bg-white/5"
                   style={section === "book" ? { background: "var(--bg-secondary)", color: C.ink } : {}}
                 >
-                  <Calendar size={18} />
                   <span>예약하기</span>
                 </button>
                 <button 
@@ -2612,18 +2634,16 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     setMenuDrawerOpen(false);
                     requireAuth(() => setSection("mine"), "이용하시려면 로그인이 필요해요."); 
                   }}
-                  className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-black/5 dark:hover:bg-white/5"
+                  className="flex items-center w-full px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-black/5 dark:hover:bg-white/5"
                   style={section === "mine" ? { background: "var(--bg-secondary)", color: C.ink } : {}}
                 >
-                  <List size={18} />
                   <span>내 예약</span>
                 </button>
                 <button 
                   onClick={() => { setSection("dash"); setMenuDrawerOpen(false); }}
-                  className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-black/5 dark:hover:bg-white/5"
+                  className="flex items-center w-full px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-black/5 dark:hover:bg-white/5"
                   style={section === "dash" ? { background: "var(--bg-secondary)", color: C.ink } : {}}
                 >
-                  <Grid size={18} />
                   <span>대시보드</span>
                 </button>
               </nav>
