@@ -1686,10 +1686,10 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                           <span>{rm?.name || r.roomId} · {r.start}~{r.end}</span>
                         </div>
                         
-                        {/* Attendees & Owner */}
+                        {/* Attendees */}
                         <div className="mt-2 flex flex-wrap items-center gap-1.5 relative z-20">
                           <span className="text-[11px] font-semibold mr-0.5 flex items-center gap-1" style={{ color: C.faint }}><User size={11} className="shrink-0" style={{ opacity: 0.7 }} />참석자</span>
-                          {Array.from(new Set([r.owner, ...(r.attendees || []).map(id => M(id)?.name)])).filter(Boolean).map(name => (
+                          {Array.from(new Set((r.attendees || []).map(id => M(id)?.name))).filter(Boolean).map(name => (
                             <span key={name} className="inline-flex items-center rounded bg-black/5 dark:bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-gray-700 dark:text-gray-300">
                               {name}
                             </span>
@@ -1697,13 +1697,17 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                         </div>
                         
                         {/* Current Time Line Overlay if inside this meeting */}
-                        {isCurr && (
-                          <div className="absolute left-0 right-0 top-1/2 flex items-center z-10 pointer-events-none -ml-4">
-                            <span className="w-[6px] h-[6px] rounded-full" style={{ background: "var(--mob-busy-bg)" }} />
-                            <div className="flex-1 h-[1.5px]" style={{ background: "var(--mob-busy-bg)" }} />
-                            <span className="ml-1 text-[10px] font-bold" style={{ color: "var(--mob-busy-bg)" }}>지금</span>
-                          </div>
-                        )}
+                        {isCurr && (() => {
+                          const exactNowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+                          const progress = Math.max(0, Math.min(100, ((exactNowMin - sM) / (eM - sM)) * 100));
+                          return (
+                            <div className="absolute left-0 right-0 flex items-center z-10 pointer-events-none -ml-4" style={{ top: `${progress}%`, transform: 'translateY(-50%)', transition: 'top 1s ease-in-out' }}>
+                              <span className="w-[6px] h-[6px] rounded-full" style={{ background: "var(--mob-busy-bg)" }} />
+                              <div className="flex-1 h-[1.5px]" style={{ background: "var(--mob-busy-bg)" }} />
+                              <span className="ml-1 text-[10px] font-bold" style={{ color: "var(--mob-busy-bg)" }}>지금</span>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
