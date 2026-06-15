@@ -2125,10 +2125,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     </div>
                     <div className="flex gap-1.5">
                       {[
-                        { label: "+30분", mins: 30 },
-                        { label: "+1시간", mins: 60 },
-                        { label: "+1.5시간", mins: 90 },
-                        { label: "+2시간", mins: 120 },
+                        { label: "+5분", mins: 5 },
+                        { label: "+10분", mins: 10 },
+                        { label: "+15분", mins: 15 },
                       ].map((btn) => (
                         <button
                           key={btn.label}
