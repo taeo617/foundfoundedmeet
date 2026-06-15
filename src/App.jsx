@@ -2087,41 +2087,65 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   <input type="date" value={form.date} onClick={(e) => { try { e.target.showPicker(); } catch(err) {} }} onChange={(e) => setForm({ ...form, date: e.target.value })} className="inp w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none cursor-pointer" style={{ borderColor: C.border, background: "var(--bg-select)" }} />
                 </Field>
                 <Field label="시간" error={errs.time}>
-                  <div className="grid grid-cols-2 gap-3">
-                    <input 
-                      type="time" 
-                      step="300"
-                      onClick={(e) => { try { e.target.showPicker(); } catch(err) {} }}
-                      value={form.start} 
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (!v) return;
-                        const sMin = toMin(v);
-                        const currE = toMin(form.end);
-                        setForm({
-                          ...form,
-                          start: v,
-                          end: currE <= sMin ? toHHMM(Math.min(sMin + 60, DAY_END)) : form.end
-                        });
-                        setErrs((x) => ({ ...x, time: undefined }));
-                      }}
-                      className="inp w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none cursor-pointer" 
-                      style={{ borderColor: errs.time ? "#C0392B" : C.border, background: "var(--bg-select)" }} 
-                    />
-                    <input 
-                      type="time" 
-                      step="300"
-                      onClick={(e) => { try { e.target.showPicker(); } catch(err) {} }}
-                      value={form.end} 
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (!v) return;
-                        setForm({ ...form, end: v });
-                        setErrs((x) => ({ ...x, time: undefined }));
-                      }}
-                      className="inp w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none cursor-pointer" 
-                      style={{ borderColor: errs.time ? "#C0392B" : C.border, background: "var(--bg-select)" }} 
-                    />
+                  <div className="flex flex-col gap-2.5">
+                    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                      <select
+                        value={form.start}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (!v) return;
+                          const sMin = toMin(v);
+                          const currE = toMin(form.end);
+                          setForm({
+                            ...form,
+                            start: v,
+                            end: currE <= sMin ? toHHMM(Math.min(sMin + 60, DAY_END)) : form.end
+                          });
+                          setErrs((x) => ({ ...x, time: undefined }));
+                        }}
+                        className="inp w-full rounded-lg border px-3 py-2.5 text-sm font-medium outline-none cursor-pointer"
+                        style={{ borderColor: errs.time ? "#C0392B" : C.border, background: "var(--bg-select)" }}
+                      >
+                        {TIMES.map(t => <option key={`s-${t}`} value={t}>{t}</option>)}
+                      </select>
+                      <span className="text-[13px] font-bold" style={{ color: C.muted }}>~</span>
+                      <select
+                        value={form.end}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (!v) return;
+                          setForm({ ...form, end: v });
+                          setErrs((x) => ({ ...x, time: undefined }));
+                        }}
+                        className="inp w-full rounded-lg border px-3 py-2.5 text-sm font-medium outline-none cursor-pointer"
+                        style={{ borderColor: errs.time ? "#C0392B" : C.border, background: "var(--bg-select)" }}
+                      >
+                        {TIMES.map(t => <option key={`e-${t}`} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex gap-1.5">
+                      {[
+                        { label: "+30분", mins: 30 },
+                        { label: "+1시간", mins: 60 },
+                        { label: "+1.5시간", mins: 90 },
+                        { label: "+2시간", mins: 120 },
+                      ].map((btn) => (
+                        <button
+                          key={btn.label}
+                          type="button"
+                          onClick={() => {
+                            const startMin = toMin(form.start);
+                            const newEndMin = Math.min(startMin + btn.mins, DAY_END);
+                            setForm({ ...form, end: toHHMM(newEndMin) });
+                            setErrs((x) => ({ ...x, time: undefined }));
+                          }}
+                          className="lift flex-1 rounded-[6px] border py-2 text-[12px] font-bold transition-all active:scale-95 shadow-sm"
+                          style={{ borderColor: C.border, color: C.ink, background: "var(--bg-input)" }}
+                        >
+                          {btn.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </Field>
 
