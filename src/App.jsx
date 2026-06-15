@@ -1221,6 +1221,14 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     }).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
   }, [reservations, user, now, nowMin]);
 
+  const myDashRes = useMemo(() => {
+    if (!user) return [];
+    const meId = MEMBERS.find((m) => m.name === user)?.id;
+    return reservations.filter((r) => {
+      return meId && r.attendees && r.attendees.includes(meId);
+    });
+  }, [reservations, user]);
+
   const byDate = useMemo(() => { const m = {}; reservations.forEach((r) => { (m[r.date] ||= []).push(r); }); return m; }, [reservations]);
 
   function roomStatus(rid) {
@@ -2047,15 +2055,22 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
               {/* 회의실 사용 현황 대시보드 */}
               <div className="pt-2">
-                <Dashboard month={dashMonth} setMonth={setDashMonth} roomF={dashRoom} setRoomF={setDashRoom} now={now} reservations={myResAll} />
+                <Dashboard month={dashMonth} setMonth={setDashMonth} roomF={dashRoom} setRoomF={setDashRoom} now={now} reservations={myDashRes} />
               </div>
             </div>
           )
         )}
         {section === "dash" && (
-          <div className="pt-2">
-            <Dashboard month={dashMonth} setMonth={setDashMonth} roomF={dashRoom} setRoomF={setDashRoom} now={now} reservations={reservations} />
-          </div>
+          !user ? (
+            <div className="grid place-items-center rounded-lg border bg-white py-16 text-center" style={{ borderColor: C.border }}>
+              <Lock size={30} style={{ color: C.faint }} /><p className="mt-3 text-sm font-semibold" style={{ color: C.muted }}>로그인하면 대시보드를 볼 수 있어요</p>
+              <button onClick={() => requireAuth(() => setSection("dash"), "대시보드를 보려면 로그인이 필요해요.")} className="lift mt-4 flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium" style={{ background: C.ink, color: "var(--bg)" }}><LogIn size={15} />로그인</button>
+            </div>
+          ) : (
+            <div className="pt-2">
+              <Dashboard month={dashMonth} setMonth={setDashMonth} roomF={dashRoom} setRoomF={setDashRoom} now={now} reservations={myDashRes} />
+            </div>
+          )
         )}
       </main>
 
