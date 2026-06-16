@@ -1368,7 +1368,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       setForm(null);
     } catch (err) {
       console.error(err);
-      showToast("오류가 발생했습니다.");
+      showToast("오류가 발생했습니다: " + (err.message || err.toString()));
     } finally {
       setIsSubmitting(false);
     }
