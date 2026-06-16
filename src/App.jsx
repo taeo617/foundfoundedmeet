@@ -328,7 +328,7 @@ function StatCard({ label, value, sub, delay }) {
   );
 }
 
-function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations }) {
+function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations, onSelectEvent }) {
   const data = useMemo(() => genDash(month.getFullYear(), month.getMonth(), roomF, reservations), [month, roomF, reservations]);
   const maxTotal = Math.max(1, ...data.daily.map((x) => x.total));
   // heatmap grid
@@ -336,6 +336,19 @@ function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations }) {
   const gridStart = addDays(first, -first.getDay());
   const heatCells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
   const dailyByDate = {}; data.daily.forEach((x) => { dailyByDate[x.d] = x; });
+
+  const [selectedDate, setSelectedDate] = useState(null);
+
+  const selectedDateEvents = useMemo(() => {
+    if (!selectedDate) return [];
+    const pad = (n) => String(n).padStart(2, "0");
+    const dateStr = `${selectedDate.getFullYear()}-${pad(selectedDate.getMonth() + 1)}-${pad(selectedDate.getDate())}`;
+    return reservations.filter(r => {
+      const isSameDate = r.date === dateStr;
+      const matchesRoom = roomF === "all" || r.roomId === roomF;
+      return isSameDate && matchesRoom;
+    }).slice().sort((a, b) => toMin(a.start) - toMin(b.start));
+  }, [selectedDate, reservations, roomF]);
 
   // bar chart geometry
   const barW = 22, gap = 8, chartH = 170, padB = 22, padT = 8;
@@ -382,8 +395,9 @@ function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations }) {
               return (
                 <div
                   key={i}
-                  className="aspect-square rounded-lg flex flex-col justify-between p-1.5 text-center transition-all"
+                  className={`aspect-square rounded-lg flex flex-col justify-between p-1.5 text-center transition-all ${inM && v > 0 ? "cursor-pointer hover:scale-[1.04]" : ""}`}
                   title={inM ? `${c.getDate()}일 · ${v}건` : ""}
+                  onClick={() => { if (inM && v > 0) setSelectedDate(c); }}
                   style={{
                     background: inM ? (v > 0 ? "var(--bg-quaternary)" : "var(--bg-secondary)") : "transparent",
                     border: inM ? `1px solid ${C.line}` : "none",
@@ -403,7 +417,7 @@ function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations }) {
             })}
           </div>
           <div className="mt-3 text-[11px]" style={{ color: C.faint }}>
-            * 각 날짜별 칸에 내가 포함된 예약의 총 건수가 숫자로 표시됩니다.
+            * 각 날짜별 칸에 내가 포함된 예약의 총 건수가 숫자로 표시됩니다. (클릭 시 세부 예약 목록을 볼 수 있습니다.)
           </div>
         </div>
 
@@ -439,6 +453,55 @@ function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations }) {
         </div>
       </div>
       <p className="mt-3 text-[11px]" style={{ color: C.faint }}>* 대시보드 지표는 해당 월의 이용 현황을 집계해 보여줍니다.</p>
+
+      {/* ===== Dashboard Day Events Popup Modal ===== */}
+      {selectedDate && (
+        <div className="ov fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4" style={{ background: "rgba(20,20,20,.5)" }} onClick={() => setSelectedDate(null)}>
+          <div className="sheet w-full rounded-t-lg bg-white p-6 sm:max-w-md sm:rounded-lg flex flex-col max-h-[85vh] sm:max-h-[75vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b pb-3 mb-4" style={{ borderColor: C.border }}>
+              <div className="flex items-center gap-2">
+                <CalendarDays size={18} style={{ color: C.ink }} />
+                <h3 className="text-[17px] font-semibold">{fmtK(selectedDate)} 내 예약 목록</h3>
+              </div>
+              <button onClick={() => setSelectedDate(null)} className="grid h-8 w-8 place-items-center rounded-lg" style={{ color: C.faint }}><X size={18} /></button>
+            </div>
+            
+            <div className="sc overflow-y-auto pr-1 flex-1 space-y-2.5" style={{ maxHeight: "300px" }}>
+              {selectedDateEvents.length === 0 ? (
+                <div className="py-8 text-center text-sm font-semibold" style={{ color: C.muted }}>등록된 예약 일정이 없습니다.</div>
+              ) : (
+                selectedDateEvents.map((r) => {
+                  const p = r.isUrgent ? pal('red') : pal('green');
+                  const rm = ROOMS.find((x) => x.id === r.roomId);
+                  return (
+                    <div
+                      key={r.id}
+                      onClick={() => { setSelectedDate(null); if (onSelectEvent) onSelectEvent(r); }}
+                      className="blk rounded-lg border p-3.5 transition-all hover:scale-[1.01] cursor-pointer"
+                      style={{ background: p.bg, borderColor: p.line, color: p.text }}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.dot }} />
+                          <span className="text-[14px] font-semibold truncate max-w-[180px] sm:max-w-[220px]">{r.title}</span>
+                          {r.repeat && <Repeat size={11} />}
+                        </div>
+                        <span className="text-[10px] font-semibold rounded px-2 py-0.5" style={{ background: "rgba(255,255,255,0.6)", color: p.text }}>
+                          {rm?.name || "회의실"}
+                        </span>
+                      </div>
+                      <div className="text-[12px] opacity-90 space-y-0.5 font-medium">
+                        <div className="flex items-center gap-1"><Clock size={12} style={{ opacity: 0.7 }} /> {r.start} ~ {r.end}</div>
+                        <div className="flex items-center gap-1"><User size={12} style={{ opacity: 0.7 }} /> 등록자: {r.owner}님 · 참석자: {r.attendees ? r.attendees.length : 0}명</div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -1264,6 +1327,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     const f = form; const e = {};
     if (!f.title.trim()) e.title = "회의 제목을 입력해주세요.";
     if (!f.start || !f.end) e.time = "시간을 정확히 입력해주세요.";
+    else if (isNaN(toMin(f.start)) || isNaN(toMin(f.end))) e.time = "시간 형식(예: 14:00)을 올바르게 입력해주세요.";
     else if (toMin(f.end) <= toMin(f.start)) e.time = "종료 시간은 시작 시간보다 늦어야 해요.";
     else if (toMin(f.start) < DAY_START || toMin(f.end) > DAY_END) e.time = `운영 시간(${toHHMM(DAY_START)} ~ ${toHHMM(DAY_END)}) 내로 설정해주세요.`;
     if (f.attendees.length === 0) e.att = "참석자를 1명 이상 선택해주세요.";
@@ -2063,7 +2127,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
               {/* 회의실 사용 현황 대시보드 */}
               <div className="pt-2">
-                <Dashboard month={dashMonth} setMonth={setDashMonth} roomF={dashRoom} setRoomF={setDashRoom} now={now} reservations={myDashRes} />
+                <Dashboard month={dashMonth} setMonth={setDashMonth} roomF={dashRoom} setRoomF={setDashRoom} now={now} reservations={myDashRes} onSelectEvent={setDetail} />
               </div>
             </div>
           )
@@ -2076,7 +2140,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             </div>
           ) : (
             <div className="pt-2">
-              <Dashboard month={dashMonth} setMonth={setDashMonth} roomF={dashRoom} setRoomF={setDashRoom} now={now} reservations={myDashRes} />
+              <Dashboard month={dashMonth} setMonth={setDashMonth} roomF={dashRoom} setRoomF={setDashRoom} now={now} reservations={myDashRes} onSelectEvent={setDetail} />
             </div>
           )
         )}
@@ -2112,39 +2176,49 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 <Field label="시간" error={errs.time}>
                   <div className="flex flex-col gap-2.5">
                     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                      <select
+                      <input
+                        type="text"
+                        list="start-times-list"
                         value={form.start}
                         onChange={(e) => {
                           const v = e.target.value;
-                          if (!v) return;
                           const sMin = toMin(v);
                           const currE = toMin(form.end);
-                          setForm({
-                            ...form,
-                            start: v,
-                            end: currE <= sMin ? toHHMM(Math.min(sMin + 60, DAY_END)) : form.end
+                          setForm(prev => {
+                            const newForm = { ...prev, start: v };
+                            if (!isNaN(sMin) && !isNaN(currE) && currE <= sMin) {
+                              newForm.end = toHHMM(Math.min(sMin + 60, DAY_END));
+                            }
+                            return newForm;
                           });
                           setErrs((x) => ({ ...x, time: undefined }));
                         }}
-                        className="inp w-full rounded-lg border px-3 py-2.5 text-sm font-medium outline-none cursor-pointer"
-                        style={{ borderColor: errs.time ? "#C0392B" : C.border, background: "var(--bg-select)" }}
-                      >
-                        {TIMES.map(t => <option key={`s-${t}`} value={t}>{t}</option>)}
-                      </select>
+                        placeholder="시작 시간"
+                        className="inp w-full rounded-lg border px-3 py-2.5 text-sm font-medium outline-none"
+                        style={{ borderColor: errs.time ? "#C0392B" : C.border }}
+                      />
+                      <datalist id="start-times-list">
+                        {TIMES.map(t => <option key={`s-${t}`} value={t} />)}
+                      </datalist>
+
                       <span className="text-[13px] font-bold" style={{ color: C.muted }}>~</span>
-                      <select
+
+                      <input
+                        type="text"
+                        list="end-times-list"
                         value={form.end}
                         onChange={(e) => {
                           const v = e.target.value;
-                          if (!v) return;
                           setForm({ ...form, end: v });
                           setErrs((x) => ({ ...x, time: undefined }));
                         }}
-                        className="inp w-full rounded-lg border px-3 py-2.5 text-sm font-medium outline-none cursor-pointer"
-                        style={{ borderColor: errs.time ? "#C0392B" : C.border, background: "var(--bg-select)" }}
-                      >
-                        {TIMES.map(t => <option key={`e-${t}`} value={t}>{t}</option>)}
-                      </select>
+                        placeholder="종료 시간"
+                        className="inp w-full rounded-lg border px-3 py-2.5 text-sm font-medium outline-none"
+                        style={{ borderColor: errs.time ? "#C0392B" : C.border }}
+                      />
+                      <datalist id="end-times-list">
+                        {TIMES.map(t => <option key={`e-${t}`} value={t} />)}
+                      </datalist>
                     </div>
                     <div className="flex gap-1.5">
                       {[
@@ -2157,7 +2231,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                           type="button"
                           onClick={() => {
                             const startMin = toMin(form.start);
-                            const newEndMin = Math.min(startMin + btn.mins, DAY_END);
+                            const currentEndMin = toMin(form.end || form.start);
+                            const baseMin = currentEndMin < startMin ? startMin : currentEndMin;
+                            const newEndMin = Math.min(baseMin + btn.mins, DAY_END);
                             setForm({ ...form, end: toHHMM(newEndMin) });
                             setErrs((x) => ({ ...x, time: undefined }));
                           }}
