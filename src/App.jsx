@@ -3,7 +3,7 @@ import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, arrayUnion, 
 import { db, isFirebaseConfigured } from "./firebase";
 import {
   Calendar, CalendarDays, Clock, Users, Monitor, Video, Plus, X, Check,
-  CheckCircle2, Repeat, AlertCircle, ChevronLeft, ChevronRight, Trash2,
+  CheckCircle2, Repeat, AlertCircle, ChevronLeft, ChevronRight, ChevronDown, Trash2,
   Building2, List, LogOut, Lock, User, UserPlus, GripVertical, LogIn,
   LayoutDashboard, HelpCircle, Sun, Moon, Download, FileText, Bell, Grid, ArrowUp,
 } from "lucide-react";
@@ -923,6 +923,8 @@ export default function App() {
   };
 
   const [form, setForm] = useState(null);
+  const [showStartList, setShowStartList] = useState(false);
+  const [showEndList, setShowEndList] = useState(false);
   const [errs, setErrs] = useState({});
   const [detail, setDetail] = useState(null);
   const [toast, setToast] = useState(null);
@@ -2161,8 +2163,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
       {/* ===== Booking modal ===== */}
       {form && (
-        <div className="ov fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4" style={{ background: "rgba(20,20,20,.5)" }} onClick={() => setForm(null)}>
-          <div className="sheet w-full rounded-t-lg bg-white sm:max-w-md sm:rounded-lg" style={{ maxHeight: "92vh", boxShadow: "0 -4px 12px rgba(0,0,0,.08)" }} onClick={(e) => e.stopPropagation()}>
+        <div className="ov fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4" style={{ background: "rgba(20,20,20,.5)" }} onClick={() => { setForm(null); setShowStartList(false); setShowEndList(false); }}>
+          <div className="sheet w-full rounded-t-lg bg-white sm:max-w-md sm:rounded-lg" style={{ maxHeight: "92vh", boxShadow: "0 -4px 12px rgba(0,0,0,.08)" }} onClick={(e) => { e.stopPropagation(); setShowStartList(false); setShowEndList(false); }}>
             <div className="sc max-h-[92vh] overflow-y-auto p-6">
               <div className="flex items-center justify-between"><h3 className="text-lg font-medium">{form.id ? "예약 수정" : "회의실 예약"}</h3><button onClick={() => setForm(null)} className="grid h-8 w-8 place-items-center rounded-lg" style={{ color: C.faint }}><X size={18} /></button></div>
               <div className="mt-5 space-y-4">
@@ -2176,49 +2178,115 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 <Field label="시간" error={errs.time}>
                   <div className="flex flex-col gap-2.5">
                     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                      <input
-                        type="text"
-                        list="start-times-list"
-                        value={form.start}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          const sMin = toMin(v);
-                          const currE = toMin(form.end);
-                          setForm(prev => {
-                            const newForm = { ...prev, start: v };
-                            if (!isNaN(sMin) && !isNaN(currE) && currE <= sMin) {
-                              newForm.end = toHHMM(Math.min(sMin + 60, DAY_END));
-                            }
-                            return newForm;
-                          });
-                          setErrs((x) => ({ ...x, time: undefined }));
-                        }}
-                        placeholder="시작 시간"
-                        className="inp w-full rounded-lg border px-3 py-2.5 text-sm font-medium outline-none"
-                        style={{ borderColor: errs.time ? "#C0392B" : C.border }}
-                      />
-                      <datalist id="start-times-list">
-                        {TIMES.map(t => <option key={`s-${t}`} value={t} />)}
-                      </datalist>
+                      {/* Start Time Combobox */}
+                      <div className="relative flex-1" onClick={(e) => e.stopPropagation()}>
+                        <div className="relative flex items-center">
+                          <input
+                            type="text"
+                            value={form.start}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              const sMin = toMin(v);
+                              const currE = toMin(form.end);
+                              setForm(prev => {
+                                const newForm = { ...prev, start: v };
+                                if (!isNaN(sMin) && !isNaN(currE) && currE <= sMin) {
+                                  newForm.end = toHHMM(Math.min(sMin + 60, DAY_END));
+                                }
+                                return newForm;
+                              });
+                              setErrs((x) => ({ ...x, time: undefined }));
+                            }}
+                            placeholder="시작 시간"
+                            className="inp w-full rounded-lg border pl-3.5 pr-8 py-2.5 text-sm font-medium outline-none"
+                            style={{ borderColor: errs.time ? "#C0392B" : C.border }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowStartList(!showStartList);
+                              setShowEndList(false);
+                            }}
+                            className="absolute right-2.5 text-[var(--faint)] hover:text-[var(--ink)] cursor-pointer"
+                          >
+                            <ChevronDown size={16} />
+                          </button>
+                        </div>
+                        {showStartList && (
+                          <div className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border bg-white shadow-lg py-1" style={{ borderColor: C.border }}>
+                            {TIMES.map(t => (
+                              <div
+                                key={`s-opt-${t}`}
+                                onClick={() => {
+                                  const sMin = toMin(t);
+                                  const currE = toMin(form.end);
+                                  setForm(prev => {
+                                    const newForm = { ...prev, start: t };
+                                    if (!isNaN(sMin) && !isNaN(currE) && currE <= sMin) {
+                                      newForm.end = toHHMM(Math.min(sMin + 60, DAY_END));
+                                    }
+                                    return newForm;
+                                  });
+                                  setErrs((x) => ({ ...x, time: undefined }));
+                                  setShowStartList(false);
+                                }}
+                                className="px-3.5 py-2 text-sm hover:bg-[var(--bg-secondary)] cursor-pointer font-medium text-left"
+                                style={{ color: C.ink }}
+                              >
+                                {t}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
 
                       <span className="text-[13px] font-bold" style={{ color: C.muted }}>~</span>
 
-                      <input
-                        type="text"
-                        list="end-times-list"
-                        value={form.end}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setForm({ ...form, end: v });
-                          setErrs((x) => ({ ...x, time: undefined }));
-                        }}
-                        placeholder="종료 시간"
-                        className="inp w-full rounded-lg border px-3 py-2.5 text-sm font-medium outline-none"
-                        style={{ borderColor: errs.time ? "#C0392B" : C.border }}
-                      />
-                      <datalist id="end-times-list">
-                        {TIMES.map(t => <option key={`e-${t}`} value={t} />)}
-                      </datalist>
+                      {/* End Time Combobox */}
+                      <div className="relative flex-1" onClick={(e) => e.stopPropagation()}>
+                        <div className="relative flex items-center">
+                          <input
+                            type="text"
+                            value={form.end}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setForm({ ...form, end: v });
+                              setErrs((x) => ({ ...x, time: undefined }));
+                            }}
+                            placeholder="종료 시간"
+                            className="inp w-full rounded-lg border pl-3.5 pr-8 py-2.5 text-sm font-medium outline-none"
+                            style={{ borderColor: errs.time ? "#C0392B" : C.border }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowEndList(!showEndList);
+                              setShowStartList(false);
+                            }}
+                            className="absolute right-2.5 text-[var(--faint)] hover:text-[var(--ink)] cursor-pointer"
+                          >
+                            <ChevronDown size={16} />
+                          </button>
+                        </div>
+                        {showEndList && (
+                          <div className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border bg-white shadow-lg py-1" style={{ borderColor: C.border }}>
+                            {TIMES.map(t => (
+                              <div
+                                key={`e-opt-${t}`}
+                                onClick={() => {
+                                  setForm({ ...form, end: t });
+                                  setErrs((x) => ({ ...x, time: undefined }));
+                                  setShowEndList(false);
+                                }}
+                                className="px-3.5 py-2 text-sm hover:bg-[var(--bg-secondary)] cursor-pointer font-medium text-left"
+                                style={{ color: C.ink }}
+                              >
+                                {t}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="flex gap-1.5">
                       {[
