@@ -17,9 +17,7 @@ const firebaseConfig = {
 };
 
 // Check if actual configuration is provided
-export const isFirebaseConfigured = 
-  firebaseConfig.projectId && 
-  firebaseConfig.projectId !== "YOUR_PROJECT_ID";
+export const isFirebaseConfigured = false; // Temporarily disabled to fix permission issues and restore local data
 
 let db = null;
 
