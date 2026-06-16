@@ -2615,8 +2615,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         const dateStr = keyOf(dayEventsDate);
         const list = (byDate[dateStr] || []).slice().sort((a, b) => toMin(a.start) - toMin(b.start));
         return (
-          <div className="ov fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4" style={{ background: "rgba(20,20,20,.5)" }} onClick={() => setDayEventsDate(null)}>
-            <div className="sheet w-full rounded-t-lg bg-white p-6 sm:max-w-md sm:rounded-lg flex flex-col max-h-[85vh] sm:max-h-[75vh]" onClick={(e) => e.stopPropagation()}>
+          <div className="ov fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(20,20,20,.5)" }} onClick={() => setDayEventsDate(null)}>
+            <div className="sheet w-full max-w-md rounded-lg bg-white p-6 flex flex-col max-h-[85vh] sm:max-h-[75vh]" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between border-b pb-3 mb-4" style={{ borderColor: C.border }}>
                 <div className="flex items-center gap-2">
                   <CalendarDays size={18} style={{ color: C.ink }} />
@@ -2898,28 +2898,18 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     </div>
                     <div>
                       <div className="font-bold text-[15px]">{user}님</div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <button 
-                          onClick={() => setShowProfileMenu(true)}
-                          className="text-xs font-semibold hover:underline"
-                          style={{ color: C.muted }}
-                        >
-                          프로필 설정
-                        </button>
-                        <span className="text-xs" style={{ color: C.faint }}>·</span>
-                        <button 
-                          onClick={() => {
-                            setUser(null);
-                            localStorage.removeItem("auth_token");
-                            localStorage.removeItem("last_user");
-                            setMenuDrawerOpen(false);
-                            setSection("book");
-                          }}
-                          className="text-xs text-red-500 font-semibold hover:underline text-left"
-                        >
-                          로그아웃
-                        </button>
-                      </div>
+                      <button 
+                        onClick={() => {
+                          setUser(null);
+                          localStorage.removeItem("auth_token");
+                          localStorage.removeItem("last_user");
+                          setMenuDrawerOpen(false);
+                          setSection("book");
+                        }}
+                        className="text-xs text-red-500 font-semibold mt-0.5 hover:underline text-left"
+                      >
+                        로그아웃
+                      </button>
                     </div>
                   </div>
                 ) : (
