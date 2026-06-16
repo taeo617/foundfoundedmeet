@@ -76,6 +76,17 @@ const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); r
 const dayOnly = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const sameDay = (a, b) => keyOf(a) === keyOf(b);
 const TIMES = Array.from({ length: SLOTS + 1 }, (_, i) => toHHMM(DAY_START + i * STEP));
+const getClosestTime = (tStr) => {
+  if (!tStr) return TIMES[0];
+  const m = toMin(tStr);
+  if (isNaN(m)) return TIMES[0];
+  let closest = TIMES[0], minDiff = Infinity;
+  for (const t of TIMES) {
+    const diff = Math.abs(toMin(t) - m);
+    if (diff < minDiff) { minDiff = diff; closest = t; }
+  }
+  return closest;
+};
 const nid = () => `r_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
 
 
@@ -925,6 +936,16 @@ export default function App() {
   const [form, setForm] = useState(null);
   const [showStartList, setShowStartList] = useState(false);
   const [showEndList, setShowEndList] = useState(false);
+  const hasScrolledStartRef = useRef(false);
+  const hasScrolledEndRef = useRef(false);
+
+  useEffect(() => {
+    if (!showStartList) hasScrolledStartRef.current = false;
+  }, [showStartList]);
+
+  useEffect(() => {
+    if (!showEndList) hasScrolledEndRef.current = false;
+  }, [showEndList]);
   const [errs, setErrs] = useState({});
   const [detail, setDetail] = useState(null);
   const [toast, setToast] = useState(null);
@@ -1139,14 +1160,25 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
   };
 
   const handleDeleteProfileImage = () => {
+    if (!user) return;
     const updated = { ...profiles };
-    const myProfileImg = profiles["태영"] || defaultProfiles["태영"] || "/avatar_taeyoung.png";
-    updated[user] = myProfileImg;
+    if (defaultProfiles[user]) {
+      updated[user] = defaultProfiles[user];
+    } else {
+      delete updated[user];
+    }
     setProfiles(updated);
-    localStorage.setItem("profile_images", JSON.stringify(updated));
+    try {
+      const x = localStorage.getItem("profile_images");
+      const saved = x ? JSON.parse(x) : {};
+      delete saved[user];
+      localStorage.setItem("profile_images", JSON.stringify(saved));
+    } catch (e) {
+      console.error(e);
+    }
     setShowProfileMenu(false);
     window.dispatchEvent(new CustomEvent("profile_updated"));
-    showToast("프로필 이미지를 삭제했습니다.");
+    showToast("프로필 이미지를 복구했습니다.");
   };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1159,6 +1191,16 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       return defaultProfiles; 
     }
   });
+  const hasCustomProfileImage = useMemo(() => {
+    if (!user) return false;
+    try {
+      const x = localStorage.getItem("profile_images");
+      const saved = x ? JSON.parse(x) : {};
+      return !!saved[user];
+    } catch {
+      return false;
+    }
+  }, [profiles, user]);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const fileInputRef = useRef(null);
   
@@ -2104,7 +2146,6 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                       <span className="text-[10px] text-white font-bold">편집</span>
                     </div>
                   </div>
-                  <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
                   <div>
                     <h2 className="text-lg font-bold flex items-center gap-2">
                       {user}님 마이페이지
@@ -2180,10 +2221,18 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                       {/* Start Time Combobox */}
                       <div className="relative flex-1" onClick={(e) => e.stopPropagation()}>
-                        <div className="relative flex items-center">
+                        <div
+                          className="flex items-center justify-between rounded-lg border pl-3.5 pr-2.5 py-2.5 text-sm font-medium cursor-pointer"
+                          style={{ borderColor: errs.time ? "#C0392B" : C.border, background: "var(--bg-input)" }}
+                          onClick={() => {
+                            setShowStartList(!showStartList);
+                            setShowEndList(false);
+                          }}
+                        >
                           <input
                             type="text"
                             value={form.start}
+                            onClick={(e) => e.stopPropagation()}
                             onChange={(e) => {
                               const v = e.target.value;
                               const sMin = toMin(v);
@@ -2197,95 +2246,113 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                               });
                               setErrs((x) => ({ ...x, time: undefined }));
                             }}
-                            placeholder="시작 시간"
-                            className="inp w-full rounded-lg border pl-3.5 pr-8 py-2.5 text-sm font-medium outline-none"
-                            style={{ borderColor: errs.time ? "#C0392B" : C.border }}
+                            placeholder="09:00"
+                            className="bg-transparent outline-none w-14 font-medium text-sm"
+                            style={{ color: C.ink }}
                           />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowStartList(!showStartList);
-                              setShowEndList(false);
-                            }}
-                            className="absolute right-2.5 text-[var(--faint)] hover:text-[var(--ink)] cursor-pointer"
-                          >
-                            <ChevronDown size={16} />
-                          </button>
+                          <ChevronDown size={16} className="text-[var(--faint)]" />
                         </div>
-                        {showStartList && (
-                          <div className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border bg-white shadow-lg py-1" style={{ borderColor: C.border }}>
-                            {TIMES.map(t => (
-                              <div
-                                key={`s-opt-${t}`}
-                                onClick={() => {
-                                  const sMin = toMin(t);
-                                  const currE = toMin(form.end);
-                                  setForm(prev => {
-                                    const newForm = { ...prev, start: t };
-                                    if (!isNaN(sMin) && !isNaN(currE) && currE <= sMin) {
-                                      newForm.end = toHHMM(Math.min(sMin + 60, DAY_END));
-                                    }
-                                    return newForm;
-                                  });
-                                  setErrs((x) => ({ ...x, time: undefined }));
-                                  setShowStartList(false);
-                                }}
-                                className="px-3.5 py-2 text-sm hover:bg-[var(--bg-secondary)] cursor-pointer font-medium text-left"
-                                style={{ color: C.ink }}
-                              >
-                                {t}
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                        {showStartList && (() => {
+                          const closestStart = getClosestTime(form.start);
+                          return (
+                            <div className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border bg-white shadow-lg py-1" style={{ borderColor: C.border }}>
+                              {TIMES.map(t => {
+                                const isSelected = t === closestStart;
+                                return (
+                                  <div
+                                    key={`s-opt-${t}`}
+                                    ref={(el) => {
+                                      if (el && isSelected && !hasScrolledStartRef.current) {
+                                        hasScrolledStartRef.current = true;
+                                        requestAnimationFrame(() => {
+                                          el.scrollIntoView({ block: "nearest" });
+                                        });
+                                      }
+                                    }}
+                                    onClick={() => {
+                                      const sMin = toMin(t);
+                                      const currE = toMin(form.end);
+                                      setForm(prev => {
+                                        const newForm = { ...prev, start: t };
+                                        if (!isNaN(sMin) && !isNaN(currE) && currE <= sMin) {
+                                          newForm.end = toHHMM(Math.min(sMin + 60, DAY_END));
+                                        }
+                                        return newForm;
+                                      });
+                                      setErrs((x) => ({ ...x, time: undefined }));
+                                      setShowStartList(false);
+                                    }}
+                                    className="px-3.5 py-2 text-sm hover:bg-[var(--bg-secondary)] cursor-pointer font-medium text-left"
+                                    style={{ color: C.ink, background: isSelected ? "var(--bg-secondary)" : "transparent" }}
+                                  >
+                                    {t}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       <span className="text-[13px] font-bold" style={{ color: C.muted }}>~</span>
 
                       {/* End Time Combobox */}
                       <div className="relative flex-1" onClick={(e) => e.stopPropagation()}>
-                        <div className="relative flex items-center">
+                        <div
+                          className="flex items-center justify-between rounded-lg border pl-3.5 pr-2.5 py-2.5 text-sm font-medium cursor-pointer"
+                          style={{ borderColor: errs.time ? "#C0392B" : C.border, background: "var(--bg-input)" }}
+                          onClick={() => {
+                            setShowEndList(!showEndList);
+                            setShowStartList(false);
+                          }}
+                        >
                           <input
                             type="text"
                             value={form.end}
+                            onClick={(e) => e.stopPropagation()}
                             onChange={(e) => {
                               const v = e.target.value;
                               setForm({ ...form, end: v });
                               setErrs((x) => ({ ...x, time: undefined }));
                             }}
-                            placeholder="종료 시간"
-                            className="inp w-full rounded-lg border pl-3.5 pr-8 py-2.5 text-sm font-medium outline-none"
-                            style={{ borderColor: errs.time ? "#C0392B" : C.border }}
+                            placeholder="10:00"
+                            className="bg-transparent outline-none w-14 font-medium text-sm"
+                            style={{ color: C.ink }}
                           />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowEndList(!showEndList);
-                              setShowStartList(false);
-                            }}
-                            className="absolute right-2.5 text-[var(--faint)] hover:text-[var(--ink)] cursor-pointer"
-                          >
-                            <ChevronDown size={16} />
-                          </button>
+                          <ChevronDown size={16} className="text-[var(--faint)]" />
                         </div>
-                        {showEndList && (
-                          <div className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border bg-white shadow-lg py-1" style={{ borderColor: C.border }}>
-                            {TIMES.map(t => (
-                              <div
-                                key={`e-opt-${t}`}
-                                onClick={() => {
-                                  setForm({ ...form, end: t });
-                                  setErrs((x) => ({ ...x, time: undefined }));
-                                  setShowEndList(false);
-                                }}
-                                className="px-3.5 py-2 text-sm hover:bg-[var(--bg-secondary)] cursor-pointer font-medium text-left"
-                                style={{ color: C.ink }}
-                              >
-                                {t}
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                        {showEndList && (() => {
+                          const closestEnd = getClosestTime(form.end);
+                          return (
+                            <div className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border bg-white shadow-lg py-1" style={{ borderColor: C.border }}>
+                              {TIMES.map(t => {
+                                const isSelected = t === closestEnd;
+                                return (
+                                  <div
+                                    key={`e-opt-${t}`}
+                                    ref={(el) => {
+                                      if (el && isSelected && !hasScrolledEndRef.current) {
+                                        hasScrolledEndRef.current = true;
+                                        requestAnimationFrame(() => {
+                                          el.scrollIntoView({ block: "nearest" });
+                                        });
+                                      }
+                                    }}
+                                    onClick={() => {
+                                      setForm({ ...form, end: t });
+                                      setErrs((x) => ({ ...x, time: undefined }));
+                                      setShowEndList(false);
+                                    }}
+                                    className="px-3.5 py-2 text-sm hover:bg-[var(--bg-secondary)] cursor-pointer font-medium text-left"
+                                    style={{ color: C.ink, background: isSelected ? "var(--bg-secondary)" : "transparent" }}
+                                  >
+                                    {t}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                     <div className="flex gap-1.5">
@@ -2750,7 +2817,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
       {/* ===== Profile Image Edit Menu ===== */}
       {showProfileMenu && (
-        <div className="ov fixed inset-0 z-[80] flex items-center justify-center p-4" style={{ background: "rgba(20,20,20,.5)" }} onClick={() => setShowProfileMenu(false)}>
+        <div className="ov fixed inset-0 z-[120] flex items-center justify-center p-4" style={{ background: "rgba(20,20,20,.5)" }} onClick={() => setShowProfileMenu(false)}>
           <div className="sheet w-full max-w-xs rounded-lg bg-white p-5 flex flex-col" style={{ boxShadow: "0 4px 12px rgba(0,0,0,.12)" }} onClick={(e) => e.stopPropagation()}>
             <h4 className="text-[14px] font-semibold text-center mb-4">프로필 이미지 설정</h4>
             <div className="flex flex-col gap-2">
@@ -2764,13 +2831,15 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               >
                 프로필 이미지 추가하기
               </button>
-              <button 
-                onClick={handleDeleteProfileImage}
-                className="lift rounded-lg border py-2.5 text-xs font-semibold text-center w-full"
-                style={{ borderColor: C.border, color: PASTEL.red.text }}
-              >
-                프로필 이미지 삭제하기
-              </button>
+              {hasCustomProfileImage && (
+                <button 
+                  onClick={handleDeleteProfileImage}
+                  className="lift rounded-lg border py-2.5 text-xs font-semibold text-center w-full"
+                  style={{ borderColor: C.border, color: PASTEL.red.text }}
+                >
+                  프로필 이미지 삭제하기
+                </button>
+              )}
               <button 
                 onClick={() => setShowProfileMenu(false)}
                 className="lift mt-2 rounded-lg py-2.5 text-xs font-semibold text-center w-full text-gray-500"
@@ -2782,6 +2851,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           </div>
         </div>
       )}
+
+      {/* Global File Input for profile upload */}
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
 
       {/* ===== Hamburger Menu Drawer ===== */}
       {menuDrawerOpen && (
@@ -2818,21 +2890,36 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               <div className="py-5">
                 {user ? (
                   <div className="flex items-center gap-3">
-                    <Avatar name={user} size={36} />
+                    <div className="relative cursor-pointer shrink-0" onClick={() => setShowProfileMenu(true)} title="프로필 설정">
+                      <Avatar name={user} size={36} />
+                      <div className="absolute inset-0 bg-black/35 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 active:opacity-100 transition-opacity">
+                        <span className="text-[8px] text-white font-semibold text-center">편집</span>
+                      </div>
+                    </div>
                     <div>
                       <div className="font-bold text-[15px]">{user}님</div>
-                      <button 
-                        onClick={() => {
-                          setUser(null);
-                          localStorage.removeItem("auth_token");
-                          localStorage.removeItem("last_user");
-                          setMenuDrawerOpen(false);
-                          setSection("book");
-                        }}
-                        className="text-xs text-red-500 font-semibold mt-0.5 hover:underline"
-                      >
-                        로그아웃
-                      </button>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <button 
+                          onClick={() => setShowProfileMenu(true)}
+                          className="text-xs font-semibold hover:underline"
+                          style={{ color: C.muted }}
+                        >
+                          프로필 설정
+                        </button>
+                        <span className="text-xs" style={{ color: C.faint }}>·</span>
+                        <button 
+                          onClick={() => {
+                            setUser(null);
+                            localStorage.removeItem("auth_token");
+                            localStorage.removeItem("last_user");
+                            setMenuDrawerOpen(false);
+                            setSection("book");
+                          }}
+                          className="text-xs text-red-500 font-semibold hover:underline text-left"
+                        >
+                          로그아웃
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ) : (
