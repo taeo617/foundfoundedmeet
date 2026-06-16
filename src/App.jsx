@@ -1206,8 +1206,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     const meId = MEMBERS.find((m) => m.name === user)?.id;
     return reservations.filter((r) => {
       const isMine = r.owner === user || (meId && r.attendees && r.attendees.includes(meId));
-      const hasEnded = r.date < keyOf(now) || (r.date === keyOf(now) && toMin(r.end) <= nowMin);
-      return isMine && !hasEnded && r.date === mineDate;
+      return isMine && r.date === mineDate;
     }).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
   }, [reservations, user, mineDate, now, nowMin]);
 
@@ -1216,8 +1215,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     const meId = MEMBERS.find((m) => m.name === user)?.id;
     return reservations.filter((r) => {
       const isMine = r.owner === user || (meId && r.attendees && r.attendees.includes(meId));
-      const hasEnded = r.date < keyOf(now) || (r.date === keyOf(now) && toMin(r.end) <= nowMin);
-      return isMine && !hasEnded;
+      return isMine;
     }).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
   }, [reservations, user, now, nowMin]);
 
