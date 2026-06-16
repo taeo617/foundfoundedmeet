@@ -7,17 +7,17 @@ import { getFirestore } from "firebase/firestore";
 // 3. Add a Web App to get your configuration object
 // 4. Enable Firestore Database in Test Mode or configure proper rules
 const firebaseConfig = {
-  apiKey: "AIzaSyALsGTWeB1MUfkXQOsHuA4E2wVOh9tZ_iI",
-  authDomain: "foundfounded-7cd3e.firebaseapp.com",
-  projectId: "foundfounded-7cd3e",
-  storageBucket: "foundfounded-7cd3e.firebasestorage.app",
-  messagingSenderId: "705068371976",
-  appId: "1:705068371976:web:546b664ff9b87d99eac1bd",
-  measurementId: "G-G0DR5QJZY0"
+  apiKey: "AIzaSyB-4Eu769Zen7p__ZTrepFDuZfTvyIMYww",
+  authDomain: "promptshot-d0190.firebaseapp.com",
+  projectId: "promptshot-d0190",
+  storageBucket: "promptshot-d0190.firebasestorage.app",
+  messagingSenderId: "784599297882",
+  appId: "1:784599297882:web:521015f79e9e1bb0f50d63",
+  measurementId: "G-SPHLBD59S1"
 };
 
 // Check if actual configuration is provided
-export const isFirebaseConfigured = false; // Temporarily disabled to fix permission issues and restore local data
+export const isFirebaseConfigured = true;
 
 let db = null;
 

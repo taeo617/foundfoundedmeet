@@ -782,18 +782,28 @@ export default function App() {
   useEffect(() => {
     if (!isFirebaseConfigured) return;
     const localRes = localStorage.getItem("reservations");
-    const migrated = localStorage.getItem("firestore_migrated");
+    const migrated = localStorage.getItem("firestore_migrated_v3");
     if (localRes && !migrated) {
       try {
         const parsed = JSON.parse(localRes);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          parsed.forEach(async (r) => {
+          const promises = parsed.map((r) => {
             if (r.id) {
-              await setDoc(doc(db, "reservations", r.id), r);
+              return setDoc(doc(db, "reservations", r.id), r);
             }
+            return Promise.resolve();
           });
+          Promise.all(promises)
+            .then(() => {
+              localStorage.setItem("firestore_migrated_v3", "true");
+              console.log("Local data successfully migrated to Firestore!");
+            })
+            .catch((err) => {
+              console.error("Failed to migrate some local records:", err);
+            });
+        } else {
+          localStorage.setItem("firestore_migrated_v3", "true");
         }
-        localStorage.setItem("firestore_migrated", "true");
       } catch (err) {
         console.error("Local data migration error:", err);
       }

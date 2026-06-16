@@ -5,13 +5,13 @@ import { Expo } from 'expo-server-sdk';
 import { MEMBERS, FLOW_TEAM_KEYS } from './flowTeamKeys.js';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyALsGTWeB1MUfkXQOsHuA4E2wVOh9tZ_iI",
-  authDomain: "foundfounded-7cd3e.firebaseapp.com",
-  projectId: "foundfounded-7cd3e",
-  storageBucket: "foundfounded-7cd3e.firebasestorage.app",
-  messagingSenderId: "705068371976",
-  appId: "1:705068371976:web:546b664ff9b87d99eac1bd",
-  measurementId: "G-G0DR5QJZY0"
+  apiKey: "AIzaSyB-4Eu769Zen7p__ZTrepFDuZfTvyIMYww",
+  authDomain: "promptshot-d0190.firebaseapp.com",
+  projectId: "promptshot-d0190",
+  storageBucket: "promptshot-d0190.firebasestorage.app",
+  messagingSenderId: "784599297882",
+  appId: "1:784599297882:web:521015f79e9e1bb0f50d63",
+  measurementId: "G-SPHLBD59S1"
 };
 
 // Initialize Firebase
