@@ -2246,6 +2246,27 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                               });
                               setErrs((x) => ({ ...x, time: undefined }));
                             }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === "Tab") {
+                                if (e.key === "Enter") e.preventDefault();
+                                let v = e.target.value.replace(/[^0-9]/g, "");
+                                if (v.length === 3 || v.length === 4) {
+                                  const h = v.length === 3 ? v.slice(0, 1) : v.slice(0, 2);
+                                  const m = v.length === 3 ? v.slice(1) : v.slice(2);
+                                  const formatted = `${h.padStart(2, '0')}:${m}`;
+                                  const sMin = toMin(formatted);
+                                  const currE = toMin(form.end);
+                                  setForm(prev => {
+                                    const newForm = { ...prev, start: formatted };
+                                    if (!isNaN(sMin) && !isNaN(currE) && currE <= sMin) {
+                                      newForm.end = toHHMM(Math.min(sMin + 60, DAY_END));
+                                    }
+                                    return newForm;
+                                  });
+                                }
+                                setShowStartList(false);
+                              }
+                            }}
                             placeholder="09:00"
                             className="bg-transparent outline-none w-14 font-medium text-sm"
                             style={{ color: C.ink }}
@@ -2314,6 +2335,19 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                               const v = e.target.value;
                               setForm({ ...form, end: v });
                               setErrs((x) => ({ ...x, time: undefined }));
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === "Tab") {
+                                if (e.key === "Enter") e.preventDefault();
+                                let v = e.target.value.replace(/[^0-9]/g, "");
+                                if (v.length === 3 || v.length === 4) {
+                                  const h = v.length === 3 ? v.slice(0, 1) : v.slice(0, 2);
+                                  const m = v.length === 3 ? v.slice(1) : v.slice(2);
+                                  const formatted = `${h.padStart(2, '0')}:${m}`;
+                                  setForm(prev => ({ ...prev, end: formatted }));
+                                }
+                                setShowEndList(false);
+                              }
                             }}
                             placeholder="10:00"
                             className="bg-transparent outline-none w-14 font-medium text-sm"
