@@ -36,11 +36,16 @@ export default async function handler(req, res) {
   try {
     const { title, body, url, attendees } = req.body;
 
-    // KST 시간 확인하여 알림 제한 (09:00 ~ 19:59)
+    // KST 시간 확인하여 알림 제한 (09:00 ~ 19:59 및 평일만 허용)
     const now = new Date();
     const kstOffset = 9 * 60 * 60 * 1000;
     const kstDate = new Date(now.getTime() + kstOffset);
     const kstHour = kstDate.getUTCHours();
+    const kstDay = kstDate.getUTCDay(); // 0 is Sunday, 6 is Saturday
+
+    if (kstDay === 0 || kstDay === 6) {
+      return res.status(200).json({ success: true, message: '주말에는 알림이 전송되지 않습니다.' });
+    }
 
     if (kstHour < 9 || kstHour >= 20) {
       return res.status(200).json({ success: true, message: '알림 전송 시간이 아닙니다. (오전 9시 ~ 오후 8시)' });

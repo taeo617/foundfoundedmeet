@@ -570,7 +570,13 @@ function CustomDatePicker({ anchor, onClose, onSelect, theme }) {
   };
 
   const handleDayClick = (day) => {
-    setSelectedDate(new Date(year, month, day));
+    const d = new Date(year, month, day);
+    const dayOfWeek = d.getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      alert("주말은 예약할 수 없습니다.");
+      return;
+    }
+    setSelectedDate(d);
   };
 
   const days = [];
@@ -1374,6 +1380,10 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     else if (isNaN(toMin(f.start)) || isNaN(toMin(f.end))) e.time = "시간 형식(예: 14:00)을 올바르게 입력해주세요.";
     else if (toMin(f.end) <= toMin(f.start)) e.time = "종료 시간은 시작 시간보다 늦어야 해요.";
     else if (toMin(f.start) < DAY_START || toMin(f.end) > DAY_END) e.time = `운영 시간(${toHHMM(DAY_START)} ~ ${toHHMM(DAY_END)}) 내로 설정해주세요.`;
+    else {
+      const d = new Date(f.date);
+      if (d.getDay() === 0 || d.getDay() === 6) e.time = "주말은 예약할 수 없습니다.";
+    }
     if (f.attendees.length === 0) e.att = "참석자를 1명 이상 선택해주세요.";
     if (f.attendees.length > ROOMS.find((r) => r.id === f.roomId).capacity) e.att = "참석 인원이 회의실 정원을 초과했어요.";
     setErrs(e);

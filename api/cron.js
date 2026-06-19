@@ -39,11 +39,19 @@ export default async function handler(req, res) {
     
     const targetAttendees = new Set();
     const endingRooms = [];
+    const morningAttendees = new Set();
 
     snapshot.forEach((doc) => {
       const data = doc.data();
       const endMin = toMin(data.end);
       
+      // 아침 9시(540분) 정각일 경우 오늘 회의 참석자 모두 수집
+      if (nowMin === 540) {
+        if (data.attendees) {
+          data.attendees.forEach(att => morningAttendees.add(att));
+        }
+      }
+
       // If the meeting ends exactly 5 minutes from now
       // Since cron might run at xx:01 or xx:00, we check a 1-minute window
       if (endMin - nowMin === 5) {
@@ -54,26 +62,46 @@ export default async function handler(req, res) {
       }
     });
 
-    if (targetAttendees.size === 0) {
-      return res.status(200).json({ success: true, message: 'No meetings ending in 5 minutes.' });
+    if (targetAttendees.size === 0 && morningAttendees.size === 0) {
+      return res.status(200).json({ success: true, message: 'No meetings ending in 5 minutes and not morning notification time.' });
     }
 
     // Call our own notify API
     const host = req.headers.host;
     const protocol = host.includes('localhost') ? 'http' : 'https';
+    const notifyPromises = [];
     
-    const notifyReq = await fetch(`${protocol}://${host}/api/notify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: '⏰ 회의 종료 5분 전이에요',
-        body: `${endingRooms.join(', ')} 회의가 곧 끝나요. 마무리 부탁드려요 :)`,
-        url: '/',
-        attendees: Array.from(targetAttendees)
-      })
-    });
+    if (targetAttendees.size > 0) {
+      notifyPromises.push(
+        fetch(`${protocol}://${host}/api/notify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: '⏰ 회의 종료 5분 전이에요',
+            body: `${endingRooms.join(', ')} 회의가 곧 끝나요. 마무리 부탁드려요 :)`,
+            url: '/',
+            attendees: Array.from(targetAttendees)
+          })
+        }).then(res => res.json())
+      );
+    }
 
-    const notifyRes = await notifyReq.json();
+    if (nowMin === 540 && morningAttendees.size > 0) {
+      notifyPromises.push(
+        fetch(`${protocol}://${host}/api/notify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: '📅 오늘 예정된 회의가 있어요',
+            body: '오늘 회의 일정이 있습니다. 앱에서 캘린더를 확인해 보세요!',
+            url: '/',
+            attendees: Array.from(morningAttendees)
+          })
+        }).then(res => res.json())
+      );
+    }
+
+    const notifyRes = await Promise.all(notifyPromises);
     res.status(200).json({ success: true, notified: notifyRes });
   } catch (error) {
     console.error('Cron error:', error);
