@@ -36,6 +36,16 @@ export default async function handler(req, res) {
   try {
     const { title, body, url, attendees } = req.body;
 
+    // KST 시간 확인하여 알림 제한 (09:00 ~ 19:59)
+    const now = new Date();
+    const kstOffset = 9 * 60 * 60 * 1000;
+    const kstDate = new Date(now.getTime() + kstOffset);
+    const kstHour = kstDate.getUTCHours();
+
+    if (kstHour < 9 || kstHour >= 20) {
+      return res.status(200).json({ success: true, message: '알림 전송 시간이 아닙니다. (오전 9시 ~ 오후 8시)' });
+    }
+
     if (!attendees || attendees.length === 0) {
       return res.status(200).json({ success: true, message: 'No attendees to notify.' });
     }
