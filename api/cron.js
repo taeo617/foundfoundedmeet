@@ -40,13 +40,17 @@ export default async function handler(req, res) {
     const targetAttendees = new Set();
     const endingRooms = [];
     const morningAttendees = new Set();
+    
+    // 월요일은 12시(720분), 화~금은 오전 9시(540분)
+    const isMonday = kstDate.getUTCDay() === 1;
+    const morningTime = isMonday ? 720 : 540;
 
     snapshot.forEach((doc) => {
       const data = doc.data();
       const endMin = toMin(data.end);
       
-      // 아침 9시(540분) 정각일 경우 오늘 회의 참석자 모두 수집
-      if (nowMin === 540) {
+      // 당일 첫 알림 시간에 오늘 회의 참석자 모두 수집
+      if (nowMin === morningTime) {
         if (data.attendees) {
           data.attendees.forEach(att => morningAttendees.add(att));
         }
@@ -86,7 +90,7 @@ export default async function handler(req, res) {
       );
     }
 
-    if (nowMin === 540 && morningAttendees.size > 0) {
+    if (nowMin === morningTime && morningAttendees.size > 0) {
       notifyPromises.push(
         fetch(`${protocol}://${host}/api/notify`, {
           method: 'POST',
