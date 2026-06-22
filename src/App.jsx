@@ -1540,7 +1540,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         showToast("이미 종료된 회의입니다.");
         return;
       }
-      const newEnd = Math.max(startM + 10, Math.ceil(nowM / STEP) * STEP);
+      const newEnd = Math.max(startM + 1, nowM);
       
       if (isFirebaseConfigured) {
         updateDoc(doc(db, "reservations", r.id), { end: toHHMM(newEnd) }).then(() => {
