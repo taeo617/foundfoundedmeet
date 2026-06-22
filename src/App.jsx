@@ -1761,9 +1761,27 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             </div>
             <div className="relative z-10">
               {mobCurrentMtg ? (
-                <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => requireAuth(() => setDetail(mobCurrentMtg), "코멘트를 남기려면 로그인이 필요해요.")}>
-                  코멘트 남기기
-                </button>
+                canEdit(mobCurrentMtg) ? (
+                  <div className="flex gap-2">
+                    <select 
+                      onChange={(e) => { if (e.target.value) { extendRes(mobCurrentMtg, parseInt(e.target.value)); e.target.value = ""; } }} 
+                      className="flex-1 py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white text-center cursor-pointer outline-none appearance-none"
+                    >
+                      <option value="" hidden>회의 연장</option>
+                      <option value="5" style={{color: "#000"}}>+ 5분</option>
+                      <option value="10" style={{color: "#000"}}>+ 10분</option>
+                      <option value="15" style={{color: "#000"}}>+ 15분</option>
+                      <option value="30" style={{color: "#000"}}>+ 30분</option>
+                    </select>
+                    <button className="flex-1 py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => completeRes(mobCurrentMtg)}>
+                      회의 종료
+                    </button>
+                  </div>
+                ) : (
+                  <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => requireAuth(() => setDetail(mobCurrentMtg), "코멘트를 남기려면 로그인이 필요해요.")}>
+                    코멘트 남기기
+                  </button>
+                )
               ) : (
                 <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => tryCreate(roomId, defStart(), selKey)}>
                   지금 바로 예약하기
