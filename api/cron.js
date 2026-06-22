@@ -40,6 +40,8 @@ export default async function handler(req, res) {
     const targetAttendees = new Set();
     const endingRooms = [];
     const morningAttendees = new Set();
+    const startingAttendees = new Set();
+    const startingMeetings = [];
     
     // 월요일은 12시(720분), 화~금은 오전 9시(540분)
     const isMonday = kstDate.getUTCDay() === 1;
@@ -64,10 +66,20 @@ export default async function handler(req, res) {
         }
         endingRooms.push(data.roomId === 'big' ? '큰 회의실' : '작은 회의실');
       }
+
+      const startMin = toMin(data.start);
+      // If the meeting starts exactly 1 minute from now
+      if (startMin - nowMin === 1) {
+        if (data.attendees) {
+          data.attendees.forEach(att => startingAttendees.add(att));
+        }
+        const roomName = data.roomId === 'big' ? '큰 회의실' : '작은 회의실';
+        startingMeetings.push(`[${roomName}] ${data.title}`);
+      }
     });
 
-    if (targetAttendees.size === 0 && morningAttendees.size === 0) {
-      return res.status(200).json({ success: true, message: 'No meetings ending in 5 minutes and not morning notification time.' });
+    if (targetAttendees.size === 0 && morningAttendees.size === 0 && startingAttendees.size === 0) {
+      return res.status(200).json({ success: true, message: 'No meetings to notify.' });
     }
 
     // Call our own notify API
@@ -85,6 +97,21 @@ export default async function handler(req, res) {
             body: `${endingRooms.join(', ')} 회의가 곧 끝나요. 마무리 부탁드려요 :)`,
             url: '/',
             attendees: Array.from(targetAttendees)
+          })
+        }).then(res => res.json())
+      );
+    }
+
+    if (startingAttendees.size > 0) {
+      notifyPromises.push(
+        fetch(`${protocol}://${host}/api/notify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: '🚀 회의 시작 1분 전이에요',
+            body: `${startingMeetings.join(', ')} 회의가 곧 시작됩니다. 준비해주세요!`,
+            url: '/',
+            attendees: Array.from(startingAttendees)
           })
         }).then(res => res.json())
       );
