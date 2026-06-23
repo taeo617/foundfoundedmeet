@@ -56,6 +56,7 @@ const MEMBERS = [
   { id: "m14", name: "정수", team: "ID", role: "인턴",            group: "staff" },
   { id: "m_guest", name: "Guest", team: "게스트", role: "게스트", group: "guest" },
   { id: "m_client", name: "클라이언트", team: "외부", role: "클라이언트", group: "client" },
+  { id: "m_room", name: "회의실", team: "공용", role: "회의실", group: "admin" },
 ];
 const M = (id) => MEMBERS.find((x) => x.id === id);
 const memLabel = (id) => { const m = M(id); return m ? `${m.team} ${m.name}님` : id; };
@@ -1136,7 +1137,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     
     const comment = (target.comments || []).find(c => c.id === commentId);
     if (!comment) return;
-    if (comment.user !== user && user !== "admin") {
+    if (comment.user !== user && user !== "admin" && user !== "회의실") {
       showToast("본인이 작성한 코멘트만 삭제할 수 있습니다.");
       return;
     }
@@ -1297,14 +1298,14 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
   const isMine = (r) => !!user && r.owner === user;
   const canEdit = (r) => {
     if (!user) return false;
-    if (user === "admin") return true;
+    if (user === "admin" || user === "회의실") return true;
     if (r.owner === user) return true;
     const meId = MEMBERS.find((m) => m.name === user)?.id;
     return !!(meId && r.attendees && r.attendees.includes(meId));
   };
   const canDelete = (r) => {
     if (!user) return false;
-    if (user === "admin") return true;
+    if (user === "admin" || user === "회의실") return true;
     return r.owner === user;
   };
   function showToast(m) { setToast(m); setTimeout(() => setToast(null), 2600); }
