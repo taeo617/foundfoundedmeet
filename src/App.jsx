@@ -362,10 +362,6 @@ function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations, onSele
     }).slice().sort((a, b) => toMin(a.start) - toMin(b.start));
   }, [selectedDate, reservations, roomF]);
 
-  // bar chart geometry
-  const barW = 22, gap = 8, chartH = 170, padB = 22, padT = 8;
-  const innerW = data.days * barW + (data.days - 1) * gap;
-  const scale = (chartH - padB - padT) / maxTotal;
 
   return (
     <section>
@@ -392,7 +388,7 @@ function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations, onSele
         <StatCard label="가장 적게 사용된 회의실" sub={`${data.leastMinutes}분`} value={data.leastUsed} delay={120} />
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="mt-4 grid grid-cols-1 gap-4">
         {/* heatmap */}
         <div className="rise rounded-lg border bg-white p-5" style={{ borderColor: C.border, animationDelay: "120ms" }}>
           <div className="mb-3 flex items-center gap-2">
@@ -433,36 +429,6 @@ function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations, onSele
           </div>
         </div>
 
-        {/* bar chart */}
-        <div className="rise rounded-lg border bg-white p-5" style={{ borderColor: C.border, animationDelay: "160ms" }}>
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="rounded-lg px-2 py-0.5 text-xs font-medium" style={{ background: PASTEL.blue.bg, color: PASTEL.blue.text }}>{month.getMonth() + 1}월</span>
-              <span className="text-sm font-medium">일별 회의 현황</span>
-            </div>
-            <div className="flex items-center gap-3 text-[11px] font-semibold" style={{ color: C.muted }}>
-              <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: "var(--ink-deep)" }} />큰</span>
-              <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: "var(--yellow-deep)" }} />작은</span>
-            </div>
-          </div>
-          <div className="sc overflow-x-auto">
-            <svg width={Math.max(innerW + 8, 320)} height={chartH} style={{ display: "block" }}>
-              {[0, 0.5, 1].map((t, i) => { const y = padT + (chartH - padB - padT) * (1 - t); return <g key={i}><line x1="0" x2={innerW + 8} y1={y} y2={y} stroke={C.line} strokeWidth="1" /><text x="0" y={y - 3} fontSize="9" fill={C.faint}>{Math.round(maxTotal * t)}</text></g>; })}
-              {data.daily.map((x, i) => {
-                const xx = i * (barW + gap);
-                const sH = x.small * scale, bH = x.big * scale;
-                const baseY = chartH - padB;
-                return (
-                  <g key={i}>
-                    <rect x={xx} y={baseY - sH} width={barW} height={sH} fill="var(--yellow-deep)" rx="2" />
-                    <rect x={xx} y={baseY - sH - bH} width={barW} height={bH} fill="var(--ink-deep)" rx="2" />
-                    {(x.d % 5 === 1) && <text x={xx + barW / 2} y={chartH - 6} fontSize="9" fill={C.faint} textAnchor="middle">{x.d}</text>}
-                  </g>
-                );
-              })}
-            </svg>
-          </div>
-        </div>
       </div>
       <p className="mt-3 text-[11px]" style={{ color: C.faint }}>* 대시보드 지표는 해당 월의 이용 현황을 집계해 보여줍니다.</p>
 
@@ -854,7 +820,7 @@ export default function App() {
             transaction.update(sfDocRef, { notified1m: true });
           });
           const roomName = ROOMS.find(rm => rm.id === r.roomId)?.name || r.roomId;
-          sendPushNotification('⏱️ 회의 종료 1분 전입니다', `[${roomName}] 이용 시간이 끝납니다. ${nextInfo}`, r.attendees);
+          sendPushNotification('⏱️ 회의 종료 1분 전입니다', `[${roomName}] 이용 시간이 끝납니다. ${nextInfo}`, [...(r.attendees || []), 'm_room']);
         } catch(e) {}
       }
     });
@@ -1123,7 +1089,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       const ownerId = MEMBERS.find(m => m.name === target.owner)?.id;
       if (ownerId) notifyIds.add(ownerId);
       
-      sendPushNotification('💬 새 코멘트가 달렸어요', `${user}: ${text.trim()}`, Array.from(notifyIds));
+      sendPushNotification('💬 새 코멘트가 달렸어요', `${user}: ${text.trim()}`, [...Array.from(notifyIds), 'm_room']);
     } catch (err) {
       console.error(err);
       showToast("코멘트 등록 중 오류가 발생했습니다.");
