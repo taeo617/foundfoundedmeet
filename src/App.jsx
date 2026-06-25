@@ -1591,6 +1591,10 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
   const toggleAttendance = (r) => {
     requireAuth(async () => {
       const meId = MEMBERS.find(m => m.name === user)?.id;
+      if (user === "admin" || user === "회의실" || meId === "m_room") {
+        showToast("회의실 계정과 관리자 계정은 참석 확인을 할 수 없어요.");
+        return;
+      }
       if (!meId) return;
       if (!r.attendees || !r.attendees.includes(meId)) {
         showToast("회의 참석자만 참석 확인을 할 수 있어요.");
@@ -1916,12 +1920,12 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                                 
                                 {/* Attendance Check Tooltip */}
                                 {checkedCount > 0 && (
-                                  <div className="tooltip-content absolute bottom-full left-0 mb-2 w-64 bg-white dark:bg-[#1a1a1a] rounded-xl border p-3 shadow-xl pointer-events-none transition-all" style={{ borderColor: C.border }}>
+                                  <div className="tooltip-content absolute top-full left-0 mt-2 w-64 bg-white dark:bg-[#1a1a1a] rounded-xl border p-3 shadow-xl pointer-events-none transition-all" style={{ borderColor: C.border }}>
                                     <div className="flex items-center justify-between pb-2 mb-2 border-b" style={{ borderColor: C.border }}>
                                       <span className="text-[12px] font-bold" style={{ color: C.text }}>참석 확인 현황</span>
                                       <span className="text-[11px] font-extrabold text-[#27ae60] bg-[#27ae60]/10 px-2 py-0.5 rounded-full">{checkedCount}명 완료</span>
                                     </div>
-                                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                                    <div className="space-y-2 max-h-[172px] overflow-y-auto pr-1 scrollbar-thin">
                                       {checkedMembers.map(m => (
                                         <div key={m.id} className="flex items-center justify-between text-[11px]">
                                           <div className="flex items-center gap-2">

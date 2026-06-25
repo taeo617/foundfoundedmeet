@@ -377,7 +377,7 @@ body, header, section, .sheet, .cell, input, select, button {
 .tooltip-content {
   visibility: hidden;
   opacity: 0;
-  transform: translateY(10px);
+  transform: translateY(-10px);
   transition: all 0.2s ease-in-out;
   z-index: 100;
 }
