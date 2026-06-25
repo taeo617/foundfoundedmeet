@@ -1646,7 +1646,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   const td = dayOnly(new Date());
                   setAnchor(td);
                 }}
-                className="px-2 py-0.5 rounded-md text-[11px] font-bold transition-all ml-1.5"
+                className="lift cursor-pointer px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ml-1.5 active:scale-95 active:opacity-85 shadow-sm"
                 style={{ background: "var(--bg-input)", border: `1px solid ${C.border}`, color: C.text }}
               >
                 오늘
