@@ -1896,19 +1896,19 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                               <div className="tooltip-container relative">
                                 <button
                                   onClick={(e) => { e.stopPropagation(); toggleAttendance(r); }}
-                                  className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold border transition-all active:scale-95 shadow-sm cursor-pointer"
+                                  className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[9.5px] font-bold border transition-all active:scale-95 shadow-sm cursor-pointer"
                                   style={{
                                     background: isMyChecked ? "rgba(39, 174, 96, 0.1)" : "var(--bg-input)",
                                     borderColor: isMyChecked ? "#27ae60" : C.border,
                                     color: isMyChecked ? "#27ae60" : C.text
                                   }}
                                 >
-                                  <span className="flex items-center justify-center w-4.5 h-4.5 rounded text-white animate-fade-in" style={{ background: isMyChecked ? "#27ae60" : "#a0aec0" }}>
-                                    <Check size={11} strokeWidth={3.5} />
+                                  <span className="flex items-center justify-center w-3.5 h-3.5 rounded text-white" style={{ background: isMyChecked ? "#27ae60" : "#a0aec0" }}>
+                                    <Check size={9} strokeWidth={3.5} />
                                   </span>
                                   <span>참석</span>
                                   {checkedCount > 0 && (
-                                    <span className="ml-1 text-[12px] font-extrabold" style={{ color: isMyChecked ? "#27ae60" : "#7b2cbf" }}>
+                                    <span className="ml-0.5 text-[10px] font-extrabold" style={{ color: isMyChecked ? "#27ae60" : "#7b2cbf" }}>
                                       {checkedCount}
                                     </span>
                                   )}
