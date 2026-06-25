@@ -1815,7 +1815,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                           const checkedMembers = (r.checkedIn || []).map(id => MEMBERS.find(m => m.id === id)).filter(Boolean);
 
                           return (
-                            <div className="mt-3 pt-2.5 border-t border-dashed flex items-center justify-between relative z-30" style={{ borderColor: C.border }} onClick={(e) => e.stopPropagation()}>
+                            <div className="mt-2.5 flex items-center justify-between relative z-30" onClick={(e) => e.stopPropagation()}>
                               <div className="tooltip-container relative">
                                 <button
                                   onClick={(e) => { e.stopPropagation(); toggleAttendance(r); }}
@@ -1829,7 +1829,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                                   <span className="flex items-center justify-center w-4.5 h-4.5 rounded text-white animate-fade-in" style={{ background: isMyChecked ? "#27ae60" : "#a0aec0" }}>
                                     <Check size={11} strokeWidth={3.5} />
                                   </span>
-                                  <span>참석확인</span>
+                                  <span>참석</span>
                                   {checkedCount > 0 && (
                                     <span className="ml-1 text-[12px] font-extrabold" style={{ color: isMyChecked ? "#27ae60" : "#7b2cbf" }}>
                                       {checkedCount}
