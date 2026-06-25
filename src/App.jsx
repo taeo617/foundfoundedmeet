@@ -1440,7 +1440,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     try {
       const isEdit = !!f.id;
       const docId = f.id || nid();
-      const finalForm = { ...f, id: docId, title: f.title.trim(), owner: f.owner || user };
+      const cleanedCheckedIn = (f.checkedIn || []).filter(id => f.attendees && f.attendees.includes(id));
+      const finalForm = { ...f, id: docId, title: f.title.trim(), owner: f.owner || user, checkedIn: cleanedCheckedIn };
       
       if (isFirebaseConfigured) {
         await setDoc(doc(db, "reservations", docId), finalForm);
@@ -1895,8 +1896,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                           {/* Attendance Check Widget */}
                           {(() => {
                             const meId = MEMBERS.find(m => m.name === user)?.id;
-                            const isMyChecked = meId && r.checkedIn && r.checkedIn.includes(meId);
-                            const checkedCount = r.checkedIn ? r.checkedIn.length : 0;
+                            const isMyChecked = meId && r.checkedIn && r.checkedIn.includes(meId) && r.attendees && r.attendees.includes(meId);
+                            const checkedCount = r.checkedIn ? r.checkedIn.filter(id => r.attendees && r.attendees.includes(id)).length : 0;
 
                             return (
                               <div className="mt-2.5 flex items-center justify-between relative z-30" onClick={(e) => e.stopPropagation()}>
@@ -1941,8 +1942,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
                         {/* Non-dimmed Popover */}
                         {(() => {
-                          const checkedCount = r.checkedIn ? r.checkedIn.length : 0;
-                          const checkedMembers = (r.checkedIn || []).map(id => MEMBERS.find(m => m.id === id)).filter(Boolean);
+                          const checkedCount = r.checkedIn ? r.checkedIn.filter(id => r.attendees && r.attendees.includes(id)).length : 0;
+                          const checkedMembers = (r.checkedIn || []).filter(id => r.attendees && r.attendees.includes(id)).map(id => MEMBERS.find(m => m.id === id)).filter(Boolean);
                           
                           return openAttendanceId === r.id && (
                             <>
