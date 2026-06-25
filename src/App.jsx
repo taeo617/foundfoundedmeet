@@ -2197,22 +2197,95 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
           {/* Mobile header controls */}
           <div className="flex md:hidden items-center gap-1.5">
-            <button
-              onClick={() => {
-                setAnnouncementPanelOpen(!announcementPanelOpen);
-                const nowTime = Date.now();
-                localStorage.setItem("announcement_last_read", String(nowTime));
-                setLastReadTime(nowTime);
-              }}
-              className="lift relative grid h-9 w-9 place-items-center rounded-lg transition-all duration-200 active:scale-90 cursor-pointer"
-              style={{ color: C.muted }}
-              title="공지사항"
-            >
-              <Bell size={20} />
-              {hasUnreadAnn && (
-                <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setAnnouncementPanelOpen(!announcementPanelOpen);
+                  const nowTime = Date.now();
+                  localStorage.setItem("announcement_last_read", String(nowTime));
+                  setLastReadTime(nowTime);
+                }}
+                className="lift relative grid h-9 w-9 place-items-center rounded-lg transition-all duration-200 active:scale-90 cursor-pointer"
+                style={{ color: C.muted }}
+                title="공지사항"
+              >
+                <Bell size={20} />
+                {hasUnreadAnn && (
+                  <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                )}
+              </button>
+              {announcementPanelOpen && (
+                <>
+                  <div className="fixed inset-0 z-40 cursor-default" onClick={() => setAnnouncementPanelOpen(false)} />
+                  <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-[#1a1a1a] rounded-xl border p-4 shadow-xl z-50 flex flex-col max-h-[420px] -mr-16" style={{ borderColor: C.border }}>
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b" style={{ borderColor: C.border }}>
+                      <div className="flex items-center gap-1.5">
+                        <Bell size={15} className="text-[#2383E2]" />
+                        <span className="text-[13px] font-bold" style={{ color: C.text }}>공지사항</span>
+                      </div>
+                      {user === "admin" && !editingAnnouncement && (
+                        <button 
+                          onClick={() => setEditingAnnouncement({ id: null, text: "" })}
+                          className="text-[10px] font-bold text-[#2383E2] hover:underline cursor-pointer"
+                        >
+                          글쓰기
+                        </button>
+                      )}
+                    </div>
+                    {/* Admin Form */}
+                    {editingAnnouncement && (
+                      <div className="pb-2 border-b space-y-2 mb-2 text-left" style={{ borderColor: C.border }}>
+                        <h4 className="text-[10px] font-bold" style={{ color: C.muted }}>{editingAnnouncement.id ? "공지사항 수정" : "새 공지사항 등록"}</h4>
+                        <textarea 
+                          value={editingAnnouncement.text}
+                          onChange={(e) => setEditingAnnouncement({ ...editingAnnouncement, text: e.target.value })}
+                          placeholder="공지사항 내용을 입력하세요..."
+                          className="inp w-full rounded border p-2 text-[11px] outline-none bg-white min-h-[50px] resize-none"
+                          style={{ borderColor: C.border, color: C.text }}
+                        />
+                        <div className="flex justify-end gap-1.5 text-[10px]">
+                          <button onClick={() => setEditingAnnouncement(null)} className="lift rounded px-2 py-1 border font-semibold" style={{ borderColor: C.border, color: C.muted }}>취소</button>
+                          <button onClick={() => saveAnnouncement(editingAnnouncement.text, editingAnnouncement.id)} className="lift rounded px-2 py-1 text-white font-semibold" style={{ background: "#2383E2" }}>저장</button>
+                        </div>
+                      </div>
+                    )}
+                    {/* Announcements List */}
+                    <div className="sc overflow-y-auto flex-1 space-y-3 pr-1 text-left no-scrollbar">
+                      {announcements.length === 0 ? (
+                        <div className="py-8 text-center text-[11px] font-semibold" style={{ color: C.faint }}>등록된 공지사항이 없습니다.</div>
+                      ) : (
+                        announcements.map((a) => {
+                          const dateStr = new Date(a.createdAt).toLocaleString("ko-KR", {
+                            year: "numeric",
+                            month: "2-digit",
+                            day: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit"
+                          });
+                          return (
+                            <div key={a.id} className="p-2.5 rounded-lg border flex flex-col justify-between" style={{ borderColor: C.border, background: "var(--bg-secondary)" }}>
+                              <div className="flex justify-between items-start gap-3">
+                                <div className="flex-1 text-[11px] font-medium leading-relaxed whitespace-pre-wrap break-all" style={{ color: C.text }}>
+                                  {a.text}
+                                </div>
+                                {user === "admin" && (
+                                  <div className="flex gap-1 shrink-0 text-[9px] font-bold">
+                                    <button onClick={() => setEditingAnnouncement({ id: a.id, text: a.text })} className="text-blue-500 hover:underline cursor-pointer">수정</button>
+                                    <span className="opacity-20">|</span>
+                                    <button onClick={() => deleteAnnouncement(a.id)} className="text-red-500 hover:underline cursor-pointer">삭제</button>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="mt-2 text-[9px]" style={{ color: C.faint }}>{dateStr}</div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
-            </button>
+            </div>
             <button
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
               className="lift grid h-9 w-9 place-items-center rounded-lg transition-all duration-200 active:scale-90"
@@ -3236,83 +3309,6 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         </div>
       )}
 
-      {/* ===== Mobile Announcement Modal (App View) ===== */}
-      {announcementPanelOpen && (
-        <div className="md:hidden ov fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: "transparent" }}>
-          {/* Fully transparent overlay click-to-close */}
-          <div className="fixed inset-0 z-40" onClick={() => setAnnouncementPanelOpen(false)} />
-          
-          <div className="sheet relative w-full max-w-sm rounded-lg bg-white p-5 shadow-2xl z-50 flex flex-col max-h-[70vh]" style={{ border: `1px solid ${C.border}` }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between pb-3 mb-3 border-b" style={{ borderColor: C.border }}>
-              <div className="flex items-center gap-1.5">
-                <Bell size={16} className="text-[#2383E2]" />
-                <span className="text-sm font-bold" style={{ color: C.text }}>공지사항</span>
-              </div>
-              <button onClick={() => setAnnouncementPanelOpen(false)} className="grid h-8 w-8 place-items-center rounded-lg hover:bg-black/5 cursor-pointer" style={{ color: C.faint }}><X size={18} /></button>
-            </div>
-            
-            {user === "admin" && !editingAnnouncement && (
-              <button 
-                onClick={() => setEditingAnnouncement({ id: null, text: "" })}
-                className="lift w-full flex items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-bold transition-all active:scale-95 cursor-pointer mb-3"
-                style={{ borderColor: C.ink, color: C.ink, background: "var(--bg-input)" }}
-              >
-                <Plus size={14} /> 새 공지사항 작성
-              </button>
-            )}
-
-            {editingAnnouncement && (
-              <div className="pb-3 border-b space-y-2 mb-3 text-left" style={{ borderColor: C.border }}>
-                <h4 className="text-xs font-bold" style={{ color: C.muted }}>{editingAnnouncement.id ? "공지사항 수정" : "새 공지사항 등록"}</h4>
-                <textarea 
-                  value={editingAnnouncement.text}
-                  onChange={(e) => setEditingAnnouncement({ ...editingAnnouncement, text: e.target.value })}
-                  placeholder="공지사항 내용을 입력하세요..."
-                  className="inp w-full rounded border p-2 text-xs outline-none bg-white min-h-[60px] resize-none"
-                  style={{ borderColor: C.border, color: C.text }}
-                />
-                <div className="flex justify-end gap-1.5 text-xs">
-                  <button onClick={() => setEditingAnnouncement(null)} className="lift rounded px-2.5 py-1 border font-semibold" style={{ borderColor: C.border, color: C.muted }}>취소</button>
-                  <button onClick={() => saveAnnouncement(editingAnnouncement.text, editingAnnouncement.id)} className="lift rounded px-2.5 py-1 text-white font-semibold" style={{ background: "#2383E2" }}>저장</button>
-                </div>
-              </div>
-            )}
-
-            <div className="sc overflow-y-auto flex-1 space-y-3 text-left no-scrollbar">
-              {announcements.length === 0 ? (
-                <div className="py-10 text-center text-xs font-semibold" style={{ color: C.faint }}>등록된 공지사항이 없습니다.</div>
-              ) : (
-                announcements.map((a) => {
-                  const dateStr = new Date(a.createdAt).toLocaleString("ko-KR", {
-                    year: "numeric",
-                    month: "2-digit",
-                    day: "2-digit",
-                    hour: "2-digit",
-                    minute: "2-digit"
-                  });
-                  return (
-                    <div key={a.id} className="p-3 rounded-lg border flex flex-col justify-between" style={{ borderColor: C.border, background: "var(--bg-secondary)" }}>
-                      <div className="flex justify-between items-start gap-3">
-                        <div className="flex-1 text-[12px] font-medium leading-relaxed whitespace-pre-wrap break-all" style={{ color: C.text }}>
-                          {a.text}
-                        </div>
-                        {user === "admin" && (
-                          <div className="flex gap-1.5 shrink-0 text-[10px] font-bold">
-                            <button onClick={() => setEditingAnnouncement({ id: a.id, text: a.text })} className="text-blue-500 hover:underline cursor-pointer">수정</button>
-                            <span className="opacity-20">|</span>
-                            <button onClick={() => deleteAnnouncement(a.id)} className="text-red-500 hover:underline cursor-pointer">삭제</button>
-                          </div>
-                        )}
-                      </div>
-                      <div className="mt-2 text-[10px]" style={{ color: C.faint }}>{dateStr}</div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ===== Toast ===== */}
       {toast && <div className="rise fixed left-1/2 bottom-[100px] -translate-x-1/2 z-[80] flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium whitespace-nowrap" style={{ background: C.ink, color: "var(--bg)", boxShadow: "0 4px 12px rgba(0,0,0,.15)" }}><CheckCircle2 size={16} style={{ color: "var(--yellow)" }} /> {toast}</div>}
