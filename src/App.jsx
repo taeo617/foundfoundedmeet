@@ -775,6 +775,7 @@ export default function App() {
   const [roomId, setRoomId] = useState("all");
   const [dashMonth, setDashMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [dashRoom, setDashRoom] = useState("all");
+  const [openAttendanceId, setOpenAttendanceId] = useState(null);
 
   const today = dayOnly(now);
   const selKey = keyOf(anchor);
@@ -1897,51 +1898,72 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
                           return (
                             <div className="mt-2.5 flex items-center justify-between relative z-30" onClick={(e) => e.stopPropagation()}>
-                              <div className="tooltip-container relative">
+                              <div className="relative flex items-center gap-1.5">
+                                {/* Attend Button */}
                                 <button
                                   onClick={(e) => { e.stopPropagation(); toggleAttendance(r); }}
-                                  className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[9.5px] font-bold border transition-all active:scale-95 shadow-sm cursor-pointer"
+                                  className="flex items-center gap-1 rounded-full px-2 py-0.5 border transition-all active:scale-95 shadow-sm cursor-pointer"
                                   style={{
-                                    background: isMyChecked ? "rgba(39, 174, 96, 0.1)" : "var(--bg-input)",
-                                    borderColor: isMyChecked ? "#27ae60" : C.border,
-                                    color: isMyChecked ? "#27ae60" : C.text
+                                    background: isMyChecked ? "rgba(124, 58, 237, 0.05)" : "var(--bg-input)",
+                                    borderColor: "#7c3aed",
+                                    height: "20px"
                                   }}
                                 >
-                                  <span className="flex items-center justify-center w-3.5 h-3.5 rounded text-white" style={{ background: isMyChecked ? "#27ae60" : "#a0aec0" }}>
-                                    <Check size={9} strokeWidth={3.5} />
+                                  <span className="flex items-center justify-center w-[12px] h-[12px] rounded-[3.5px] text-white shrink-0" style={{ background: "#27ae60" }}>
+                                    <Check size={8} strokeWidth={4} />
                                   </span>
-                                  <span>참석</span>
-                                  {checkedCount > 0 && (
-                                    <span className="ml-0.5 text-[10px] font-extrabold" style={{ color: isMyChecked ? "#27ae60" : "#7b2cbf" }}>
-                                      {checkedCount}
-                                    </span>
-                                  )}
+                                  <span className="text-[10.5px] font-extrabold leading-none" style={{ color: "#7c3aed" }}>
+                                    {checkedCount}
+                                  </span>
                                 </button>
-                                
-                                {/* Attendance Check Tooltip */}
-                                {checkedCount > 0 && (
-                                  <div className="tooltip-content absolute w-64 bg-white dark:bg-[#1a1a1a] rounded-xl border p-3 shadow-xl pointer-events-none transition-all" style={{ top: "100%", left: 0, marginTop: "8px", borderColor: C.border, zIndex: 110 }}>
-                                    <div className="flex items-center justify-between pb-2 mb-2 border-b" style={{ borderColor: C.border }}>
-                                      <span className="text-[12px] font-bold" style={{ color: C.text }}>참석 확인 현황</span>
-                                      <span className="text-[11px] font-extrabold text-[#27ae60] bg-[#27ae60]/10 px-2 py-0.5 rounded-full">{checkedCount}명 완료</span>
-                                    </div>
-                                    <div className="space-y-2 max-h-[172px] overflow-y-auto pr-1 scrollbar-thin">
-                                      {checkedMembers.map(m => (
-                                        <div key={m.id} className="flex items-center justify-between text-[11px]">
-                                          <div className="flex items-center gap-2">
-                                            <Avatar name={m.name} size={22} solid />
-                                            <span className="font-semibold" style={{ color: C.text }}>{m.name} <span className="font-normal text-[10px]" style={{ color: C.faint }}>{m.role}</span></span>
+
+                                {/* Attendee Info Button */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenAttendanceId(openAttendanceId === r.id ? null : r.id);
+                                  }}
+                                  className="w-[20px] h-[20px] rounded-full flex items-center justify-center transition-all active:scale-90 bg-[#eeeeee] dark:bg-zinc-800 cursor-pointer"
+                                >
+                                  <User size={11} className="text-gray-600 dark:text-gray-400" />
+                                </button>
+
+                                {/* Attendance Check Popover */}
+                                {openAttendanceId === r.id && (
+                                  <>
+                                    <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpenAttendanceId(null); }} />
+                                    <div 
+                                      className="absolute w-64 bg-white dark:bg-[#1a1a1a] rounded-xl border p-3 shadow-xl z-50" 
+                                      style={{ top: "100%", left: 0, marginTop: "8px", borderColor: C.border }}
+                                    >
+                                      <div className="flex items-center justify-between pb-2 mb-2 border-b" style={{ borderColor: C.border }}>
+                                        <span className="text-[12px] font-bold" style={{ color: C.text }}>참석 확인 현황</span>
+                                        <span className="text-[11px] font-extrabold text-[#27ae60] bg-[#27ae60]/10 px-2 py-0.5 rounded-full">{checkedCount}명 완료</span>
+                                      </div>
+                                      <div className="space-y-2 max-h-[172px] overflow-y-auto pr-1 scrollbar-thin">
+                                        {checkedCount > 0 ? (
+                                          checkedMembers.map(m => (
+                                            <div key={m.id} className="flex items-center justify-between text-[11px]">
+                                              <div className="flex items-center gap-2">
+                                                <Avatar name={m.name} size={22} solid />
+                                                <span className="font-semibold" style={{ color: C.text }}>{m.name} <span className="font-normal text-[10px]" style={{ color: C.faint }}>{m.role}</span></span>
+                                              </div>
+                                              <div className="flex items-center gap-1.5">
+                                                <span className="text-[9px] font-medium px-1 rounded" style={{ background: PASTEL.gray.bg, color: PASTEL.gray.text }}>{m.team}</span>
+                                                <span className="w-3.5 h-3.5 rounded bg-[#27ae60] flex items-center justify-center text-white">
+                                                  <Check size={9} strokeWidth={4} />
+                                                </span>
+                                              </div>
+                                            </div>
+                                          ))
+                                        ) : (
+                                          <div className="py-4 text-center text-[11px]" style={{ color: C.faint }}>
+                                            아직 참석 확인을 한 사람이 없어요.
                                           </div>
-                                          <div className="flex items-center gap-1.5">
-                                            <span className="text-[9px] font-medium px-1 rounded" style={{ background: PASTEL.gray.bg, color: PASTEL.gray.text }}>{m.team}</span>
-                                            <span className="w-3.5 h-3.5 rounded bg-[#27ae60] flex items-center justify-center text-white">
-                                              <Check size={9} strokeWidth={4} />
-                                            </span>
-                                          </div>
-                                        </div>
-                                      ))}
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
+                                  </>
                                 )}
                               </div>
                             </div>
