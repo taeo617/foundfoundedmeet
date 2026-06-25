@@ -367,3 +367,23 @@ body, header, section, .sheet, .cell, input, select, button {
   color: #000000 !important;
 }
 
+
+/* Tooltip/Popover styling for attendance check */
+.tooltip-container {
+  position: relative;
+  display: inline-block;
+}
+
+.tooltip-content {
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.2s ease-in-out;
+  z-index: 100;
+}
+
+.tooltip-container:hover .tooltip-content {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0);
+}

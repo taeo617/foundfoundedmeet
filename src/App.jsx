@@ -1326,8 +1326,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     const a = toMin(s), b = toMin(e);
     return reservations.some((r) => r.roomId === rid && r.date === date && r.id !== ignore && !(b <= toMin(r.start) || a >= toMin(r.end)));
   }
-  const defStart = () => Math.min(Math.max(isToday ? Math.ceil(nowMin / STEP) * STEP : 10 * 60, DAY_START), DAY_END - 60);
-  function openCreate(rid, startMin, date) { setErrs({}); const me = getMeId(); setForm({ id: null, roomId: rid, title: "", date: date || selKey, start: toHHMM(startMin), end: toHHMM(Math.min(startMin + 60, DAY_END)), attendees: me ? [me] : [], repeat: false, color: "yellow", isUrgent: false, comments: [] }); }
+  const defStart = () => Math.min(Math.max(isToday ? Math.ceil(nowMin / STEP) * STEP : 10 * 60, DAY_START), DAY_END - 10);
+  function openCreate(rid, startMin, date) { setErrs({}); const me = getMeId(); setForm({ id: null, roomId: rid, title: "", date: date || selKey, start: toHHMM(startMin), end: toHHMM(Math.min(startMin + 10, DAY_END)), attendees: me ? [me] : [], repeat: false, color: "yellow", isUrgent: false, comments: [] }); }
   const tryCreate = (rid, sm, date) => requireAuth(() => openCreate(rid, sm, date), "일정을 추가하려면 로그인이 필요해요.");
   const openEdit = (r) => { setErrs({}); setForm({ ...r, attendees: [...r.attendees] }); };
 
@@ -1443,7 +1443,19 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       if (!isEdit) {
          sendPushNotification('📅 새 회의가 등록됐어요', `${nameWithNim(user)}이 예약했습니다. [${ROOMS.find(r=>r.id===f.roomId)?.name}] ${f.date} ${f.start}~${f.end}`, f.attendees);
       } else {
-         sendPushNotification('✏️ 회의 일정이 변경됐어요', `${nameWithNim(user)}이 일정을 변경했습니다. [${ROOMS.find(r=>r.id===f.roomId)?.name}] 확인해주세요.`, f.attendees);
+         const originalRes = reservations.find(r => r.id === f.id);
+         let isEnded = false;
+         if (originalRes && originalRes.date && originalRes.end) {
+           const [y, m, d] = originalRes.date.split("-").map(Number);
+           const [h, min] = originalRes.end.split(":").map(Number);
+           const endTime = new Date(y, m - 1, d, h, min);
+           if (endTime < new Date()) {
+             isEnded = true;
+           }
+         }
+         if (!isEnded) {
+            sendPushNotification('✏️ 회의 일정이 변경됐어요', `${nameWithNim(user)}이 일정을 변경했습니다. [${ROOMS.find(r=>r.id===f.roomId)?.name}] 확인해주세요.`, f.attendees);
+         }
       }
       
       pushedReservations.forEach(pushed => {
@@ -1551,6 +1563,33 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       }
     }, "회의를 연장하려면 로그인이 필요해요.");
   }
+
+  const toggleAttendance = (r) => {
+    requireAuth(async () => {
+      const meId = MEMBERS.find(m => m.name === user)?.id;
+      if (!meId) return;
+      if (!r.attendees || !r.attendees.includes(meId)) {
+        showToast("회의 참석자만 참석 확인을 할 수 있어요.");
+        return;
+      }
+      const newCheckedIn = r.checkedIn?.includes(meId)
+        ? r.checkedIn.filter(id => id !== meId)
+        : [...(r.checkedIn || []), meId];
+      
+      if (isFirebaseConfigured) {
+        try {
+          await updateDoc(doc(db, "reservations", r.id), { checkedIn: newCheckedIn });
+          showToast(r.checkedIn?.includes(meId) ? "참석 확인을 취소했어요." : "참석을 확인했어요.");
+        } catch (err) {
+          console.error(err);
+          showToast("참석 확인 중 오류가 발생했습니다.");
+        }
+      } else {
+        setReservations(prev => prev.map(item => item.id === r.id ? { ...item, checkedIn: newCheckedIn } : item));
+        showToast(r.checkedIn?.includes(meId) ? "참석 확인을 취소했어요." : "참석을 확인했어요.");
+      }
+    }, "참석을 확인하려면 로그인이 필요해요.");
+  };
 
   function openPicker() { setTemp([...(form.attendees || [])]); setPickerOpen(true); }
   const toggleTemp = (id) => setTemp((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
@@ -1767,6 +1806,66 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                             </span>
                           ))}
                         </div>
+
+                        {/* Attendance Check Widget */}
+                        {(() => {
+                          const meId = MEMBERS.find(m => m.name === user)?.id;
+                          const isMyChecked = meId && r.checkedIn && r.checkedIn.includes(meId);
+                          const checkedCount = r.checkedIn ? r.checkedIn.length : 0;
+                          const checkedMembers = (r.checkedIn || []).map(id => MEMBERS.find(m => m.id === id)).filter(Boolean);
+
+                          return (
+                            <div className="mt-3 pt-2.5 border-t border-dashed flex items-center justify-between relative z-30" style={{ borderColor: C.border }} onClick={(e) => e.stopPropagation()}>
+                              <div className="tooltip-container relative">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); toggleAttendance(r); }}
+                                  className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold border transition-all active:scale-95 shadow-sm cursor-pointer"
+                                  style={{
+                                    background: isMyChecked ? "rgba(39, 174, 96, 0.1)" : "var(--bg-input)",
+                                    borderColor: isMyChecked ? "#27ae60" : C.border,
+                                    color: isMyChecked ? "#27ae60" : C.text
+                                  }}
+                                >
+                                  <span className="flex items-center justify-center w-4.5 h-4.5 rounded text-white animate-fade-in" style={{ background: isMyChecked ? "#27ae60" : "#a0aec0" }}>
+                                    <Check size={11} strokeWidth={3.5} />
+                                  </span>
+                                  <span>참석확인</span>
+                                  {checkedCount > 0 && (
+                                    <span className="ml-1 text-[12px] font-extrabold" style={{ color: isMyChecked ? "#27ae60" : "#7b2cbf" }}>
+                                      {checkedCount}
+                                    </span>
+                                  )}
+                                </button>
+                                
+                                {/* Attendance Check Tooltip */}
+                                {checkedCount > 0 && (
+                                  <div className="tooltip-content absolute bottom-full left-0 mb-2 w-64 bg-white dark:bg-[#1a1a1a] rounded-xl border p-3 shadow-xl pointer-events-none transition-all" style={{ borderColor: C.border }}>
+                                    <div className="flex items-center justify-between pb-2 mb-2 border-b" style={{ borderColor: C.border }}>
+                                      <span className="text-[12px] font-bold" style={{ color: C.text }}>참석 확인 현황</span>
+                                      <span className="text-[11px] font-extrabold text-[#27ae60] bg-[#27ae60]/10 px-2 py-0.5 rounded-full">{checkedCount}명 완료</span>
+                                    </div>
+                                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                                      {checkedMembers.map(m => (
+                                        <div key={m.id} className="flex items-center justify-between text-[11px]">
+                                          <div className="flex items-center gap-2">
+                                            <Avatar name={m.name} size={22} solid />
+                                            <span className="font-semibold" style={{ color: C.text }}>{m.name} <span className="font-normal text-[10px]" style={{ color: C.faint }}>{m.role}</span></span>
+                                          </div>
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="text-[9px] font-medium px-1 rounded" style={{ background: PASTEL.gray.bg, color: PASTEL.gray.text }}>{m.team}</span>
+                                            <span className="w-3.5 h-3.5 rounded bg-[#27ae60] flex items-center justify-center text-white">
+                                              <Check size={9} strokeWidth={4} />
+                                            </span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
                         
                         {/* Current Time Line Overlay if inside this meeting */}
                         {isCurr && (() => {
@@ -2162,7 +2261,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
       {/* ===== Booking modal ===== */}
       {form && (
-        <div className="ov fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4" style={{ background: "rgba(20,20,20,.5)" }} onClick={() => { setForm(null); setShowStartList(false); setShowEndList(false); }}>
+        <div className="ov fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4" style={{ background: "rgba(20,20,20,.5)" }} onClick={() => { setShowStartList(false); setShowEndList(false); }}>
           <div className="sheet w-full rounded-t-lg bg-white sm:max-w-md sm:rounded-lg" style={{ maxHeight: "92vh", boxShadow: "0 -4px 12px rgba(0,0,0,.08)" }} onClick={(e) => { e.stopPropagation(); setShowStartList(false); setShowEndList(false); }}>
             <div className="sc max-h-[92vh] overflow-y-auto p-6">
               <div className="flex items-center justify-between"><h3 className="text-lg font-medium">{form.id ? "예약 수정" : "회의실 예약"}</h3><button onClick={() => setForm(null)} className="grid h-8 w-8 place-items-center rounded-lg" style={{ color: C.faint }}><X size={18} /></button></div>
@@ -2198,7 +2297,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                               setForm(prev => {
                                 const newForm = { ...prev, start: v };
                                 if (!isNaN(sMin) && !isNaN(currE) && currE <= sMin) {
-                                  newForm.end = toHHMM(Math.min(sMin + 60, DAY_END));
+                                  newForm.end = toHHMM(Math.min(sMin + 10, DAY_END));
                                 }
                                 return newForm;
                               });
@@ -2217,7 +2316,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                                   setForm(prev => {
                                     const newForm = { ...prev, start: formatted };
                                     if (!isNaN(sMin) && !isNaN(currE) && currE <= sMin) {
-                                      newForm.end = toHHMM(Math.min(sMin + 60, DAY_END));
+                                      newForm.end = toHHMM(Math.min(sMin + 10, DAY_END));
                                     }
                                     return newForm;
                                   });
@@ -2254,7 +2353,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                                       setForm(prev => {
                                         const newForm = { ...prev, start: t };
                                         if (!isNaN(sMin) && !isNaN(currE) && currE <= sMin) {
-                                          newForm.end = toHHMM(Math.min(sMin + 60, DAY_END));
+                                          newForm.end = toHHMM(Math.min(sMin + 10, DAY_END));
                                         }
                                         return newForm;
                                       });
