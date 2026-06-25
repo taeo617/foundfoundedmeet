@@ -1662,53 +1662,136 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             }
           }}
         >
-          {[{ id: "meeting", name: "회의실" }, { id: "lounge", name: "라운지" }].map(tab => (
-            <button key={tab.id} onClick={() => setRoomId(tab.id)} className="shrink-0 px-4 py-1.5 rounded-full text-[13px] font-semibold border" style={roomId === tab.id ? { background: C.ink, color: "var(--bg)", borderColor: C.ink } : { borderColor: C.border, color: C.muted }}>
+          {[{ id: "all", name: "전체" }, ...ROOMS].map(tab => (
+            <button key={tab.id} onClick={() => setRoomId(tab.id)} className="shrink-0 px-4 py-1.5 rounded-full text-[13px] font-semibold border transition-colors" style={roomId === tab.id ? { background: C.ink, color: "var(--bg)", borderColor: C.ink } : { borderColor: C.border, color: C.muted }}>
               {tab.name}
             </button>
           ))}
         </div>
 
-        {/* Status Card Area */}
-        {isTodayAnchor && (
-          <div className="mb-6 w-full">
-            {roomId === "meeting" ? (
-              <div className="flex gap-2 sm:gap-4 items-stretch">
-                <div className="flex-1 min-w-0">{renderStatusCard("big", "큰 회의실")}</div>
-                <div className="flex-1 min-w-0">{renderStatusCard("small", "작은 회의실")}</div>
-              </div>
-            ) : (
-              <div className="w-full">{renderStatusCard("lounge", "라운지")}</div>
-            )}
+        {/* Status Card (Only show context for today AND if not "all") */}
+        {isTodayAnchor && roomId !== "all" && (
+          <div className="mb-6 rounded-[14px] p-4 text-white relative overflow-hidden" style={{ background: mobCurrentMtg ? "var(--mob-busy-bg)" : "var(--mob-free-bg)", margin: "6px 0", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
+            <div className="flex items-center gap-2 mb-2 relative z-10">
+              <span className={`w-2.5 h-2.5 rounded-full ${mobCurrentMtg ? "glow-dot-busy" : "glow-dot-free"}`} />
+              <span className="text-[18px] font-bold" style={{ color: mobCurrentMtg ? "var(--mob-busy-text)" : "var(--mob-free-text)" }}>{mobCurrentMtg ? "지금 회의 중" : "지금 비어있음"}</span>
+            </div>
+            <div className="text-[13px] font-medium mb-5" style={{ color: mobCurrentMtg ? "var(--mob-busy-text)" : "var(--mob-free-text)", opacity: 0.8 }}>
+              {mobCurrentMtg ? `${mobCurrentMtg.title} · ${mobCurrentMtg.end} 종료` : mobNextMtg ? `${mobNextMtg.start}까지 사용 가능` : "오늘 남은 시간 계속 사용 가능"}
+            </div>
+            <div className="relative z-10">
+              {mobCurrentMtg ? (
+                canEdit(mobCurrentMtg) ? (
+                  <div className="flex gap-2">
+                    <select 
+                      onChange={(e) => { if (e.target.value) { extendRes(mobCurrentMtg, parseInt(e.target.value)); e.target.value = ""; } }} 
+                      className="flex-1 py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white text-center cursor-pointer outline-none appearance-none"
+                    >
+                      <option value="" hidden>회의 연장</option>
+                      <option value="5" style={{color: "#000"}}>+ 5분</option>
+                      <option value="10" style={{color: "#000"}}>+ 10분</option>
+                      <option value="15" style={{color: "#000"}}>+ 15분</option>
+                      <option value="30" style={{color: "#000"}}>+ 30분</option>
+                    </select>
+                    <button className="flex-1 py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => completeRes(mobCurrentMtg)}>
+                      회의 종료
+                    </button>
+                  </div>
+                ) : (
+                  <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => requireAuth(() => setDetail(mobCurrentMtg), "코멘트를 남기려면 로그인이 필요해요.")}>
+                    코멘트 남기기
+                  </button>
+                )
+              ) : (
+                <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => tryCreate(roomId, defStart(), selKey)}>
+                  지금 바로 예약하기
+                </button>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Timeline List Area */}
-        <div className="flex-1 flex flex-col" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+        {/* Timeline List */}
+        <div className="flex-1" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
           <div className="flex items-center gap-2 mb-3">
             <span className="text-[12px] font-medium" style={{ color: C.faint }}>{isTodayAnchor ? "오늘 일정" : `${anchor.getMonth() + 1}월 ${anchor.getDate()}일 일정`}</span>
             <div className="flex-1 h-px" style={{ background: C.border }} />
           </div>
 
-          {roomId === "meeting" ? (
-            <div className="flex gap-2 sm:gap-4 w-full items-stretch flex-1">
-              <div className="flex-1 min-w-0 border-r pr-2 sm:pr-4" style={{ borderColor: C.border }}>
-                {renderTimelineList("big", "큰 회의실")}
+          <div className="flex flex-col gap-2 relative">
+            {mobDayList.length === 0 ? (
+              <div className="py-10 flex flex-col items-center justify-center text-center">
+                <Calendar size={28} className="mb-2" style={{ color: C.faint }} />
+                <span className="text-[13px] font-medium" style={{ color: C.faint }}>오늘 예약 없음</span>
               </div>
-              <div className="flex-1 min-w-0 pl-1 sm:pl-2">
-                {renderTimelineList("small", "작은 회의실")}
-              </div>
-            </div>
-          ) : (
-            <div className="w-full flex-1">
-              {renderTimelineList("lounge", "")}
-            </div>
-          )}
+            ) : (
+              mobDayList.map((r) => {
+                const sM = toMin(r.start);
+                const eM = toMin(r.end);
+                const isPast = nowMin >= eM && isTodayAnchor;
+                const isCurr = nowMin >= sM && nowMin < eM && isTodayAnchor;
+                const rm = ROOMS.find(x => x.id === r.roomId);
+                
+                return (
+                  <div key={r.id} className="flex relative items-stretch" onClick={() => onBlockClick(r)}>
+                    <div className="w-[42px] shrink-0 pt-3 text-[11px] font-medium" style={{ color: C.faint }}>
+                      {r.start}
+                    </div>
+                    
+                    <div className="relative flex-1 ml-1 pl-3 py-1">
+                      {/* Vertical Color Line */}
+                      <div className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full" style={{ background: r.isUrgent ? "var(--mob-line-urgent)" : "var(--mob-line-normal)", opacity: isPast ? 0.3 : 1 }} />
+                      
+                      {/* Card Body */}
+                      <div className="p-3.5 rounded-[10px] relative overflow-hidden" style={{ background: r.isUrgent ? "var(--mob-card-urgent)" : "var(--mob-card-normal)", opacity: isPast ? 0.5 : 1 }}>
+                        <div className="flex items-start justify-between mb-1">
+                          <div className="text-[14px] font-bold truncate pr-2 leading-tight flex items-center gap-1.5" style={{ color: C.text }}>
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: r.isUrgent ? pal('red').dot : pal('green').dot }} />
+                            {r.title}
+                          </div>
+                          {r.isUrgent && (
+                            <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: "var(--mob-busy-bg)", color: "var(--mob-busy-text)" }}>긴급</span>
+                          )}
+                        </div>
+                        <div className="text-[11px] font-medium flex items-center gap-1 mt-0.5" style={{ color: C.faint }}>
+                          <Clock size={11} className="shrink-0" style={{ opacity: 0.7 }} />
+                          <span>{rm?.name || r.roomId} · {r.start}~{r.end}</span>
+                        </div>
+                        
+                        {/* Attendees */}
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5 relative z-20">
+                          <span className="text-[11px] font-semibold mr-0.5 flex items-center gap-1" style={{ color: C.faint }}><User size={11} className="shrink-0" style={{ opacity: 0.7 }} />참석자</span>
+                          {Array.from(new Set((r.attendees || []).map(id => M(id)?.name))).filter(Boolean).map(name => (
+                            <span key={name} className="inline-flex items-center rounded bg-black/5 dark:bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-gray-700 dark:text-gray-300">
+                              {name}
+                            </span>
+                          ))}
+                        </div>
+                        
+                        {/* Current Time Line Overlay if inside this meeting */}
+                        {isCurr && (() => {
+                          const exactNowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+                          const progress = Math.max(0, Math.min(100, ((exactNowMin - sM) / (eM - sM)) * 100));
+                          return (
+                            <div className="absolute left-0 right-0 flex items-center z-10 pointer-events-none -ml-4" style={{ top: `${progress}%`, transform: 'translateY(-50%)', transition: 'top 1s ease-in-out' }}>
+                              <span className="w-[6px] h-[6px] rounded-full" style={{ background: "var(--mob-busy-bg)" }} />
+                              <div className="flex-1 h-[1.5px]" style={{ background: "var(--mob-busy-bg)" }} />
+                              <span className="ml-1 text-[10px] font-bold" style={{ color: "var(--mob-busy-bg)" }}>지금</span>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
 
         {/* Bottom Fixed FAB for Mobile/Desktop */}
         <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+76px)] left-4 right-4 z-30 ${isDesktopSplit ? "md:sticky md:bottom-0 md:mt-auto md:pt-4 md:pb-2 md:bg-[var(--bg)]" : ""}`}>
-          <button className="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 text-[14px] font-bold shadow-lg transition-transform active:scale-95" style={{ background: "var(--ink)", color: "var(--bg)" }} onClick={() => tryCreate(roomId === "meeting" ? "big" : roomId, defStart(), selKey)}>
+          <button className="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 text-[14px] font-bold shadow-lg transition-transform active:scale-95" style={{ background: "var(--ink)", color: "var(--bg)" }} onClick={() => tryCreate(roomId === "all" ? "big" : roomId, defStart(), selKey)}>
             <Plus size={18} /> 예약하기
           </button>
         </div>
