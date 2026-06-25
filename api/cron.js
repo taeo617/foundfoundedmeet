@@ -58,21 +58,17 @@ export default async function handler(req, res) {
         }
       }
 
-      // If the meeting ends exactly 5 minutes from now
+      // If the meeting ends exactly 1 minute from now
       // Since cron might run at xx:01 or xx:00, we check a 1-minute window
-      if (endMin - nowMin === 5) {
-        if (data.attendees) {
-          data.attendees.forEach(att => targetAttendees.add(att));
-        }
+      if (endMin - nowMin === 1) {
+        if (data.attendees) { data.attendees.forEach(att => targetAttendees.add(att)); } if (data.owner) { targetAttendees.add(data.owner); }
         endingRooms.push(data.roomId === 'big' ? '큰 회의실' : '작은 회의실');
       }
 
       const startMin = toMin(data.start);
       // If the meeting starts exactly 1 minute from now
       if (startMin - nowMin === 1) {
-        if (data.attendees) {
-          data.attendees.forEach(att => startingAttendees.add(att));
-        }
+        if (data.attendees) { data.attendees.forEach(att => startingAttendees.add(att)); } if (data.owner) { startingAttendees.add(data.owner); }
         const roomName = data.roomId === 'big' ? '큰 회의실' : '작은 회의실';
         startingMeetings.push(`[${roomName}] ${data.title}`);
       }
@@ -93,7 +89,7 @@ export default async function handler(req, res) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            title: '⏰ 회의 종료 5분 전이에요',
+            title: '⏰ 회의 종료 1분 전이에요',
             body: `${endingRooms.join(', ')} 회의가 곧 끝나요. 마무리 부탁드려요 :)`,
             url: '/',
             attendees: Array.from(targetAttendees)

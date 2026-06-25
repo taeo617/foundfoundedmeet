@@ -59,7 +59,8 @@ const MEMBERS = [
   { id: "m_room", name: "회의실", team: "공용", role: "회의실", group: "admin" },
 ];
 const M = (id) => MEMBERS.find((x) => x.id === id);
-const memLabel = (id) => { const m = M(id); return m ? `${m.team} ${m.name}님` : id; };
+const memLabel = (id) => { const m = M(id); return m ? `${m.team} ${m.name === "회의실" ? m.name : m.name + "님"}` : id; };
+const nameWithNim = (n) => n === "회의실" ? n : (n ? n + "님" : "");
 
 /* timeline geometry */
 const DAY_START = 9 * 60, DAY_END = 22 * 60, STEP = 5, PX = 15;
@@ -470,7 +471,7 @@ function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations, onSele
                       </div>
                       <div className="text-[12px] opacity-90 space-y-0.5 font-medium">
                         <div className="flex items-center gap-1"><Clock size={12} style={{ opacity: 0.7 }} /> {r.start} ~ {r.end}</div>
-                        <div className="flex items-center gap-1"><User size={12} style={{ opacity: 0.7 }} /> 등록자: {r.owner}님 · 참석자: {r.attendees ? r.attendees.length : 0}명</div>
+                        <div className="flex items-center gap-1"><User size={12} style={{ opacity: 0.7 }} /> 등록자: {nameWithNim(r.owner)} · 참석자: {r.attendees ? r.attendees.length : 0}명</div>
                       </div>
                     </div>
                   );
@@ -747,7 +748,7 @@ export default function App() {
   const [view, setView] = useState("timeline");
   const [anchor, setAnchor] = useState(() => dayOnly(new Date()));
   const [mineDate, setMineDate] = useState(() => keyOf(new Date()));
-  const [roomId, setRoomId] = useState("big");
+  const [roomId, setRoomId] = useState("all");
   const [dashMonth, setDashMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [dashRoom, setDashRoom] = useState("all");
 
@@ -796,19 +797,10 @@ export default function App() {
       const nextMeeting = reservations
         .filter(nr => nr.roomId === r.roomId && nr.date === todayKey && nr.id !== r.id && toMin(nr.start) >= endM)
         .sort((a, b) => toMin(a.start) - toMin(b.start))[0];
-      const nextInfo = nextMeeting ? `(다음 예약: ${nextMeeting.start} ${nextMeeting.title})` : `(다음 예약 없음)`;
       
-      if (left === 5 && !r.notified5m) {
-        try {
-          await runTransaction(db, async (transaction) => {
-            const sfDocRef = doc(db, "reservations", r.id);
-            const sfDoc = await transaction.get(sfDocRef);
-            if (!sfDoc.exists() || sfDoc.data().notified5m) throw "Already notified";
-            transaction.update(sfDocRef, { notified5m: true });
-          });
-          const roomName = ROOMS.find(rm => rm.id === r.roomId)?.name || r.roomId;
-          sendPushNotification('⏳ 회의 종료 5분 전입니다', `[${roomName}] 마무리 준비해주세요. ${nextInfo}`, r.attendees);
-        } catch(e) {}
+      let nextInfo = "";
+      if (nextMeeting && (toMin(nextMeeting.start) - endM <= 30)) {
+        nextInfo = ` (다음 예약: ${nextMeeting.start} ${nextMeeting.title})`;
       }
       
       if (left === 1 && !r.notified1m) {
@@ -820,7 +812,7 @@ export default function App() {
             transaction.update(sfDocRef, { notified1m: true });
           });
           const roomName = ROOMS.find(rm => rm.id === r.roomId)?.name || r.roomId;
-          sendPushNotification('⏱️ 회의 종료 1분 전입니다', `[${roomName}] 이용 시간이 끝납니다. ${nextInfo}`, [...(r.attendees || []), 'm_room']);
+          sendPushNotification('⏱️ 회의 종료 1분 전입니다', `[${roomName}] 이용 시간이 끝납니다.${nextInfo}`, Array.from(new Set([...(r.attendees || []), r.owner].filter(Boolean))));
         } catch(e) {}
       }
     });
@@ -1407,7 +1399,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             if (r.attendees && r.attendees.includes(attId)) {
               const mName = MEMBERS.find((m) => m.id === attId)?.name || attId;
               const rRoomName = ROOMS.find((rm) => rm.id === r.roomId)?.name || r.roomId;
-              conflicts.push(`${mName}님 (${rRoomName} / ${r.start}~${r.end} "${r.title}")`);
+              conflicts.push(`${nameWithNim(mName)} (${rRoomName} / ${r.start}~${r.end} "${r.title}")`);
             }
           });
         }
@@ -1449,9 +1441,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       
       // Push Notifications
       if (!isEdit) {
-         sendPushNotification('📅 새 회의가 등록됐어요', `${user}님이 예약했습니다. [${ROOMS.find(r=>r.id===f.roomId)?.name}] ${f.date} ${f.start}~${f.end}`, f.attendees);
+         sendPushNotification('📅 새 회의가 등록됐어요', `${nameWithNim(user)}이 예약했습니다. [${ROOMS.find(r=>r.id===f.roomId)?.name}] ${f.date} ${f.start}~${f.end}`, f.attendees);
       } else {
-         sendPushNotification('✏️ 회의 일정이 변경됐어요', `${user}님이 일정을 변경했습니다. [${ROOMS.find(r=>r.id===f.roomId)?.name}] 확인해주세요.`, f.attendees);
+         sendPushNotification('✏️ 회의 일정이 변경됐어요', `${nameWithNim(user)}이 일정을 변경했습니다. [${ROOMS.find(r=>r.id===f.roomId)?.name}] 확인해주세요.`, f.attendees);
       }
       
       pushedReservations.forEach(pushed => {
@@ -1546,7 +1538,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
              // Find overlapping meeting attendees
              const overlapsNext = reservations.filter(x => x.roomId === r.roomId && x.date === r.date && x.id !== r.id && !(toMin(x.end) <= endM || toMin(x.start) >= newEndM));
              overlapsNext.forEach(ov => {
-               sendPushNotification('✏️ 회의 일정이 변경됐어요', `${user}님의 회의 연장으로 인해 일정이 겹쳤습니다. [${ROOMS.find(rm=>rm.id===ov.roomId)?.name}] 확인해주세요.`, ov.attendees);
+               sendPushNotification('✏️ 회의 일정이 변경됐어요', `${nameWithNim(user)}의 회의 연장으로 인해 일정이 겹쳤습니다. [${ROOMS.find(rm=>rm.id===ov.roomId)?.name}] 확인해주세요.`, ov.attendees);
              });
           }
         }).catch(err => {
@@ -1568,63 +1560,22 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
   const onBlockClick = (r) => (canEdit(r) ? openEdit(r) : setDetail(r));
 
   /* ----- timeline renderers ----- */
-  const Gutter = () => (
-    <div className="relative shrink-0" style={{ width: GUTTER, height: SLOTS * PX }}>
-      {Array.from({ length: (DAY_END - DAY_START) / 60 + 1 }, (_, i) => <div key={i} className="absolute -translate-y-1/2 text-[11px] font-semibold" style={{ top: i * (60 / STEP) * PX, color: C.faint }}>{pad(Math.floor(DAY_START / 60) + i)}</div>)}
-    </div>
-  );
-  const Track = ({ rid }) => {
-    const list = reservations.filter((r) => r.roomId === rid && r.date === selKey).sort((a, b) => toMin(a.start) - toMin(b.start));
-    return (
-      <div className="relative w-full" style={{ height: SLOTS * PX }}>
-        {Array.from({ length: SLOTS }, (_, i) => {
-          const sm = DAY_START + i * STEP;
-          const isHour = sm % 60 === 0;
-          const isHalf = sm % 30 === 0;
-          return <div key={i} className="slot absolute left-0 right-0 border-t" style={{ top: i * PX, height: PX, borderColor: isHour ? "var(--border-calendar)" : isHalf ? "var(--border-calendar-half)" : "rgba(234, 233, 226, 0.25)" }} onClick={() => tryCreate(rid, sm)} />;
-        })}
-        {list.map((r) => {
-                    const top = ((toMin(r.start) - DAY_START) / STEP) * PX, h = ((toMin(r.end) - toMin(r.start)) / STEP) * PX, p = r.isUrgent ? pal('red') : pal('green'), mine = isMine(r);
-          return (
-            <div key={r.id} className="blk absolute overflow-hidden rounded-lg border px-2.5 py-1.5" style={{ top: top + 2, height: h - 4, left: 5, right: 5, background: p.bg, borderColor: p.line, color: p.text }} onClick={() => onBlockClick(r)}>
-              <div className="flex items-center gap-1.5"><span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.dot }} /><span className="truncate text-[13px] font-medium">{r.title}</span>{r.repeat && <Repeat size={11} />}{mine && <span className="ml-auto rounded px-1 text-[10px] font-medium" style={{ background: "rgba(255,255,255,.7)", color: p.text }}>내 예약</span>}</div>
-              {h > 34 && <div className="mt-0.5 truncate text-[11px] font-medium" style={{ opacity: .85 }}>{r.start} ~ {r.end} · {r.attendees.length}명</div>}
-            </div>
-          );
-        })}
-        {isToday && nowMin >= DAY_START && nowMin <= DAY_END && (
-          <div className="pointer-events-none absolute left-0 right-0 z-10" style={{ top: ((nowMin - DAY_START) / STEP) * PX }}><div className="flex items-center"><span className="h-2 w-2 rounded-full" style={{ background: C.ink }} /><span className="h-px flex-1" style={{ background: C.ink }} /></div></div>
-        )}
-      </div>
-    );
-  };
-
-  const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
-  const gridStart = addDays(first, -first.getDay());
-  const cells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
-  const startOfWeek = addDays(anchor, -anchor.getDay());
-  const weekCells = Array.from({ length: 7 }, (_, i) => addDays(startOfWeek, i));
-
-  const NAV = user 
-    ? [["book", "예약", CalendarDays], ["mine", "내 예약", List]]
-    : [["book", "예약", CalendarDays]];
-
-  const renderMobileDashboard = (isDesktopSplit = false) => {
+   const renderMobileDashboard = (isDesktopSplit = false) => {
     const selKey = keyOf(anchor);
-    const mobDayList = reservations.filter(r => r.date === selKey).sort((a, b) => toMin(a.start) - toMin(b.start));
+    const mobDayList = reservations.filter(r => r.date === selKey && (roomId === "all" || r.roomId === roomId)).sort((a, b) => toMin(a.start) - toMin(b.start));
     const nowMin = now.getHours() * 60 + now.getMinutes();
     const todayKey = keyOf(today);
-    
-    // Calculate Status Card for roomId
     const isTodayAnchor = selKey === todayKey;
-    const currentRoomRes = reservations.filter(r => r.roomId === roomId && r.date === todayKey);
-    const mobCurrentMtg = currentRoomRes.find(r => {
+    
+    // Status Card calculations
+    const currentRoomRes = roomId === "all" ? [] : reservations.filter(r => r.roomId === roomId && r.date === todayKey);
+    const mobCurrentMtg = roomId === "all" ? null : currentRoomRes.find(r => {
       const s = toMin(r.start);
       const e = toMin(r.end);
       return nowMin >= s && nowMin < e;
     });
-    const mobNextMtg = currentRoomRes.filter(r => toMin(r.start) >= nowMin && (!mobCurrentMtg || r.id !== mobCurrentMtg.id)).sort((a,b)=>toMin(a.start)-toMin(b.start))[0];
-    
+    const mobNextMtg = roomId === "all" ? null : currentRoomRes.filter(r => toMin(r.start) >= nowMin && (!mobCurrentMtg || r.id !== mobCurrentMtg.id)).sort((a,b)=>toMin(a.start)-toMin(b.start))[0];
+
     return (
       <div className={`${isDesktopSplit ? "hidden md:flex h-full overflow-y-auto no-scrollbar" : "flex md:hidden"} flex-col flex-1 w-full pt-2 ${isDesktopSplit ? "pb-0" : "pb-20"} relative`}>
         {/* Mobile Header / Desktop Timeline Header */}
@@ -1662,7 +1613,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 오늘
               </button>
             </div>
-            <div className="text-xs mt-1" style={{ color: C.faint }}>오늘 예약 {currentRoomRes.length}건</div>
+            <div className="text-xs mt-1" style={{ color: C.faint }}>
+              오늘 예약 {roomId === "all" ? reservations.filter(r => r.date === todayKey).length : currentRoomRes.length}건
+            </div>
           </div>
         </div>
 
@@ -1679,7 +1632,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             const dk = keyOf(d);
             const isSel = dk === selKey;
             const isT = dk === todayKey;
-            const dRes = reservations.filter(r => r.date === dk);
+            const dRes = reservations.filter(r => r.date === dk && (roomId === "all" || r.roomId === roomId));
             const hasUrgent = dRes.some(r => r.isUrgent);
             const hasNormal = dRes.length > 0 && !hasUrgent;
             return (
@@ -1700,7 +1653,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           })}
         </div>
         
-        {/* Room Selection */}
+        {/* Tab Selection */}
         <div 
           className="flex gap-2 overflow-x-auto no-scrollbar mb-4 -mx-4 px-4 pb-1 md:mx-0 md:px-0"
           onWheel={(e) => {
@@ -1709,142 +1662,69 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             }
           }}
         >
-          {ROOMS.map(r => (
-            <button key={r.id} onClick={() => setRoomId(r.id)} className="shrink-0 px-4 py-1.5 rounded-full text-[13px] font-semibold border" style={roomId === r.id ? { background: C.ink, color: "var(--bg)", borderColor: C.ink } : { borderColor: C.border, color: C.muted }}>
-              {r.name}
+          {[{ id: "meeting", name: "회의실" }, { id: "lounge", name: "라운지" }].map(tab => (
+            <button key={tab.id} onClick={() => setRoomId(tab.id)} className="shrink-0 px-4 py-1.5 rounded-full text-[13px] font-semibold border" style={roomId === tab.id ? { background: C.ink, color: "var(--bg)", borderColor: C.ink } : { borderColor: C.border, color: C.muted }}>
+              {tab.name}
             </button>
           ))}
         </div>
 
-        {/* Status Card (Only show context for today) */}
+        {/* Status Card Area */}
         {isTodayAnchor && (
-          <div className="mb-6 rounded-[14px] p-4 text-white relative overflow-hidden" style={{ background: mobCurrentMtg ? "var(--mob-busy-bg)" : "var(--mob-free-bg)", margin: "6px 0", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
-            <div className="flex items-center gap-2 mb-2 relative z-10">
-              <span className={`w-2.5 h-2.5 rounded-full ${mobCurrentMtg ? "glow-dot-busy" : "glow-dot-free"}`} />
-              <span className="text-[18px] font-bold" style={{ color: mobCurrentMtg ? "var(--mob-busy-text)" : "var(--mob-free-text)" }}>{mobCurrentMtg ? "지금 회의 중" : "지금 비어있음"}</span>
-            </div>
-            <div className="text-[13px] font-medium mb-5" style={{ color: mobCurrentMtg ? "var(--mob-busy-text)" : "var(--mob-free-text)", opacity: 0.8 }}>
-              {mobCurrentMtg ? `${mobCurrentMtg.title} · ${mobCurrentMtg.end} 종료` : mobNextMtg ? `${mobNextMtg.start}까지 사용 가능` : "오늘 남은 시간 계속 사용 가능"}
-            </div>
-            <div className="relative z-10">
-              {mobCurrentMtg ? (
-                canEdit(mobCurrentMtg) ? (
-                  <div className="flex gap-2">
-                    <select 
-                      onChange={(e) => { if (e.target.value) { extendRes(mobCurrentMtg, parseInt(e.target.value)); e.target.value = ""; } }} 
-                      className="flex-1 py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white text-center cursor-pointer outline-none appearance-none"
-                    >
-                      <option value="" hidden>회의 연장</option>
-                      <option value="5" style={{color: "#000"}}>+ 5분</option>
-                      <option value="10" style={{color: "#000"}}>+ 10분</option>
-                      <option value="15" style={{color: "#000"}}>+ 15분</option>
-                      <option value="30" style={{color: "#000"}}>+ 30분</option>
-                    </select>
-                    <button className="flex-1 py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => completeRes(mobCurrentMtg)}>
-                      회의 종료
-                    </button>
-                  </div>
-                ) : (
-                  <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => requireAuth(() => setDetail(mobCurrentMtg), "코멘트를 남기려면 로그인이 필요해요.")}>
-                    코멘트 남기기
-                  </button>
-                )
-              ) : (
-                <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => tryCreate(roomId, defStart(), selKey)}>
-                  지금 바로 예약하기
-                </button>
-              )}
-            </div>
+          <div className="mb-6 w-full">
+            {roomId === "meeting" ? (
+              <div className="flex gap-2 sm:gap-4 items-stretch">
+                <div className="flex-1 min-w-0">{renderStatusCard("big", "큰 회의실")}</div>
+                <div className="flex-1 min-w-0">{renderStatusCard("small", "작은 회의실")}</div>
+              </div>
+            ) : (
+              <div className="w-full">{renderStatusCard("lounge", "라운지")}</div>
+            )}
           </div>
         )}
 
-        {/* Timeline List */}
-        <div className="flex-1" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+        {/* Timeline List Area */}
+        <div className="flex-1 flex flex-col" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
           <div className="flex items-center gap-2 mb-3">
             <span className="text-[12px] font-medium" style={{ color: C.faint }}>{isTodayAnchor ? "오늘 일정" : `${anchor.getMonth() + 1}월 ${anchor.getDate()}일 일정`}</span>
             <div className="flex-1 h-px" style={{ background: C.border }} />
           </div>
 
-          <div className="flex flex-col gap-2 relative">
-            {mobDayList.length === 0 ? (
-              <div className="py-10 flex flex-col items-center justify-center text-center">
-                <Calendar size={28} className="mb-2" style={{ color: C.faint }} />
-                <span className="text-[13px] font-medium" style={{ color: C.faint }}>오늘 예약 없음</span>
+          {roomId === "meeting" ? (
+            <div className="flex gap-2 sm:gap-4 w-full items-stretch flex-1">
+              <div className="flex-1 min-w-0 border-r pr-2 sm:pr-4" style={{ borderColor: C.border }}>
+                {renderTimelineList("big", "큰 회의실")}
               </div>
-            ) : (
-              mobDayList.map((r) => {
-                const sM = toMin(r.start);
-                const eM = toMin(r.end);
-                const isPast = nowMin >= eM && isTodayAnchor;
-                const isCurr = nowMin >= sM && nowMin < eM && isTodayAnchor;
-                const rm = ROOMS.find(x => x.id === r.roomId);
-                
-                return (
-                  <div key={r.id} className="flex relative items-stretch" onClick={() => onBlockClick(r)}>
-                    <div className="w-[42px] shrink-0 pt-3 text-[11px] font-medium" style={{ color: C.faint }}>
-                      {r.start}
-                    </div>
-                    
-                    <div className="relative flex-1 ml-1 pl-3 py-1">
-                      {/* Vertical Color Line */}
-                      <div className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full" style={{ background: r.isUrgent ? "var(--mob-line-urgent)" : "var(--mob-line-normal)", opacity: isPast ? 0.3 : 1 }} />
-                      
-                      {/* Card Body */}
-                      <div className="p-3.5 rounded-[10px] relative overflow-hidden" style={{ background: r.isUrgent ? "var(--mob-card-urgent)" : "var(--mob-card-normal)", opacity: isPast ? 0.5 : 1 }}>
-                        <div className="flex items-start justify-between mb-1">
-                          <div className="text-[14px] font-bold truncate pr-2 leading-tight flex items-center gap-1.5" style={{ color: C.text }}>
-                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: r.isUrgent ? pal('red').dot : pal('green').dot }} />
-                            {r.title}
-                          </div>
-                          {r.isUrgent && (
-                            <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: "var(--mob-busy-bg)", color: "var(--mob-busy-text)" }}>긴급</span>
-                          )}
-                        </div>
-                        <div className="text-[11px] font-medium flex items-center gap-1 mt-0.5" style={{ color: C.faint }}>
-                          <Clock size={11} className="shrink-0" style={{ opacity: 0.7 }} />
-                          <span>{rm?.name || r.roomId} · {r.start}~{r.end}</span>
-                        </div>
-                        
-                        {/* Attendees */}
-                        <div className="mt-2 flex flex-wrap items-center gap-1.5 relative z-20">
-                          <span className="text-[11px] font-semibold mr-0.5 flex items-center gap-1" style={{ color: C.faint }}><User size={11} className="shrink-0" style={{ opacity: 0.7 }} />참석자</span>
-                          {Array.from(new Set((r.attendees || []).map(id => M(id)?.name))).filter(Boolean).map(name => (
-                            <span key={name} className="inline-flex items-center rounded bg-black/5 dark:bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-gray-700 dark:text-gray-300">
-                              {name}
-                            </span>
-                          ))}
-                        </div>
-                        
-                        {/* Current Time Line Overlay if inside this meeting */}
-                        {isCurr && (() => {
-                          const exactNowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
-                          const progress = Math.max(0, Math.min(100, ((exactNowMin - sM) / (eM - sM)) * 100));
-                          return (
-                            <div className="absolute left-0 right-0 flex items-center z-10 pointer-events-none -ml-4" style={{ top: `${progress}%`, transform: 'translateY(-50%)', transition: 'top 1s ease-in-out' }}>
-                              <span className="w-[6px] h-[6px] rounded-full" style={{ background: "var(--mob-busy-bg)" }} />
-                              <div className="flex-1 h-[1.5px]" style={{ background: "var(--mob-busy-bg)" }} />
-                              <span className="ml-1 text-[10px] font-bold" style={{ color: "var(--mob-busy-bg)" }}>지금</span>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
+              <div className="flex-1 min-w-0 pl-1 sm:pl-2">
+                {renderTimelineList("small", "작은 회의실")}
+              </div>
+            </div>
+          ) : (
+            <div className="w-full flex-1">
+              {renderTimelineList("lounge", "")}
+            </div>
+          )}
         </div>
 
         {/* Bottom Fixed FAB for Mobile/Desktop */}
         <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+76px)] left-4 right-4 z-30 ${isDesktopSplit ? "md:sticky md:bottom-0 md:mt-auto md:pt-4 md:pb-2 md:bg-[var(--bg)]" : ""}`}>
-          <button className="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 text-[14px] font-bold shadow-lg transition-transform active:scale-95" style={{ background: "var(--ink)", color: "var(--bg)" }} onClick={() => tryCreate(roomId, defStart(), selKey)}>
+          <button className="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 text-[14px] font-bold shadow-lg transition-transform active:scale-95" style={{ background: "var(--ink)", color: "var(--bg)" }} onClick={() => tryCreate(roomId === "meeting" ? "big" : roomId, defStart(), selKey)}>
             <Plus size={18} /> 예약하기
           </button>
         </div>
       </div>
     );
   };
+
+  const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const gridStart = addDays(first, -first.getDay());
+  const cells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
+  const startOfWeek = addDays(anchor, -anchor.getDay());
+  const weekCells = Array.from({ length: 7 }, (_, i) => addDays(startOfWeek, i));
+
+  const NAV = user 
+    ? [["book", "예약", CalendarDays], ["mine", "내 예약", List]]
+    : [["book", "예약", CalendarDays]];
 
   return (
     <div style={{ background: C.bg, color: C.text, minHeight: "100vh" }} className="w-full flex flex-col">
@@ -1959,7 +1839,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   }}
                 >
                   <Avatar name={user} size={24} solid={section === "mypage"} />
-                  <span style={{ color: C.text }}>{user}님</span>
+                  <span style={{ color: C.text }}>{nameWithNim(user)}</span>
                 </button>
               </div>
             ) : (
@@ -2023,7 +1903,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     const inMonth = cell.getMonth() === anchor.getMonth(), cToday = sameDay(cell, today);
                     const list = (byDate[keyOf(cell)] || []).slice().sort((a, b) => toMin(a.start) - toMin(b.start));
                     return (
-                      <div key={i} onClick={() => { if (list.length > 0) { setDayEventsDate(cell); } else { tryCreate(roomId, defStart(), keyOf(cell)); } }} className="cell border-b border-l p-1 sm:p-1.5 flex flex-col" style={{ borderColor: C.border, background: cToday ? C.yellowSoft : inMonth ? "var(--bg-input)" : "var(--bg-tertiary)", opacity: inMonth ? 1 : .5, minHeight: 0 }}>
+                      <div key={i} onClick={() => { if (list.length > 0) { setDayEventsDate(cell); } else { tryCreate(roomId === "all" ? "big" : roomId, defStart(), keyOf(cell)); } }} className="cell border-b border-l p-1 sm:p-1.5 flex flex-col" style={{ borderColor: C.border, background: cToday ? C.yellowSoft : inMonth ? "var(--bg-input)" : "var(--bg-tertiary)", opacity: inMonth ? 1 : .5, minHeight: 0 }}>
                         <div className="flex items-center justify-between">
                           <span className={cToday ? "grid h-5 w-5 place-items-center rounded-lg text-[11px] font-medium" : "text-[12px] font-medium"} style={cToday ? { background: C.ink, color: "var(--bg)" } : { color: cell.getDay() === 0 ? "#C0392B" : cell.getDay() === 6 ? "#2A5DC7" : C.text }}>{cell.getDate()}</span>
                           {list.length > 0 && <span className="hidden text-[10px] font-medium sm:inline" style={{ color: C.faint }}>{list.length}</span>}
@@ -2143,7 +2023,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   </div>
                   <div>
                     <h2 className="text-lg font-bold flex items-center gap-2">
-                      {user}님 마이페이지
+                      {nameWithNim(user)} 마이페이지
                       {MEMBERS.find(m => m.name === user) && (
                         <TeamTag team={MEMBERS.find(m => m.name === user).team} />
                       )}
@@ -2438,7 +2318,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                       return (
                         <span key={id} className="inline-flex items-center gap-1.5 rounded-full pl-2.5 pr-1.5 py-1 text-[13px]" style={{ background: "var(--bg-chip)", color: C.text }}>
                           <span className="h-2 w-2 rounded-full" style={{ background: C.muted }} />
-                          <span><span className="font-bold">{m.team}</span> <span className="font-medium">{m.name}님</span></span>
+                          <span><span className="font-bold">{m.team}</span> <span className="font-medium">{nameWithNim(m.name)}</span></span>
                           <button 
                             type="button"
                             onClick={(e) => {
@@ -2471,7 +2351,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                           <div key={c.id} className="text-[11px] p-2 rounded-lg" style={{ background: "var(--bg-secondary)", border: `1px solid ${C.border}` }}>
                             <div className="flex justify-between items-center mb-1">
                               <div className="flex items-center gap-1.5">
-                                <span className="font-semibold">{c.user}님</span>
+                                <span className="font-semibold">{nameWithNim(c.user)}</span>
                                 <span className="text-[9px]" style={{ color: C.faint }}>{c.createdAt ? new Date(c.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</span>
                               </div>
                               {user && (c.user === user || user === "admin") && (
@@ -2599,7 +2479,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     <div className="flex flex-wrap gap-2">
                       {temp.map((id) => { const m = M(id); return (
                         <span key={id} className="flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs font-medium" style={{ borderColor: C.border, background: "var(--bg-input)" }}>
-                          <TeamTag team={m?.team} /><span>{m?.name}님</span>
+                          <TeamTag team={m?.team} /><span>{nameWithNim(m?.name)}</span>
                           <button onClick={() => toggleTemp(id)} className="grid h-4 w-4 place-items-center rounded-lg" style={{ background: "var(--bg-chip)" }}><X size={11} /></button>
                         </span>
                       ); })}
@@ -2619,7 +2499,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                           className="mrow mb-1 flex items-center gap-2.5 rounded-lg border px-2.5 py-2" style={{ borderColor: on ? C.ink : "transparent", background: on ? C.yellowSoft : "transparent" }}>
                           <GripVertical size={14} style={{ color: C.faint }} className="hidden sm:block" />
                           <Avatar name={m.name} size={32} />
-                          <div className="min-w-0 flex-1"><div className="flex items-center gap-1.5"><TeamTag team={m.team} /><span className="truncate text-sm font-medium">{m.name}님{me ? " (나)" : ""}</span></div><div className="text-[11px]" style={{ color: C.faint }}>{m.role}</div></div>
+                          <div className="min-w-0 flex-1"><div className="flex items-center gap-1.5"><TeamTag team={m.team} /><span className="truncate text-sm font-medium">{nameWithNim(m.name)}{me ? " (나)" : ""}</span></div><div className="text-[11px]" style={{ color: C.faint }}>{m.role}</div></div>
                           <span className="grid h-5 w-5 shrink-0 place-items-center rounded-lg border" style={on ? { background: C.ink, borderColor: C.ink } : { borderColor: C.border }}>{on && <Check size={13} color={C.yellow} />}</span>
                         </div>
                       ); })}
@@ -2680,7 +2560,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                         </div>
                         <div className="text-[12px] opacity-90 space-y-0.5 font-medium">
                           <div className="flex items-center gap-1"><Clock size={12} style={{ opacity: 0.7 }} /> {r.start} ~ {r.end}</div>
-                          <div className="flex items-center gap-1"><User size={12} style={{ opacity: 0.7 }} /> 등록자: {r.owner}님 · 참석자: {r.attendees.length}명</div>
+                          <div className="flex items-center gap-1"><User size={12} style={{ opacity: 0.7 }} /> 등록자: {nameWithNim(r.owner)} · 참석자: {r.attendees.length}명</div>
                         </div>
                       </div>
                     );
@@ -2714,7 +2594,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             <div className="space-y-1">
               <DetailRow icon={Clock} label="시간" value={`${detail.date} ${detail.start} ~ ${detail.end}`} />
               <DetailRow icon={Users} label="참석자" value={detail.attendees.length ? detail.attendees.map(memLabel).join(", ") : "없음"} />
-              <DetailRow icon={User} label="등록자" value={`${detail.owner}님`} />
+              <DetailRow icon={User} label="등록자" value={`${nameWithNim(detail.owner)}`} />
             </div>
             
             {/* 💬 코멘트 목록 */}
@@ -2731,7 +2611,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     <div key={c.id} className="text-[11px] p-2 rounded-lg" style={{ background: "var(--bg-secondary)", border: `1px solid ${C.border}` }}>
                       <div className="flex justify-between items-center mb-1">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-semibold">{c.user}님</span>
+                          <span className="font-semibold">{nameWithNim(c.user)}</span>
                           <span className="text-[9px]" style={{ color: C.faint }}>{c.createdAt ? new Date(c.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</span>
                         </div>
                         {user && (c.user === user || user === "admin") && (
@@ -2817,7 +2697,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     <div className="flex gap-2">
                       <button onClick={() => { setRequestUrgentOpen(false); setUrgentMessage(""); }} className="lift rounded border px-3 py-1.5 text-xs font-semibold flex-1" style={{ borderColor: C.border, color: C.muted }}>취소</button>
                       <button onClick={() => {
-                        sendPushNotification('🚨 회의실 긴급 사용 요청', `${user}님이 긴급 사용을 요청했습니다: "${urgentMessage || '가능하시다면 양보 부탁드립니다ㅠㅠ'}"`, detail.attendees);
+                        sendPushNotification('🚨 회의실 긴급 사용 요청', `${nameWithNim(user)}이 긴급 사용을 요청했습니다: "${urgentMessage || '가능하시다면 양보 부탁드립니다ㅠㅠ'}"`, detail.attendees);
                         showToast('긴급 요청 알림을 전송했습니다.');
                         setRequestUrgentOpen(false);
                         setUrgentMessage("");
@@ -2926,7 +2806,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                       </div>
                     </div>
                     <div>
-                      <div className="font-bold text-[15px]">{user}님</div>
+                      <div className="font-bold text-[15px]">{nameWithNim(user)}</div>
                       <button 
                         onClick={() => {
                           setUser(null);
