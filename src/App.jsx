@@ -1863,7 +1863,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                       <div className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full" style={{ background: r.isUrgent ? "var(--mob-line-urgent)" : "var(--mob-line-normal)", opacity: isPast ? 0.3 : 1 }} />
                       
                       {/* Card Body */}
-                      <div className="p-3.5 rounded-[10px] relative overflow-hidden" style={{ background: r.isUrgent ? "var(--mob-card-urgent)" : "var(--mob-card-normal)", opacity: isPast ? 0.5 : 1 }}>
+                      <div className="p-3.5 rounded-[10px] relative overflow-visible" style={{ background: r.isUrgent ? "var(--mob-card-urgent)" : "var(--mob-card-normal)", opacity: isPast ? 0.5 : 1 }}>
                         <div className="flex items-start justify-between mb-1">
                           <div className="text-[14px] font-bold truncate pr-2 leading-tight flex items-center gap-1.5" style={{ color: C.text }}>
                             <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: r.isUrgent ? pal('red').dot : pal('green').dot }} />
@@ -1920,7 +1920,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                                 
                                 {/* Attendance Check Tooltip */}
                                 {checkedCount > 0 && (
-                                  <div className="tooltip-content absolute top-full left-0 mt-2 w-64 bg-white dark:bg-[#1a1a1a] rounded-xl border p-3 shadow-xl pointer-events-none transition-all" style={{ borderColor: C.border }}>
+                                  <div className="tooltip-content absolute w-64 bg-white dark:bg-[#1a1a1a] rounded-xl border p-3 shadow-xl pointer-events-none transition-all" style={{ top: "100%", left: 0, marginTop: "8px", borderColor: C.border, zIndex: 110 }}>
                                     <div className="flex items-center justify-between pb-2 mb-2 border-b" style={{ borderColor: C.border }}>
                                       <span className="text-[12px] font-bold" style={{ color: C.text }}>참석 확인 현황</span>
                                       <span className="text-[11px] font-extrabold text-[#27ae60] bg-[#27ae60]/10 px-2 py-0.5 rounded-full">{checkedCount}명 완료</span>
