@@ -2044,8 +2044,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                         return (
                           <div className="absolute left-0 right-0 flex items-center z-10 pointer-events-none -ml-4" style={{ top: `${progress}%`, transform: 'translateY(-50%)', transition: 'top 1s ease-in-out' }}>
                             <span className="w-[6px] h-[6px] rounded-full" style={{ background: "var(--mob-busy-bg)" }} />
-                            <div className="flex-1 h-[1.5px]" style={{ background: "var(--mob-busy-bg)" }} />
-                            <span className="ml-1 text-[10px] font-bold" style={{ color: "var(--mob-busy-bg)" }}>지금</span>
+                            <div className="flex-1 h-0 border-t-[1.5px] border-dashed" style={{ borderColor: "var(--mob-busy-bg)" }} />
                           </div>
                         );
                       })()}
