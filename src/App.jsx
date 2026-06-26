@@ -1758,7 +1758,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             const hasUrgent = dRes.some(r => r.isUrgent);
             const hasNormal = dRes.length > 0 && !hasUrgent;
             return (
-              <div id={`mob-date-${dk}`} key={i} onClick={() => setAnchor(d)} className="flex flex-col items-center shrink-0 w-10 cursor-pointer snap-center">
+              <div id={`${isDesktopSplit ? "desk" : "mob"}-date-${dk}`} key={i} onClick={() => setAnchor(d)} className="flex flex-col items-center shrink-0 w-10 cursor-pointer snap-center">
                 <span className="text-[10px] mb-1.5 font-medium" style={{ color: (d.getDay() === 0 || d.getDay() === 6) ? "#ef4444" : C.faint }}>{WEEK[d.getDay()]}</span>
                 <div 
                   className={`w-9 h-9 rounded-full flex items-center justify-center text-[14px] font-bold transition-all ${isSel ? (theme === 'dark' ? 'active-date-circle-dark shadow-sm border border-white' : 'active-date-circle-light shadow-sm border border-black') : ''}`} 
