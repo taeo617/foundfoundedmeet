@@ -1466,29 +1466,31 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       showToast(isEdit ? "예약을 수정했어요." : "예약이 완료됐어요.");
       
       // Push Notifications
-      if (!isEdit) {
-         sendPushNotification('📅 새 회의가 등록됐어요', `${nameWithNim(user)}이 예약했습니다. [${ROOMS.find(r=>r.id===f.roomId)?.name}] ${f.date} ${f.start}~${f.end}`, f.attendees);
-      } else {
-         const originalRes = reservations.find(r => r.id === f.id);
-         let isEnded = false;
-         if (originalRes && originalRes.date && originalRes.end) {
-           const [y, m, d] = originalRes.date.split("-").map(Number);
-           const [h, min] = originalRes.end.split(":").map(Number);
-           const endTime = new Date(y, m - 1, d, h, min);
-           if (endTime < new Date()) {
-             isEnded = true;
+      if (user !== "admin") {
+        if (!isEdit) {
+           sendPushNotification('📅 새 회의가 등록됐어요', `${nameWithNim(user)}이 예약했습니다. [${ROOMS.find(r=>r.id===f.roomId)?.name}] ${f.date} ${f.start}~${f.end}`, f.attendees);
+        } else {
+           const originalRes = reservations.find(r => r.id === f.id);
+           let isEnded = false;
+           if (originalRes && originalRes.date && originalRes.end) {
+             const [y, m, d] = originalRes.date.split("-").map(Number);
+             const [h, min] = originalRes.end.split(":").map(Number);
+             const endTime = new Date(y, m - 1, d, h, min);
+             if (endTime < new Date()) {
+               isEnded = true;
+             }
            }
-         }
-         if (!isEnded) {
-            sendPushNotification('✏️ 회의 일정이 변경됐어요', `${nameWithNim(user)}이 일정을 변경했습니다. [${ROOMS.find(r=>r.id===f.roomId)?.name}] 확인해주세요.`, f.attendees);
-         }
+           if (!isEnded) {
+              sendPushNotification('✏️ 회의 일정이 변경됐어요', `${nameWithNim(user)}이 일정을 변경했습니다. [${ROOMS.find(r=>r.id===f.roomId)?.name}] 확인해주세요.`, f.attendees);
+           }
+        }
+        
+        pushedReservations.forEach(pushed => {
+           const roomName = ROOMS.find(r=>r.id===pushed.roomId)?.name || pushed.roomId;
+           const msg = f.urgentComment ? `[${f.urgentComment}] 기존 일정은 ${pushed.start}로 밀렸습니다.` : `[${roomName}] 일정이 ${pushed.start}로 밀렸어요.`;
+           sendPushNotification('🚨 긴급 회의로 일정이 밀렸어요', msg, pushed.attendees);
+        });
       }
-      
-      pushedReservations.forEach(pushed => {
-         const roomName = ROOMS.find(r=>r.id===pushed.roomId)?.name || pushed.roomId;
-         const msg = f.urgentComment ? `[${f.urgentComment}] 기존 일정은 ${pushed.start}로 밀렸습니다.` : `[${roomName}] 일정이 ${pushed.start}로 밀렸어요.`;
-         sendPushNotification('🚨 긴급 회의로 일정이 밀렸어요', msg, pushed.attendees);
-      });
 
       setForm(null);
     } catch (err) {
@@ -1572,7 +1574,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       if (isFirebaseConfigured) {
         updateDoc(doc(db, "reservations", r.id), { end: toHHMM(newEndM) }).then(() => {
           showToast(`회의를 ${mins}분 연장했어요.`);
-          if(isOverlap) {
+          if(isOverlap && user !== "admin") {
              // Find overlapping meeting attendees
              const overlapsNext = reservations.filter(x => x.roomId === r.roomId && x.date === r.date && x.id !== r.id && !(toMin(x.end) <= endM || toMin(x.start) >= newEndM));
              overlapsNext.forEach(ov => {
@@ -1721,7 +1723,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     const mobNextMtg = roomId === "all" ? null : currentRoomRes.filter(r => toMin(r.start) >= nowMin && (!mobCurrentMtg || r.id !== mobCurrentMtg.id)).sort((a,b)=>toMin(a.start)-toMin(b.start))[0];
 
     return (
-      <div className={`${isDesktopSplit ? "hidden md:flex h-full overflow-y-auto no-scrollbar" : "flex md:hidden"} flex-col flex-1 w-full pt-2 ${isDesktopSplit ? "pb-0" : "pb-20"} relative`}>
+      <div className={`${isDesktopSplit ? "hidden md:flex min-h-0 overflow-y-auto no-scrollbar" : "flex md:hidden"} flex-col flex-1 w-full pt-2 ${isDesktopSplit ? "pb-0" : "pb-20"} relative`}>
         {/* Mobile Header / Desktop Timeline Header */}
         <div className="flex items-center justify-between mb-4 px-1 md:px-0">
           <div>
@@ -2058,7 +2060,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         </div>
 
         {/* Bottom Fixed FAB for Mobile/Desktop */}
-        <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+76px)] left-4 right-4 z-30 ${isDesktopSplit ? "md:sticky md:bottom-0 md:mt-auto md:pt-4 md:pb-2 md:bg-[var(--bg)]" : ""}`}>
+        <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+76px)] left-4 right-4 z-30 ${isDesktopSplit ? "md:sticky md:bottom-0 md:mt-auto md:pt-4 md:pb-4 md:bg-[var(--bg)]" : ""}`}>
           <button className="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 text-[14px] font-bold shadow-lg transition-transform active:scale-95" style={{ background: "var(--ink)", color: "var(--bg)" }} onClick={() => tryCreate(roomId === "all" ? "big" : roomId, defStart(), selKey)}>
             <Plus size={18} /> 예약하기
           </button>
