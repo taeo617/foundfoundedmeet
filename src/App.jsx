@@ -1806,7 +1806,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             }
           }}
         >
-          {[{ id: "all", name: "전체" }, ...ROOMS].map(tab => (
+          {ROOMS.map(tab => (
             <button key={tab.id} onClick={() => setRoomId(tab.id)} className="shrink-0 px-4 py-1.5 rounded-full text-[13px] font-semibold border transition-colors" style={roomId === tab.id ? { background: C.ink, color: "var(--bg)", borderColor: C.ink } : { borderColor: C.border, color: C.muted }}>
               {tab.name}
             </button>
@@ -1906,9 +1906,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                               {/* Dimmable Content Wrapper */}
                               <div style={{ opacity: isPast ? 0.5 : 1 }} className="flex flex-col h-full w-full">
                                 <div className="flex items-start justify-between mb-1">
-                                  <div className="text-[14px] font-bold truncate pr-2 leading-tight flex items-center gap-1.5" style={{ color: C.text }}>
+                                  <div className="text-[14px] font-bold pr-2 leading-tight flex items-center gap-1.5 min-w-0" style={{ color: C.text }}>
                                     <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isCurr ? (r.isUrgent ? 'glow-dot-busy' : 'glow-dot-free') : ''}`} style={{ background: r.isUrgent ? pal('red').dot : pal('green').dot }} />
-                                    {r.title}
+                                    <span className="truncate">{r.title}</span>
                                   </div>
                                   {r.isUrgent && (
                                     <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: "var(--mob-busy-bg)", color: "var(--mob-busy-text)" }}>긴급</span>
