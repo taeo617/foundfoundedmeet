@@ -1892,6 +1892,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                           const sM = toMin(r.start);
                           const eM = toMin(r.end);
                           const isPast = nowMin >= eM && isTodayAnchor;
+                          const isCurr = nowMin >= sM && nowMin < eM && isTodayAnchor;
                           const rm = ROOMS.find(x => x.id === r.roomId);
                           const isLastCard = group.meetings.length > 1 && rIdx === group.meetings.length - 1;
                           
@@ -1906,7 +1907,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                               <div style={{ opacity: isPast ? 0.5 : 1 }} className="flex flex-col h-full w-full">
                                 <div className="flex items-start justify-between mb-1">
                                   <div className="text-[14px] font-bold truncate pr-2 leading-tight flex items-center gap-1.5" style={{ color: C.text }}>
-                                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: r.isUrgent ? pal('red').dot : pal('green').dot }} />
+                                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isCurr ? (r.isUrgent ? 'glow-dot-busy' : 'glow-dot-free') : ''}`} style={{ background: r.isUrgent ? pal('red').dot : pal('green').dot }} />
                                     {r.title}
                                   </div>
                                   {r.isUrgent && (
