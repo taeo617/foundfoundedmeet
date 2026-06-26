@@ -1688,6 +1688,28 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     const nowMin = now.getHours() * 60 + now.getMinutes();
     const todayKey = keyOf(today);
     const isTodayAnchor = selKey === todayKey;
+
+    const groupedDayList = [];
+    if (roomId === "all") {
+      const groups = {};
+      mobDayList.forEach(r => {
+        groups[r.start] = groups[r.start] || [];
+        groups[r.start].push(r);
+      });
+      Object.keys(groups).sort((a, b) => toMin(a) - toMin(b)).forEach(start => {
+        groupedDayList.push({
+          start,
+          meetings: groups[start]
+        });
+      });
+    } else {
+      mobDayList.forEach(r => {
+        groupedDayList.push({
+          start: r.start,
+          meetings: [r]
+        });
+      });
+    }
     
     // Status Card calculations
     const currentRoomRes = roomId === "all" ? [] : reservations.filter(r => r.roomId === roomId && r.date === todayKey);
@@ -1841,161 +1863,192 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           </div>
 
           <div className="flex flex-col gap-2 relative">
-            {mobDayList.length === 0 ? (
+            {groupedDayList.length === 0 ? (
               <div className="py-10 flex flex-col items-center justify-center text-center">
                 <Calendar size={28} className="mb-2" style={{ color: C.faint }} />
                 <span className="text-[13px] font-medium" style={{ color: C.faint }}>오늘 예약 없음</span>
               </div>
             ) : (
-              mobDayList.map((r) => {
-                const sM = toMin(r.start);
-                const eM = toMin(r.end);
-                const isPast = nowMin >= eM && isTodayAnchor;
-                const isCurr = nowMin >= sM && nowMin < eM && isTodayAnchor;
-                const rm = ROOMS.find(x => x.id === r.roomId);
+              groupedDayList.map((group) => {
+                const groupIsPast = group.meetings.every(r => nowMin >= toMin(r.end) && isTodayAnchor);
                 
                 return (
-                  <div key={r.id} className="flex relative items-stretch" onClick={() => onBlockClick(r)}>
+                  <div key={group.start} className="flex relative items-stretch">
                     <div className="w-[42px] shrink-0 pt-3 text-[11px] font-medium" style={{ color: C.faint }}>
-                      {r.start}
+                      {group.start}
                     </div>
                     
                     <div className="relative flex-1 ml-1 pl-3 py-1">
                       {/* Vertical Color Line */}
-                      <div className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full" style={{ background: r.isUrgent ? "var(--mob-line-urgent)" : "var(--mob-line-normal)", opacity: isPast ? 0.3 : 1 }} />
+                      <div className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full" 
+                           style={{ 
+                             background: group.meetings.some(r => r.isUrgent) ? "var(--mob-line-urgent)" : "var(--mob-line-normal)", 
+                             opacity: groupIsPast ? 0.3 : 1 
+                           }} />
                       
-                      {/* Card Body */}
-                      <div className="p-3.5 rounded-[10px] relative overflow-visible" style={{ background: r.isUrgent ? "var(--mob-card-urgent)" : "var(--mob-card-normal)" }}>
-                        
-                        {/* Dimmable Content Wrapper */}
-                        <div style={{ opacity: isPast ? 0.5 : 1 }} className="flex flex-col h-full w-full">
-                          <div className="flex items-start justify-between mb-1">
-                            <div className="text-[14px] font-bold truncate pr-2 leading-tight flex items-center gap-1.5" style={{ color: C.text }}>
-                              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: r.isUrgent ? pal('red').dot : pal('green').dot }} />
-                              {r.title}
-                            </div>
-                            {r.isUrgent && (
-                              <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: "var(--mob-busy-bg)", color: "var(--mob-busy-text)" }}>긴급</span>
-                            )}
-                          </div>
-                          <div className="text-[11px] font-medium flex items-center gap-1 mt-0.5" style={{ color: C.faint }}>
-                            <Clock size={11} className="shrink-0" style={{ opacity: 0.7 }} />
-                            <span>{rm?.name || r.roomId} · {r.start}~{r.end}</span>
-                          </div>
+                      {/* Cards Container */}
+                      <div className={group.meetings.length > 1 ? "flex flex-row gap-3 w-full" : "w-full"}>
+                        {group.meetings.map((r, rIdx) => {
+                          const sM = toMin(r.start);
+                          const eM = toMin(r.end);
+                          const isPast = nowMin >= eM && isTodayAnchor;
+                          const rm = ROOMS.find(x => x.id === r.roomId);
+                          const isLastCard = group.meetings.length > 1 && rIdx === group.meetings.length - 1;
                           
-                          {/* Attendees */}
-                          <div className="mt-2 flex flex-wrap items-center gap-1.5 relative z-20">
-                            <span className="text-[11px] font-semibold mr-0.5 flex items-center gap-1" style={{ color: C.faint }}><User size={11} className="shrink-0" style={{ opacity: 0.7 }} />참석자</span>
-                            {Array.from(new Set((r.attendees || []).map(id => M(id)?.name))).filter(Boolean).map(name => (
-                              <span key={name} className="inline-flex items-center rounded bg-black/5 dark:bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-gray-700 dark:text-gray-300">
-                                {name}
-                              </span>
-                            ))}
-                          </div>
-
-                          {/* Attendance Check Widget */}
-                          {(() => {
-                            const meId = MEMBERS.find(m => m.name === user)?.id;
-                            const isMyChecked = meId && r.checkedIn && r.checkedIn.includes(meId) && r.attendees && r.attendees.includes(meId);
-                            const checkedCount = r.checkedIn ? r.checkedIn.filter(id => r.attendees && r.attendees.includes(id)).length : 0;
-
-                            return (
-                              <div className="mt-2.5 flex items-center justify-between relative z-30" onClick={(e) => e.stopPropagation()}>
-                                <div className="relative flex items-center gap-1.5">
-                                  {/* Attend Button */}
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); toggleAttendance(r); }}
-                                    className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[9.5px] font-bold border transition-all active:scale-95 shadow-sm cursor-pointer"
-                                    style={{
-                                      background: isMyChecked ? "rgba(39, 174, 96, 0.1)" : "var(--bg-input)",
-                                      borderColor: isMyChecked ? "#27ae60" : C.border,
-                                      color: isMyChecked ? "#27ae60" : C.text,
-                                      height: "20px"
-                                    }}
-                                  >
-                                    <span className="flex items-center justify-center w-3.5 h-3.5 rounded text-white shrink-0" style={{ background: isMyChecked ? "#27ae60" : "#a0aec0" }}>
-                                      <Check size={9} strokeWidth={3.5} />
-                                    </span>
-                                    <span>참석</span>
-                                    {checkedCount > 0 && (
-                                      <span className="ml-0.5 text-[10px] font-extrabold" style={{ color: isMyChecked ? "#27ae60" : "#7b2cbf" }}>
-                                        {checkedCount}
-                                      </span>
-                                    )}
-                                  </button>
-
-                                  {/* Attendee Info Button */}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setOpenAttendanceId(openAttendanceId === r.id ? null : r.id);
-                                    }}
-                                    className="w-[20px] h-[20px] rounded-full flex items-center justify-center transition-all active:scale-90 bg-[#eeeeee] dark:bg-zinc-800 cursor-pointer"
-                                  >
-                                    <User size={11} className="text-gray-600 dark:text-gray-400" />
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        </div>
-
-                        {/* Non-dimmed Popover */}
-                        {(() => {
-                          const checkedCount = r.checkedIn ? r.checkedIn.filter(id => r.attendees && r.attendees.includes(id)).length : 0;
-                          const checkedMembers = (r.checkedIn || []).filter(id => r.attendees && r.attendees.includes(id)).map(id => MEMBERS.find(m => m.id === id)).filter(Boolean);
-                          
-                          return openAttendanceId === r.id && (
-                            <>
-                              <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpenAttendanceId(null); }} />
-                              <div 
-                                className="absolute w-64 bg-white dark:bg-[#1a1a1a] rounded-xl border p-3 shadow-xl z-50" 
-                                style={{ top: "100%", left: 0, marginTop: "8px", borderColor: C.border }}
-                              >
-                                <div className="flex items-center justify-between pb-2 mb-2 border-b" style={{ borderColor: C.border }}>
-                                  <span className="text-[12px] font-bold" style={{ color: C.text }}>참석 확인 현황</span>
-                                  <span className="text-[11px] font-extrabold text-[#27ae60] bg-[#27ae60]/10 px-2 py-0.5 rounded-full">{checkedCount}명 완료</span>
-                                </div>
-                                <div className="space-y-2 max-h-[172px] overflow-y-auto pr-1 scrollbar-thin">
-                                  {checkedCount > 0 ? (
-                                    checkedMembers.map(m => (
-                                      <div key={m.id} className="flex items-center justify-between text-[11px]">
-                                        <div className="flex items-center gap-2">
-                                          <Avatar name={m.name} size={22} solid />
-                                          <span className="font-semibold" style={{ color: C.text }}>{m.name} <span className="font-normal text-[10px]" style={{ color: C.faint }}>{m.role}</span></span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                          <span className="text-[9px] font-medium px-1 rounded" style={{ background: PASTEL.gray.bg, color: PASTEL.gray.text }}>{m.team}</span>
-                                          <span className="w-3.5 h-3.5 rounded bg-[#27ae60] flex items-center justify-center text-white">
-                                            <Check size={9} strokeWidth={4} />
-                                          </span>
-                                        </div>
-                                      </div>
-                                    ))
-                                  ) : (
-                                    <div className="py-4 text-center text-[11px]" style={{ color: C.faint }}>
-                                      아직 참석 확인을 한 사람이 없어요.
-                                    </div>
+                          return (
+                            <div 
+                              key={r.id} 
+                              onClick={() => onBlockClick(r)}
+                              className="flex-1 min-w-0 p-3.5 rounded-[10px] relative overflow-visible cursor-pointer transition-all hover:scale-[1.01]" 
+                              style={{ background: r.isUrgent ? "var(--mob-card-urgent)" : "var(--mob-card-normal)" }}
+                            >
+                              {/* Dimmable Content Wrapper */}
+                              <div style={{ opacity: isPast ? 0.5 : 1 }} className="flex flex-col h-full w-full">
+                                <div className="flex items-start justify-between mb-1">
+                                  <div className="text-[14px] font-bold truncate pr-2 leading-tight flex items-center gap-1.5" style={{ color: C.text }}>
+                                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: r.isUrgent ? pal('red').dot : pal('green').dot }} />
+                                    {r.title}
+                                  </div>
+                                  {r.isUrgent && (
+                                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: "var(--mob-busy-bg)", color: "var(--mob-busy-text)" }}>긴급</span>
                                   )}
                                 </div>
+                                <div className="text-[11px] font-medium flex items-center gap-1 mt-0.5" style={{ color: C.faint }}>
+                                  <Clock size={11} className="shrink-0" style={{ opacity: 0.7 }} />
+                                  <span>{rm?.name || r.roomId} · {r.start}~{r.end}</span>
+                                </div>
+                                
+                                {/* Attendees */}
+                                <div className="mt-2 flex flex-wrap items-center gap-1.5 relative z-20">
+                                  <span className="text-[11px] font-semibold mr-0.5 flex items-center gap-1" style={{ color: C.faint }}><User size={11} className="shrink-0" style={{ opacity: 0.7 }} />참석자</span>
+                                  {Array.from(new Set((r.attendees || []).map(id => M(id)?.name))).filter(Boolean).map(name => (
+                                    <span key={name} className="inline-flex items-center rounded bg-black/5 dark:bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-gray-700 dark:text-gray-300">
+                                      {name}
+                                    </span>
+                                  ))}
+                                </div>
+
+                                {/* Attendance Check Widget */}
+                                {(() => {
+                                  const meId = MEMBERS.find(m => m.name === user)?.id;
+                                  const isMyChecked = meId && r.checkedIn && r.checkedIn.includes(meId) && r.attendees && r.attendees.includes(meId);
+                                  const checkedCount = r.checkedIn ? r.checkedIn.filter(id => r.attendees && r.attendees.includes(id)).length : 0;
+
+                                  return (
+                                    <div className="mt-2.5 flex items-center justify-between relative z-30" onClick={(e) => e.stopPropagation()}>
+                                      <div className="relative flex items-center gap-1.5">
+                                        {/* Attend Button */}
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); toggleAttendance(r); }}
+                                          className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[9.5px] font-bold border transition-all active:scale-95 shadow-sm cursor-pointer"
+                                          style={{
+                                            background: isMyChecked ? "rgba(39, 174, 96, 0.1)" : "var(--bg-input)",
+                                            borderColor: isMyChecked ? "#27ae60" : C.border,
+                                            color: isMyChecked ? "#27ae60" : C.text,
+                                            height: "20px"
+                                          }}
+                                        >
+                                          <span className="flex items-center justify-center w-3.5 h-3.5 rounded text-white shrink-0" style={{ background: isMyChecked ? "#27ae60" : "#a0aec0" }}>
+                                            <Check size={9} strokeWidth={3.5} />
+                                          </span>
+                                          <span>참석</span>
+                                          {checkedCount > 0 && (
+                                            <span className="ml-0.5 text-[10px] font-extrabold" style={{ color: isMyChecked ? "#27ae60" : "#7b2cbf" }}>
+                                              {checkedCount}
+                                            </span>
+                                          )}
+                                        </button>
+
+                                        {/* Attendee Info Button */}
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setOpenAttendanceId(openAttendanceId === r.id ? null : r.id);
+                                          }}
+                                          className="w-[20px] h-[20px] rounded-full flex items-center justify-center transition-all active:scale-90 bg-[#eeeeee] dark:bg-zinc-800 cursor-pointer"
+                                        >
+                                          <User size={11} className="text-gray-600 dark:text-gray-400" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
                               </div>
-                            </>
-                          );
-                        })()}
-                        
-                        {/* Current Time Line Overlay if inside this meeting */}
-                        {isCurr && (() => {
-                          const exactNowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
-                          const progress = Math.max(0, Math.min(100, ((exactNowMin - sM) / (eM - sM)) * 100));
-                          return (
-                            <div className="absolute left-0 right-0 flex items-center z-10 pointer-events-none -ml-4" style={{ top: `${progress}%`, transform: 'translateY(-50%)', transition: 'top 1s ease-in-out' }}>
-                              <span className="w-[6px] h-[6px] rounded-full" style={{ background: "var(--mob-busy-bg)" }} />
-                              <div className="flex-1 h-[1.5px]" style={{ background: "var(--mob-busy-bg)" }} />
-                              <span className="ml-1 text-[10px] font-bold" style={{ color: "var(--mob-busy-bg)" }}>지금</span>
+
+                              {/* Non-dimmed Popover */}
+                              {(() => {
+                                const checkedCount = r.checkedIn ? r.checkedIn.filter(id => r.attendees && r.attendees.includes(id)).length : 0;
+                                const checkedMembers = (r.checkedIn || []).filter(id => r.attendees && r.attendees.includes(id)).map(id => MEMBERS.find(m => m.id === id)).filter(Boolean);
+                                
+                                return openAttendanceId === r.id && (
+                                  <>
+                                    <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpenAttendanceId(null); }} />
+                                    <div 
+                                      className="absolute w-64 bg-white dark:bg-[#1a1a1a] rounded-xl border p-3 shadow-xl z-50 text-left" 
+                                      style={{ 
+                                        top: "100%", 
+                                        [isLastCard ? 'right' : 'left']: 0, 
+                                        marginTop: "8px", 
+                                        borderColor: C.border 
+                                      }}
+                                    >
+                                      <div className="flex items-center justify-between pb-2 mb-2 border-b" style={{ borderColor: C.border }}>
+                                        <span className="text-[12px] font-bold" style={{ color: C.text }}>참석 확인 현황</span>
+                                        <span className="text-[11px] font-extrabold text-[#27ae60] bg-[#27ae60]/10 px-2 py-0.5 rounded-full">{checkedCount}명 완료</span>
+                                      </div>
+                                      <div className="space-y-2 max-h-[172px] overflow-y-auto pr-1 scrollbar-thin">
+                                        {checkedCount > 0 ? (
+                                          checkedMembers.map(m => (
+                                            <div key={m.id} className="flex items-center justify-between text-[11px]">
+                                              <div className="flex items-center gap-2">
+                                                <Avatar name={m.name} size={22} solid />
+                                                <span className="font-semibold" style={{ color: C.text }}>{m.name} <span className="font-normal text-[10px]" style={{ color: C.faint }}>{m.role}</span></span>
+                                              </div>
+                                              <div className="flex items-center gap-1.5">
+                                                <span className="text-[9px] font-medium px-1 rounded" style={{ background: PASTEL.gray.bg, color: PASTEL.gray.text }}>{m.team}</span>
+                                                <span className="w-3.5 h-3.5 rounded bg-[#27ae60] flex items-center justify-center text-white">
+                                                  <Check size={9} strokeWidth={4} />
+                                                </span>
+                                              </div>
+                                            </div>
+                                          ))
+                                        ) : (
+                                          <div className="py-4 text-center text-[11px]" style={{ color: C.faint }}>
+                                            아직 참석 확인을 한 사람이 없어요.
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </>
+                                );
+                              })()}
                             </div>
                           );
-                        })()}
+                        })}
                       </div>
+
+                      {/* Current Time Line Overlay */}
+                      {(() => {
+                        const activeMtg = group.meetings.find(r => {
+                          const sM = toMin(r.start);
+                          const eM = toMin(r.end);
+                          return nowMin >= sM && nowMin < eM && isTodayAnchor;
+                        });
+                        if (!activeMtg) return null;
+                        
+                        const sM = toMin(activeMtg.start);
+                        const eM = toMin(activeMtg.end);
+                        const exactNowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+                        const progress = Math.max(0, Math.min(100, ((exactNowMin - sM) / (eM - sM)) * 100));
+                        
+                        return (
+                          <div className="absolute left-0 right-0 flex items-center z-10 pointer-events-none -ml-4" style={{ top: `${progress}%`, transform: 'translateY(-50%)', transition: 'top 1s ease-in-out' }}>
+                            <span className="w-[6px] h-[6px] rounded-full" style={{ background: "var(--mob-busy-bg)" }} />
+                            <div className="flex-1 h-[1.5px]" style={{ background: "var(--mob-busy-bg)" }} />
+                            <span className="ml-1 text-[10px] font-bold" style={{ color: "var(--mob-busy-bg)" }}>지금</span>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 );
