@@ -2170,7 +2170,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           )}
           {/* Desktop header controls */}
           <div className="hidden md:flex items-center gap-2">
-            <div className="hidden text-right leading-tight sm:block"><div className="text-[12px] font-medium">{fmtK(now)}</div><div className="text-[11px]" style={{ color: C.faint }}>{now.getHours() < 12 ? "오전" : "오후"} {pad(((now.getHours() + 11) % 12) + 1)}:{pad(now.getMinutes())}</div></div>
+            <div className="hidden text-right leading-tight sm:block"><div className="text-[12px] font-medium">{fmtK(now)}</div><div className="text-[11px]" style={{ color: C.faint }}>{now.getHours() < 12 ? "오전" : "오후"} {((now.getHours() + 11) % 12) + 1}:{pad(now.getMinutes())}</div></div>
             <div className="relative">
               <button
                 onClick={() => {
