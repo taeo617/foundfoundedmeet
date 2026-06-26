@@ -772,7 +772,7 @@ export default function App() {
   const [view, setView] = useState("timeline");
   const [anchor, setAnchor] = useState(() => dayOnly(new Date()));
   const [mineDate, setMineDate] = useState(() => keyOf(new Date()));
-  const [roomId, setRoomId] = useState("all");
+  const [roomId, setRoomId] = useState("big");
   const [dashMonth, setDashMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [dashRoom, setDashRoom] = useState("all");
   const [openAttendanceId, setOpenAttendanceId] = useState(null);
