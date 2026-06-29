@@ -784,7 +784,7 @@ export default function App() {
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const room = ROOMS.find((r) => r.id === roomId);
 
-  const [reservations, setReservations] = useState(() => {
+  const [rawReservations, setReservations] = useState(() => {
     if (!isFirebaseConfigured) {
       try {
         const local = localStorage.getItem("reservations");
@@ -795,6 +795,30 @@ export default function App() {
     }
     return [];
   });
+
+  const reservations = useMemo(() => {
+    const todayKey = keyOf(today);
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    return rawReservations.map(r => {
+      if (r.date) {
+        const isPastDay = r.date < todayKey;
+        const isTodayOver30Min = r.date === todayKey && nowMin >= (toMin(r.start) + 30);
+        
+        if (isPastDay || isTodayOver30Min) {
+          const ownerId = MEMBERS.find(m => m.name === r.owner)?.id;
+          const attendees = r.attendees || [];
+          const currentCheckedIn = r.checkedIn || [];
+          const combined = Array.from(new Set([
+            ...currentCheckedIn,
+            ...attendees,
+            ...(ownerId ? [ownerId] : [])
+          ]));
+          return { ...r, checkedIn: combined };
+        }
+      }
+      return r;
+    });
+  }, [rawReservations, today, now]);
   
   useEffect(() => {
     if (!isFirebaseConfigured) return;
