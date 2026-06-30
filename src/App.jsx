@@ -1376,7 +1376,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     return reservations.some((r) => r.roomId === rid && r.date === date && r.id !== ignore && !(b <= toMin(r.start) || a >= toMin(r.end)));
   }
   const defStart = () => Math.min(Math.max(isToday ? Math.ceil(nowMin / STEP) * STEP : 10 * 60, DAY_START), DAY_END - 10);
-  function openCreate(rid, startMin, date) { setErrs({}); const me = getMeId(); setForm({ id: null, roomId: rid, title: "", date: date || selKey, start: toHHMM(startMin), end: toHHMM(Math.min(startMin + 10, DAY_END)), attendees: me ? [me] : [], repeat: false, color: "yellow", isUrgent: false, comments: [] }); }
+  function openCreate(rid, startMin, date) { setErrs({}); const me = getMeId(); setForm({ id: null, roomId: rid, title: "", date: date || selKey, start: toHHMM(startMin), end: toHHMM(Math.min(startMin + 10, DAY_END)), attendees: me && me !== "m_room" ? [me] : [], repeat: false, color: "yellow", isUrgent: false, comments: [] }); }
   const tryCreate = (rid, sm, date) => requireAuth(() => openCreate(rid, sm, date), "일정을 추가하려면 로그인이 필요해요.");
   const openEdit = (r) => { setErrs({}); setForm({ ...r, attendees: [...r.attendees] }); };
 
@@ -1393,7 +1393,11 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       if (d.getDay() === 0 || d.getDay() === 6) e.time = "주말은 예약할 수 없습니다.";
     }
     if (f.attendees.length === 0) e.att = "참석자를 1명 이상 선택해주세요.";
+    else if (f.attendees.includes("m_room")) e.att = "회의실 계정은 참석자로 선택할 수 없습니다.";
     if (f.attendees.length > ROOMS.find((r) => r.id === f.roomId).capacity) e.att = "참석 인원이 회의실 정원을 초과했어요.";
+    if ((f.owner || user) === "회의실") {
+      e.title = "회의실 계정으로는 회의를 등록할 수 없습니다. 개인 계정으로 예약해 주세요.";
+    }
     setErrs(e);
     if (Object.keys(e).length) return;
 
