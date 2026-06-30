@@ -805,9 +805,9 @@ export default function App() {
         const isTodayOver30Min = r.date === todayKey && nowMin >= (toMin(r.start) + 30);
         
         if (isPastDay || isTodayOver30Min) {
-          const ownerId = MEMBERS.find(m => m.name === r.owner)?.id;
-          const attendees = r.attendees || [];
-          const currentCheckedIn = r.checkedIn || [];
+          const ownerId = MEMBERS.find(m => m.name === r.owner && m.id !== "m_room")?.id;
+          const attendees = (r.attendees || []).filter(id => id !== "m_room");
+          const currentCheckedIn = (r.checkedIn || []).filter(id => id !== "m_room");
           const combined = Array.from(new Set([
             ...currentCheckedIn,
             ...attendees,
@@ -1383,6 +1383,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     async function saveForm() {
     if (isSubmitting) return;
     const f = form; const e = {};
+    const cleanedAttendees = (f.attendees || []).filter(id => id !== "m_room");
     if (!f.title.trim()) e.title = "회의 제목을 입력해주세요.";
     if (!f.start || !f.end) e.time = "시간을 정확히 입력해주세요.";
     else if (isNaN(toMin(f.start)) || isNaN(toMin(f.end))) e.time = "시간 형식(예: 14:00)을 올바르게 입력해주세요.";
@@ -1392,12 +1393,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       const d = new Date(f.date);
       if (d.getDay() === 0 || d.getDay() === 6) e.time = "주말은 예약할 수 없습니다.";
     }
-    if (f.attendees.length === 0) e.att = "참석자를 1명 이상 선택해주세요.";
-    else if (f.attendees.includes("m_room")) e.att = "회의실 계정은 참석자로 선택할 수 없습니다.";
-    if (f.attendees.length > ROOMS.find((r) => r.id === f.roomId).capacity) e.att = "참석 인원이 회의실 정원을 초과했어요.";
-    if ((f.owner || user) === "회의실") {
-      e.title = "회의실 계정으로는 회의를 등록할 수 없습니다. 개인 계정으로 예약해 주세요.";
-    }
+    if (cleanedAttendees.length === 0) e.att = "참석자를 1명 이상 선택해주세요.";
+    if (cleanedAttendees.length > ROOMS.find((r) => r.id === f.roomId).capacity) e.att = "참석 인원이 회의실 정원을 초과했어요.";
     setErrs(e);
     if (Object.keys(e).length) return;
 
@@ -1448,7 +1445,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     reservations.forEach((r) => {
       if (r.id !== f.id && r.date === f.date) {
         if (!(endM <= toMin(r.start) || startM >= toMin(r.end))) {
-          f.attendees.forEach((attId) => {
+          cleanedAttendees.forEach((attId) => {
             if (r.attendees && r.attendees.includes(attId)) {
               const mName = MEMBERS.find((m) => m.id === attId)?.name || attId;
               const rRoomName = ROOMS.find((rm) => rm.id === r.roomId)?.name || r.roomId;
@@ -1468,8 +1465,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     try {
       const isEdit = !!f.id;
       const docId = f.id || nid();
-      const cleanedCheckedIn = (f.checkedIn || []).filter(id => f.attendees && f.attendees.includes(id));
-      const finalForm = { ...f, id: docId, title: f.title.trim(), owner: f.owner || user, checkedIn: cleanedCheckedIn };
+      const cleanedCheckedIn = (f.checkedIn || []).filter(id => cleanedAttendees.includes(id));
+      const finalForm = { ...f, id: docId, title: f.title.trim(), owner: f.owner || user, attendees: cleanedAttendees, checkedIn: cleanedCheckedIn };
       
       if (isFirebaseConfigured) {
         await setDoc(doc(db, "reservations", docId), finalForm);
