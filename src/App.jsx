@@ -1748,7 +1748,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     const mobNextMtg = roomId === "all" ? null : currentRoomRes.filter(r => toMin(r.start) >= nowMin && (!mobCurrentMtg || r.id !== mobCurrentMtg.id)).sort((a,b)=>toMin(a.start)-toMin(b.start))[0];
 
     return (
-      <div className={`${isDesktopSplit ? "hidden md:flex min-h-0 overflow-y-auto no-scrollbar" : "flex md:hidden"} flex-col flex-1 w-full pt-2 ${isDesktopSplit ? "pb-0" : "pb-20"} relative`}>
+      <div className={`${isDesktopSplit ? "hidden md:flex min-h-0 overflow-y-auto no-scrollbar" : "flex md:hidden"} flex-col flex-1 w-full pt-2 ${isDesktopSplit ? "pb-24" : "pb-20"} relative`}>
         {/* Mobile Header / Desktop Timeline Header */}
         <div className="flex items-center justify-between mb-4 px-1 md:px-0">
           <div>
@@ -2085,7 +2085,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         </div>
 
         {/* Bottom Fixed FAB for Mobile/Desktop */}
-        <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+76px)] left-4 right-4 z-30 ${isDesktopSplit ? "md:sticky md:bottom-0 md:mt-auto md:pt-4 md:pb-4 md:bg-[var(--bg)]" : ""}`}>
+        <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+76px)] left-4 right-4 z-30 ${isDesktopSplit ? "md:sticky md:bottom-0 md:mt-auto md:pt-4 md:pb-6 md:bg-[var(--bg)]" : ""}`}>
           <button className="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 text-[14px] font-bold shadow-lg transition-transform active:scale-95" style={{ background: "var(--ink)", color: "var(--bg)" }} onClick={() => tryCreate(roomId === "all" ? "big" : roomId, defStart(), selKey)}>
             <Plus size={18} /> 예약하기
           </button>
