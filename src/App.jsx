@@ -1124,16 +1124,16 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         setForm(updatedRes);
       }
       
-      showToast("코멘트를 등록했습니다.");
+      showToast("댓글을 등록했습니다.");
       
       const notifyIds = new Set(target.attendees || []);
       const ownerId = MEMBERS.find(m => m.name === target.owner)?.id;
       if (ownerId) notifyIds.add(ownerId);
       
-      sendPushNotification('💬 새 코멘트가 달렸어요', `${user}: ${text.trim()}`, [...Array.from(notifyIds), 'm_room']);
+      sendPushNotification('💬 새 댓글이 달렸어요', `${user}: ${text.trim()}`, [...Array.from(notifyIds), 'm_room']);
     } catch (err) {
       console.error(err);
-      showToast("코멘트 등록 중 오류가 발생했습니다.");
+      showToast("댓글 등록 중 오류가 발생했습니다.");
     }
   };
 
@@ -1145,7 +1145,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     const comment = (target.comments || []).find(c => c.id === commentId);
     if (!comment) return;
     if (comment.user !== user && user !== "admin" && user !== "회의실") {
-      showToast("본인이 작성한 코멘트만 삭제할 수 있습니다.");
+      showToast("본인이 작성한 댓글만 삭제할 수 있습니다.");
       return;
     }
     
@@ -1166,10 +1166,10 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         setForm(updatedRes);
       }
       
-      showToast("코멘트를 삭제했습니다.");
+      showToast("댓글을 삭제했습니다.");
     } catch (err) {
       console.error(err);
-      showToast("코멘트 삭제 중 오류가 발생했습니다.");
+      showToast("댓글 삭제 중 오류가 발생했습니다.");
     }
   };
 
@@ -1869,8 +1869,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     </button>
                   </div>
                 ) : (
-                  <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => requireAuth(() => setDetail(mobCurrentMtg), "코멘트를 남기려면 로그인이 필요해요.")}>
-                    코멘트 남기기
+                  <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => requireAuth(() => setDetail(mobCurrentMtg), "댓글을 남기려면 로그인이 필요해요.")}>
+                    댓글 남기기
                   </button>
                 )
               ) : (
@@ -2896,12 +2896,12 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 {form.id && (
                   <div className="mt-4 border-t pt-4" style={{ borderColor: C.border }}>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold" style={{ color: C.text }}>💬 코멘트</span>
+                      <span className="text-xs font-bold" style={{ color: C.text }}>💬 댓글</span>
                       <span className="text-[10px]" style={{ color: C.faint }}>{(form.comments || []).length}개</span>
                     </div>
                     <div className="max-h-[120px] overflow-y-auto space-y-2 mb-3 pr-1 sc no-scrollbar">
                       {(form.comments || []).length === 0 ? (
-                        <p className="text-[11px] text-center py-2" style={{ color: C.faint }}>등록된 코멘트가 없습니다.</p>
+                        <p className="text-[11px] text-center py-2" style={{ color: C.faint }}>등록된 댓글이 없습니다.</p>
                       ) : (
                         (form.comments || []).map(c => (
                           <div key={c.id} className="text-[11px] p-2 rounded-lg" style={{ background: "var(--bg-secondary)", border: `1px solid ${C.border}` }}>
@@ -2932,7 +2932,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                         <input 
                           type="text" 
                           id="comment-input-edit"
-                          placeholder="코멘트 내용을 입력하세요..." 
+                          placeholder="댓글 내용을 입력하세요..." 
                           className="inp flex-1 rounded border px-3 py-2 text-xs outline-none bg-white" 
                           style={{ borderColor: C.border }}
                           onKeyDown={(e) => {
@@ -3153,15 +3153,15 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               <DetailRow icon={User} label="등록자" value={`${nameWithNim(detail.owner)}`} />
             </div>
             
-            {/* 💬 코멘트 목록 */}
+            {/* 💬 댓글 목록 */}
             <div className="mt-4 border-t pt-4" style={{ borderColor: C.border }}>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[12px] font-bold" style={{ color: C.text }}>💬 코멘트</span>
+                <span className="text-[12px] font-bold" style={{ color: C.text }}>💬 댓글</span>
                 <span className="text-[10px]" style={{ color: C.faint }}>{(detail.comments || []).length}개</span>
               </div>
               <div className="max-h-[120px] overflow-y-auto space-y-2 mb-3 pr-1 sc no-scrollbar">
                 {(detail.comments || []).length === 0 ? (
-                  <p className="text-[11px] text-center py-2" style={{ color: C.faint }}>등록된 코멘트가 없습니다.</p>
+                  <p className="text-[11px] text-center py-2" style={{ color: C.faint }}>등록된 댓글이 없습니다.</p>
                 ) : (
                   (detail.comments || []).map(c => (
                     <div key={c.id} className="text-[11px] p-2 rounded-lg" style={{ background: "var(--bg-secondary)", border: `1px solid ${C.border}` }}>
@@ -3193,7 +3193,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     <input 
                       type="text" 
                       id="comment-input-detail"
-                      placeholder="코멘트 내용을 입력하세요..." 
+                      placeholder="댓글 내용을 입력하세요..." 
                       className="inp flex-1 rounded border px-3 py-2 text-xs outline-none bg-white" 
                       style={{ borderColor: C.border }}
                       onKeyDown={(e) => {
@@ -3223,7 +3223,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   </div>
                 </div>
               ) : (
-                <p className="text-[11px] text-center" style={{ color: C.faint }}>로그인 후 코멘트를 작성할 수 있습니다.</p>
+                <p className="text-[11px] text-center" style={{ color: C.faint }}>로그인 후 댓글을 작성할 수 있습니다.</p>
               )}
             </div>
             
