@@ -191,8 +191,10 @@ const defaultProfiles = {
 
 function Avatar({ name, label, size = 36, solid = false, onClick, className, style }) {
   const [img, setImg] = useState(null);
+  const [imgError, setImgError] = useState(false);
   
   useEffect(() => {
+    setImgError(false);
     const loadImg = () => {
       try {
         const x = localStorage.getItem("profile_images");
@@ -208,12 +210,13 @@ function Avatar({ name, label, size = 36, solid = false, onClick, className, sty
     return () => window.removeEventListener("profile_updated", handler);
   }, [name]);
 
-  if (img) {
+  if (img && !imgError) {
     return (
       <img 
-        src={img} 
+        src={encodeURI(img)} 
         alt={name} 
         onClick={onClick}
+        onError={() => setImgError(true)}
         className={`shrink-0 rounded-full object-cover ${className || ""}`} 
         style={{ width: size, height: size, border: `1px solid ${C.border}`, cursor: onClick ? "pointer" : "default", ...style }} 
       />
