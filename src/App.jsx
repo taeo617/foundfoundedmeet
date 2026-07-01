@@ -192,9 +192,11 @@ const defaultProfiles = {
 function Avatar({ name, label, size = 36, solid = false, onClick, className, style }) {
   const [img, setImg] = useState(null);
   const [imgError, setImgError] = useState(false);
+  const [retryDefault, setRetryDefault] = useState(false);
   
   useEffect(() => {
     setImgError(false);
+    setRetryDefault(false);
     const loadImg = () => {
       try {
         const x = localStorage.getItem("profile_images");
@@ -216,7 +218,14 @@ function Avatar({ name, label, size = 36, solid = false, onClick, className, sty
         src={encodeURI(img)} 
         alt={name} 
         onClick={onClick}
-        onError={() => setImgError(true)}
+        onError={() => {
+          if (!retryDefault && name && defaultProfiles[name] && img !== defaultProfiles[name]) {
+            setRetryDefault(true);
+            setImg(defaultProfiles[name]);
+          } else {
+            setImgError(true);
+          }
+        }}
         className={`shrink-0 rounded-full object-cover ${className || ""}`} 
         style={{ width: size, height: size, border: `1px solid ${C.border}`, cursor: onClick ? "pointer" : "default", ...style }} 
       />
