@@ -2022,41 +2022,41 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                                           {/* Popover */}
                                           {openAttendanceId === r.id && (
                                             <div 
-                                              className="absolute w-56 bg-white dark:bg-[#1a1a1a] rounded-xl border p-3 shadow-xl z-50 text-left cursor-default" 
+                                              className="absolute z-50 pb-2" 
                                               style={{ 
                                                 bottom: "100%", 
                                                 left: "50%",
-                                                transform: "translateX(-50%)",
-                                                marginBottom: "8px", 
-                                                borderColor: C.border 
+                                                transform: "translateX(-50%)"
                                               }}
                                               onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
                                             >
-                                              <div className="flex items-center justify-between pb-2 mb-2 border-b" style={{ borderColor: C.border }}>
-                                                <span className="text-[12px] font-bold" style={{ color: C.text }}>참석 확인 현황</span>
-                                                <span className="text-[11px] font-extrabold text-[#27ae60] bg-[#27ae60]/10 px-2 py-0.5 rounded-full">{checkedCount}명 완료</span>
-                                              </div>
-                                              <div className="space-y-2 max-h-[172px] overflow-y-auto pr-1 scrollbar-thin">
-                                                {checkedCount > 0 ? (
-                                                  checkedMembers.map(m => (
-                                                    <div key={m.id} className="flex items-center justify-between text-[11px]">
-                                                      <div className="flex items-center gap-2">
-                                                        <Avatar name={m.name} size={22} solid />
-                                                        <span className="font-semibold" style={{ color: C.text }}>{m.name} <span className="font-normal text-[10px]" style={{ color: C.faint }}>{m.role}</span></span>
+                                              <div className="w-56 bg-white dark:bg-[#1a1a1a] rounded-xl border p-3 shadow-xl text-left cursor-default" style={{ borderColor: C.border }}>
+                                                <div className="flex items-center justify-between pb-2 mb-2 border-b" style={{ borderColor: C.border }}>
+                                                  <span className="text-[12px] font-bold" style={{ color: C.text }}>참석 확인 현황</span>
+                                                  <span className="text-[11px] font-extrabold text-[#27ae60] bg-[#27ae60]/10 px-2 py-0.5 rounded-full">{checkedCount}명 완료</span>
+                                                </div>
+                                                <div className="space-y-2 max-h-[172px] overflow-y-auto pr-1 scrollbar-thin">
+                                                  {checkedCount > 0 ? (
+                                                    checkedMembers.map(m => (
+                                                      <div key={m.id} className="flex items-center justify-between text-[11px]">
+                                                        <div className="flex items-center gap-2">
+                                                          <Avatar name={m.name} size={22} solid />
+                                                          <span className="font-semibold" style={{ color: C.text }}>{m.name} <span className="font-normal text-[10px]" style={{ color: C.faint }}>{m.role}</span></span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                          <span className="text-[9px] font-medium px-1 rounded" style={{ background: PASTEL.gray.bg, color: PASTEL.gray.text }}>{m.team}</span>
+                                                          <span className="w-3.5 h-3.5 rounded bg-[#27ae60] flex items-center justify-center text-white">
+                                                            <Check size={9} strokeWidth={4} />
+                                                          </span>
+                                                        </div>
                                                       </div>
-                                                      <div className="flex items-center gap-1.5">
-                                                        <span className="text-[9px] font-medium px-1 rounded" style={{ background: PASTEL.gray.bg, color: PASTEL.gray.text }}>{m.team}</span>
-                                                        <span className="w-3.5 h-3.5 rounded bg-[#27ae60] flex items-center justify-center text-white">
-                                                          <Check size={9} strokeWidth={4} />
-                                                        </span>
-                                                      </div>
+                                                    ))
+                                                  ) : (
+                                                    <div className="py-4 text-center text-[11px]" style={{ color: C.faint }}>
+                                                      아직 참석 확인을 한 사람이 없어요.
                                                     </div>
-                                                  ))
-                                                ) : (
-                                                  <div className="py-4 text-center text-[11px]" style={{ color: C.faint }}>
-                                                    아직 참석 확인을 한 사람이 없어요.
-                                                  </div>
-                                                )}
+                                                  )}
+                                                </div>
                                               </div>
                                             </div>
                                           )}
@@ -2065,6 +2065,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                                     </div>
                                   );
                                 })()}
+                              </div>
                             </div>
                           );
                         })}
