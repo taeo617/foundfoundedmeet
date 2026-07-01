@@ -54,6 +54,7 @@ const MEMBERS = [
   { id: "m13", name: "지민", team: "VD", role: "디자이너",         group: "staff" },
   { id: "m4",  name: "도영", team: "VD", role: "인턴",            group: "staff" },
   { id: "m14", name: "정수", team: "ID", role: "인턴",            group: "staff" },
+  { id: "m16", name: "여준", team: "ID", role: "인턴",            group: "staff" },
   { id: "m_guest", name: "Guest", team: "게스트", role: "게스트", group: "guest" },
   { id: "m_client", name: "클라이언트", team: "외부", role: "클라이언트", group: "client" },
   { id: "m_room", name: "회의실", team: "공용", role: "회의실", group: "admin" },
@@ -169,22 +170,23 @@ function Wordmark({ size = 18 }) {
   );
 }
 const defaultProfiles = {
-  "도영": "/avatar_doyoung.png",
-  "혜경": "/avatar_hyekyung.png",
-  "지민": "/avatar_jimin.png",
-  "수현": "/avatar_suhyun.png",
-  "보아": "/avatar_boa.png",
-  "oxo": "/avatar_oxo.png",
-  "진우": "/avatar_jinwoo.png",
-  "다은": "/avatar_daeun.png",
-  "태영": "/avatar_taeyoung.png",
-  "경선": "/avatar_kyungsun.png",
-  "유진": "/avatar_yujin.png",
-  "준범": "/avatar_junbeom.png",
-  "현열": "/avatar_hyunyeol.png",
-  "정수": "/avatar_jungsoo.png",
-  "준구": "/avatar_jungoo.png",
-  "규호": "/avatar_gyuho.png"
+  "도영": "/도영.png",
+  "혜경": "/혜경.png",
+  "지민": "/지민.png",
+  "수현": "/수현.png",
+  "보아": "/보아.png",
+  "oxo": "/oxo.png",
+  "진우": "/진우.png",
+  "다은": "/다은.png",
+  "태영": "/태영.png",
+  "경선": "/경선.png",
+  "유진": "/유진.png",
+  "준범": "/준범.png",
+  "현열": "/현열.png",
+  "정수": "/정수.png",
+  "준구": "/준구.png",
+  "규호": "/규호.png",
+  "여준": "/여준.png"
 };
 
 function Avatar({ name, label, size = 36, solid = false, onClick, className, style }) {
