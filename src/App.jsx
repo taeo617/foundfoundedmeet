@@ -2101,7 +2101,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         </div>
 
         {/* Bottom Fixed FAB for Mobile/Desktop */}
-        <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+76px)] left-4 right-4 z-30 ${isDesktopSplit ? "md:sticky md:bottom-0 md:mt-auto md:pt-4 md:pb-6 md:bg-[var(--bg)] md:left-auto md:right-auto md:w-full" : ""}`}>
+        <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+24px)] left-4 right-4 z-30 ${isDesktopSplit ? "md:sticky md:bottom-0 md:mt-auto md:pt-4 md:pb-6 md:bg-[var(--bg)] md:left-auto md:right-auto md:w-full" : ""}`}>
           <button className="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 text-[14px] font-bold shadow-lg transition-transform active:scale-95" style={{ background: "var(--ink)", color: "var(--bg)" }} onClick={() => tryCreate(roomId === "all" ? "big" : roomId, defStart(), selKey)}>
             <Plus size={18} /> 예약하기
           </button>
