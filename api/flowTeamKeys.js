@@ -12,7 +12,7 @@ export const MEMBERS = [
   { id: "m11", name: "수현", team: "VD", role: "디자이너",         group: "staff" },
   { id: "m12", name: "혜경", team: "VD", role: "디자이너",         group: "staff" },
   { id: "m13", name: "지민", team: "VD", role: "디자이너",         group: "staff" },
-  { id: "m4",  name: "도영", team: "VD", role: "인턴",            group: "staff" },
+  { id: "m4",  name: "도영", team: "VD", role: "인턴",            group: "staff", inactive: true },
   { id: "m14", name: "정수", team: "ID", role: "인턴",            group: "staff" },
 ];
 

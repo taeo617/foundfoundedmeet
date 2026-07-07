@@ -52,7 +52,7 @@ const MEMBERS = [
   { id: "m11", name: "수현", team: "VD", role: "디자이너",         group: "staff" },
   { id: "m12", name: "혜경", team: "VD", role: "디자이너",         group: "staff" },
   { id: "m13", name: "지민", team: "VD", role: "디자이너",         group: "staff" },
-  { id: "m4",  name: "도영", team: "VD", role: "인턴",            group: "staff" },
+  { id: "m4",  name: "도영", team: "VD", role: "인턴",            group: "staff", inactive: true },
   { id: "m14", name: "정수", team: "ID", role: "인턴",            group: "staff" },
   { id: "m16", name: "여준", team: "ID", role: "인턴",            group: "staff" },
   { id: "m_guest", name: "Guest", team: "게스트", role: "게스트", group: "guest" },
@@ -170,7 +170,6 @@ function Wordmark({ size = 18 }) {
   );
 }
 const defaultProfiles = {
-  "도영": "/도영.png",
   "혜경": "/혜경.png",
   "지민": "/지민.png",
   "수현": "/수현.png",
@@ -267,8 +266,9 @@ function LoginModal({ message, onClose, onLogin }) {
       if (pw !== "1234") return setErr("비밀번호가 올바르지 않아요.");
       return onLogin("Guest");
     }
-    const memberExists = MEMBERS.some((m) => m.name === trimmedName);
-    if (!memberExists) return setErr("등록되지 않은 멤버 이름입니다. 등록된 이름으로 로그인해 주세요.");
+    const member = MEMBERS.find((m) => m.name === trimmedName);
+    if (!member) return setErr("등록되지 않은 멤버 이름입니다. 등록된 이름으로 로그인해 주세요.");
+    if (member.inactive) return setErr("해당 계정은 정지되어 로그인할 수 없습니다.");
     if (pw !== "3377") return setErr("비밀번호가 올바르지 않아요."); 
     onLogin(trimmedName); 
   };
@@ -2460,7 +2460,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   : <button onClick={() => setAnchor(today)} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, background: "var(--bg-input)", color: C.muted }}>오늘</button>}
               </div>
               <div className="inline-flex rounded-lg border bg-white p-1" style={{ borderColor: C.border }}>
-                {[["timeline", "타임라인", List], ["calendar", "월간", CalendarDays]].map(([k, lbl, Icon]) => (
+                {[["timeline", "타임라인", List], ["calendar", "캘린더", CalendarDays]].map(([k, lbl, Icon]) => (
                   <button key={k} onClick={() => setView(k)} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium" style={view === k ? { background: C.ink, color: "var(--bg)" } : { color: C.muted }}><Icon size={15} /><span className="hidden sm:inline">{lbl}</span></button>
                 ))}
               </div>
@@ -3027,7 +3027,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     </button>
                     <button 
                       onClick={() => {
-                        const normalMembers = MEMBERS.filter(m => m.group === "director" || m.group === "staff");
+                        const normalMembers = MEMBERS.filter(m => !m.inactive && (m.group === "director" || m.group === "staff"));
                         const allSelected = normalMembers.every(m => temp.includes(m.id));
                         if (allSelected) {
                           setTemp(temp.filter(id => !normalMembers.some(nm => nm.id === id)));
@@ -3039,7 +3039,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                       className="hover:underline text-[11px] px-1 py-0.5 rounded"
                       style={{ color: C.ink }}
                     >
-                      {MEMBERS.filter(m => m.group === "director" || m.group === "staff").every(m => temp.includes(m.id)) ? "전체 해제" : "전체 선택"}
+                      {MEMBERS.filter(m => !m.inactive && (m.group === "director" || m.group === "staff")).every(m => temp.includes(m.id)) ? "전체 해제" : "전체 선택"}
                     </button>
                   </div>
                 </div>
@@ -3062,7 +3062,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               {/* roster */}
               <div className="sc order-2 flex-1 overflow-y-auto p-3 md:order-1">
                 {[["director", "디렉터"], ["staff", "임직원"]].map(([g, label]) => {
-                  const rows = MEMBERS.filter((m) => m.group === g);
+                  const rows = MEMBERS.filter((m) => m.group === g && !m.inactive);
                   return (
                     <div key={g} className="mb-2">
                       <div className="px-1.5 py-1 text-xs font-medium" style={{ color: C.muted }}>{label} ({rows.length})</div>
