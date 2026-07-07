@@ -712,17 +712,17 @@ function MemberManagement({ onBack, suspendedIds, toggleSuspend }) {
   const filtered = MEMBERS.filter(m => !["m_guest", "m_client", "m_room"].includes(m.id));
 
   return (
-    <div className="flex-1 w-full flex flex-col p-4 sm:p-8 overflow-y-auto" style={{ background: "#060A1A", color: "#E0E0E0" }}>
+    <div className="flex-1 w-full flex flex-col p-4 sm:p-8 overflow-y-auto" style={{ background: C.bg, color: C.text }}>
       <div className="max-w-4xl mx-auto w-full pb-20">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-white mb-2">사용자 및 승인 관리</h1>
-            <p className="text-[13px] text-gray-400">회원가입 승인 대기 계정 관리 및 기존 임원/운영진의 프로필 상태를 확인합니다.</p>
+            <h1 className="text-2xl font-bold mb-2" style={{ color: C.text }}>사용자 및 승인 관리</h1>
+            <p className="text-[13px]" style={{ color: C.muted }}>회원가입 승인 대기 계정 관리 및 기존 임원/운영진의 프로필 상태를 확인합니다.</p>
           </div>
           <button 
             onClick={onBack}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg border text-sm font-semibold transition-all hover:bg-white/10"
-            style={{ borderColor: "rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.05)", color: "#FFFFFF" }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg border text-sm font-semibold transition-all lift"
+            style={{ borderColor: C.border, background: C.paper, color: C.text }}
           >
             <ChevronLeft size={16} /> 돌아가기
           </button>
@@ -730,35 +730,38 @@ function MemberManagement({ onBack, suspendedIds, toggleSuspend }) {
 
         <div className="flex items-center gap-2 mb-4">
           <span className="w-1.5 h-1.5 rounded-full bg-[#00D859]"></span>
-          <h2 className="text-[15px] font-bold text-white">멤버 계정</h2>
+          <h2 className="text-[15px] font-bold" style={{ color: C.text }}>멤버 계정</h2>
         </div>
 
         <div className="flex flex-col gap-2.5">
           {filtered.map(m => {
             const isSuspended = suspendedIds.includes(m.id);
             return (
-              <div key={m.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border bg-[#0F142A] transition-all" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+              <div key={m.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border transition-all" style={{ background: C.paper, borderColor: C.border }}>
                 <div className="flex items-center gap-4 mb-3 sm:mb-0">
-                  <Avatar name={m.name} size={46} style={{ border: "2px solid rgba(255,255,255,0.1)" }} />
+                  <Avatar name={m.name} size={46} style={{ border: `2px solid ${C.border}` }} />
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[16px] font-bold text-white tracking-tight">{m.name}</span>
+                      <span className="text-[16px] font-bold tracking-tight" style={{ color: C.text }}>{m.name}</span>
                       <span className="text-[13px] font-bold text-[#00A3FF]">{m.team}</span>
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded text-[#00D859]" style={{ background: "rgba(0,216,89,0.15)" }}>{m.role}</span>
                     </div>
-                    <div className="text-[12px] font-medium text-gray-500">
+                    <div className="text-[12px] font-medium" style={{ color: C.muted }}>
                       FOUND/FOUNDED
                     </div>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto">
-                  <div className="text-[12px] font-medium text-gray-500">
-                    비밀번호: 3377 {isSuspended && <span className="ml-2 text-[#FF3B3B] font-bold">[정지됨/휴식기]</span>}
+                  <div className="text-[12px] font-medium" style={{ color: C.muted }}>
+                    비밀번호: 3377 {isSuspended && <span className="ml-2 text-[#FF3B3B] font-bold">[정지됨]</span>}
                   </div>
                   <button
                     onClick={() => toggleSuspend(m.id)}
-                    className={`px-4 py-1.5 rounded-lg text-[12px] font-bold transition-all border shrink-0 ${isSuspended ? "text-[#00D859] border-[#00D859]/30 bg-[#00D859]/10 hover:bg-[#00D859]/20" : "text-gray-400 border-white/10 bg-white/5 hover:bg-white/10"}`}
+                    className="px-4 py-1.5 rounded-lg text-[12px] font-bold transition-all border shrink-0 lift"
+                    style={isSuspended 
+                      ? { color: "#00D859", borderColor: "rgba(0,216,89,0.3)", background: "rgba(0,216,89,0.1)" } 
+                      : { color: C.muted, borderColor: C.border, background: C.paper }}
                   >
                     {isSuspended ? "정지 해제" : "계정 정지"}
                   </button>
@@ -1591,7 +1594,18 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       // Push Notifications
       if (user !== "admin") {
         if (!isEdit) {
-           sendPushNotification('📅 새 회의가 등록됐어요', `${nameWithNim(user)}이 예약했습니다. [${ROOMS.find(r=>r.id===f.roomId)?.name}] ${f.date} ${f.start}~${f.end}`, f.attendees);
+           let isEnded = false;
+           if (f.date && f.end) {
+             const [y, m, d] = f.date.split("-").map(Number);
+             const [h, min] = f.end.split(":").map(Number);
+             const endTime = new Date(y, m - 1, d, h, min);
+             if (endTime < new Date()) {
+               isEnded = true;
+             }
+           }
+           if (!isEnded) {
+             sendPushNotification('📅 새 회의가 등록됐어요', `${nameWithNim(user)}이 예약했습니다. [${ROOMS.find(r=>r.id===f.roomId)?.name}] ${f.date} ${f.start}~${f.end}`, f.attendees);
+           }
         } else {
            const originalRes = reservations.find(r => r.id === f.id);
            let isEnded = false;
