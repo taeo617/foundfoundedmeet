@@ -33,7 +33,7 @@ const pal = (c) => PASTEL[c] || PASTEL.yellow;
 const EQUIP = { monitor: { label: "모니터", Icon: Monitor }, video: { label: "화상회의", Icon: Video } };
 const ROOMS = [
   { id: "big",   name: "큰 회의실",   capacity: 8, equip: ["monitor", "video"] },
-  { id: "small", name: "작은 회의실", capacity: 6, equip: ["monitor"] },
+  { id: "small", name: "작은 회의실", capacity: 7, equip: ["monitor"] },
   { id: "lounge", name: "라운지", capacity: 20, equip: [] },
 ];
 
