@@ -2042,9 +2042,10 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                               className="flex-1 min-w-0 p-3.5 rounded-[10px] relative overflow-visible cursor-pointer transition-all hover:scale-[1.01]" 
                               style={{ background: r.isUrgent ? "var(--mob-card-urgent)" : "var(--mob-card-normal)" }}
                             >
-                              {/* Dimmable Content Wrapper */}
-                              <div style={{ opacity: isPast ? 0.5 : 1 }} className="flex flex-col h-full w-full">
-                                <div className="flex items-start justify-between mb-1">
+                              {/* Content Wrapper */}
+                              <div className="flex flex-col h-full w-full">
+                                <div style={{ opacity: isPast ? 0.5 : 1 }}>
+                                  <div className="flex items-start justify-between mb-1">
                                   <div className="text-[14px] font-bold pr-2 leading-tight flex items-center gap-1.5 min-w-0" style={{ color: C.text }}>
                                     <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isCurr ? (r.isUrgent ? 'glow-dot-busy' : 'glow-dot-free') : ''}`} style={{ background: r.isUrgent ? pal('red').dot : pal('green').dot }} />
                                     <span className="truncate">{r.title}</span>
@@ -2067,6 +2068,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                                     </span>
                                   ))}
                                 </div>
+                                </div>
 
                                 {/* Attendance Check Widget */}
                                 {(() => {
@@ -2086,7 +2088,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                                             background: isMyChecked ? "rgba(39, 174, 96, 0.1)" : "var(--bg-input)",
                                             borderColor: isMyChecked ? "#27ae60" : C.border,
                                             color: isMyChecked ? "#27ae60" : C.text,
-                                            height: "20px"
+                                            height: "20px",
+                                            opacity: isPast ? 0.5 : 1
                                           }}
                                         >
                                           <span className="flex items-center justify-center w-3.5 h-3.5 rounded text-white shrink-0" style={{ background: isMyChecked ? "#27ae60" : "#a0aec0" }}>
@@ -2112,6 +2115,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                                               e.stopPropagation();
                                               setOpenAttendanceId(openAttendanceId === r.id ? null : r.id);
                                             }}
+                                            style={{ opacity: isPast ? 0.5 : 1 }}
                                             className="w-[20px] h-[20px] rounded-full flex items-center justify-center transition-all active:scale-90 bg-[#eeeeee] dark:bg-zinc-800 cursor-pointer"
                                           >
                                             <User size={11} className="text-gray-600 dark:text-gray-400" />
