@@ -2012,7 +2012,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 const groupIsPast = group.meetings.every(r => nowMin >= toMin(r.end) && isTodayAnchor);
                 
                 return (
-                  <div key={group.start} className="flex relative items-stretch">
+                  <div key={group.start} className={`flex relative items-stretch ${group.meetings.some(m => m.id === openAttendanceId) ? 'z-50' : 'z-10'}`}>
                     <div className="w-[42px] shrink-0 pt-3 text-[11px] font-medium" style={{ color: C.faint }}>
                       {group.start}
                     </div>
@@ -2039,7 +2039,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                             <div 
                               key={r.id} 
                               onClick={() => onBlockClick(r)}
-                              className="flex-1 min-w-0 p-3.5 rounded-[10px] relative overflow-visible cursor-pointer transition-all hover:scale-[1.01]" 
+                              className={`flex-1 min-w-0 p-3.5 rounded-[10px] relative overflow-visible cursor-pointer transition-all hover:scale-[1.01] ${openAttendanceId === r.id ? 'z-50' : 'z-10'}`} 
                               style={{ background: r.isUrgent ? "var(--mob-card-urgent)" : "var(--mob-card-normal)" }}
                             >
                               {/* Content Wrapper */}
@@ -2078,7 +2078,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                                   const checkedMembers = (r.checkedIn || []).filter(id => r.attendees && r.attendees.includes(id)).map(id => MEMBERS.find(m => m.id === id)).filter(Boolean);
 
                                   return (
-                                    <div className="mt-2.5 flex items-center justify-between relative z-30" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                                    <div className={`mt-2.5 flex items-center justify-between relative ${openAttendanceId === r.id ? 'z-50' : 'z-30'}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
                                       <div className="relative flex items-center gap-1.5">
                                         {/* Attend Button */}
                                         <button
@@ -2203,7 +2203,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         </div>
 
         {/* Bottom Fixed FAB for Mobile/Desktop */}
-        <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+24px)] left-4 right-4 z-30 ${isDesktopSplit ? "md:sticky md:bottom-0 md:mt-auto md:pt-4 md:pb-6 md:bg-[var(--bg)] md:left-auto md:right-auto md:w-full" : ""}`}>
+        <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+16px)] left-4 right-4 z-30 ${isDesktopSplit ? "md:sticky md:bottom-0 md:mt-auto md:pt-4 md:pb-0 md:bg-[var(--bg)] md:left-auto md:right-auto md:w-full" : ""}`}>
           <button className="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 text-[14px] font-bold shadow-lg transition-transform active:scale-95" style={{ background: "var(--ink)", color: "var(--bg)" }} onClick={() => tryCreate(roomId === "all" ? "big" : roomId, defStart(), selKey)}>
             <Plus size={18} /> 예약하기
           </button>
@@ -2648,7 +2648,14 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               </div>
             ) : (
               <div className="grid gap-3">
-                {myRes.map((r) => { const p = r.isUrgent ? pal('red') : pal('green'), rm = ROOMS.find((x) => x.id === r.roomId), [y, mo, da] = r.date.split("-").map(Number), d = new Date(y, mo - 1, da); return (
+                {myRes.map((r) => { 
+                  const p = r.isUrgent ? pal('red') : pal('green'), rm = ROOMS.find((x) => x.id === r.roomId), [y, mo, da] = r.date.split("-").map(Number), d = new Date(y, mo - 1, da); 
+                  const now = new Date();
+                  const todayKey = keyOf(now);
+                  const nowMin = now.getHours() * 60 + now.getMinutes();
+                  const isMeetingPast = r.date < todayKey || (r.date === todayKey && toMin(r.end) <= nowMin);
+                  
+                  return (
                   <div key={r.id} className="lift flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 rounded-lg border bg-white p-3.5 sm:p-4" style={{ borderColor: C.border }}>
                     <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
                       <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg" style={{ background: p.bg, color: p.text }}><span className="text-lg font-medium">{da}</span></div>
@@ -2658,15 +2665,19 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                       </div>
                     </div>
                     <div className="flex shrink-0 flex-wrap gap-1.5 justify-end sm:flex-nowrap sm:gap-2 mt-1 sm:mt-0">
-                      <select onChange={(e) => { if (e.target.value) { extendRes(r, parseInt(e.target.value)); e.target.value = ""; } }} className="lift rounded-lg border px-2 py-1.5 text-xs font-medium outline-none cursor-pointer" style={{ borderColor: C.border, color: C.ink, background: "transparent" }}>
-                        <option value="">연장하기</option>
-                        <option value="5">+ 5분</option>
-                        <option value="10">+ 10분</option>
-                        <option value="15">+ 15분</option>
-                        <option value="30">+ 30분</option>
-                      </select>
-                      <button onClick={() => completeRes(r)} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, color: C.ink }}>회의 종료</button>
-                      {canEdit(r) && (
+                      {!isMeetingPast && (
+                        <>
+                          <select onChange={(e) => { if (e.target.value) { extendRes(r, parseInt(e.target.value)); e.target.value = ""; } }} className="lift rounded-lg border px-2 py-1.5 text-xs font-medium outline-none cursor-pointer" style={{ borderColor: C.border, color: C.ink, background: "transparent" }}>
+                            <option value="">연장하기</option>
+                            <option value="5">+ 5분</option>
+                            <option value="10">+ 10분</option>
+                            <option value="15">+ 15분</option>
+                            <option value="30">+ 30분</option>
+                          </select>
+                          <button onClick={() => completeRes(r)} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, color: C.ink }}>회의 종료</button>
+                        </>
+                      )}
+                      {!isMeetingPast && canEdit(r) && (
                         <button onClick={() => { setRoomId(r.roomId); setAnchor(d); openEdit(r); setSection("book"); }} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, color: C.muted }}>수정</button>
                       )}
                       {canDelete(r) && (
