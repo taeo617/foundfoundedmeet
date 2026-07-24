@@ -1508,13 +1508,13 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     
     if (roomOverlaps.length > 0) {
       if (!f.isUrgent) {
-        setErrs({ ...e, time: "선택한 시간에 이미 다른 예약이 있어요. (긴급 회의로 설정하면 기존 예약을 미룰 수 있습니다)" });
+        setErrs({ ...e, time: "선택한 시간에 이미 다른 예약이 있어요. (중요 회의로 설정하면 기존 예약을 미룰 수 있습니다)" });
         return;
       } else {
         // Pushing existing normal meetings
         const hasUrgentOverlap = roomOverlaps.some(r => r.isUrgent);
         if (hasUrgentOverlap) {
-          setErrs({ ...e, time: "선택한 시간에 이미 다른 긴급 회의가 있어서 밀어낼 수 없습니다." });
+          setErrs({ ...e, time: "선택한 시간에 이미 다른 중요 회의가 있어서 밀어낼 수 없습니다." });
           return;
         }
         
@@ -1625,7 +1625,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         pushedReservations.forEach(pushed => {
            const roomName = ROOMS.find(r=>r.id===pushed.roomId)?.name || pushed.roomId;
            const msg = f.urgentComment ? `[${f.urgentComment}] 기존 일정은 ${pushed.start}로 밀렸습니다.` : `[${roomName}] 일정이 ${pushed.start}로 밀렸어요.`;
-           sendPushNotification('🚨 긴급 회의로 일정이 밀렸어요', msg, pushed.attendees);
+           sendPushNotification('🚨 중요 회의로 일정이 밀렸어요', msg, pushed.attendees);
         });
       }
 
@@ -2051,7 +2051,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                                     <span className="truncate">{r.title}</span>
                                   </div>
                                   {r.isUrgent && (
-                                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: "var(--mob-busy-bg)", color: "var(--mob-busy-text)" }}>긴급</span>
+                                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: "var(--mob-busy-bg)", color: "var(--mob-busy-text)" }}>중요</span>
                                   )}
                                 </div>
                                 <div className="text-[11px] font-medium flex items-center gap-1 mt-0.5" style={{ color: C.faint }}>
@@ -2984,7 +2984,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 <div className="flex flex-col gap-2 rounded-lg border p-3 mt-1" style={{ borderColor: form.isUrgent ? PASTEL.red.line : C.border, background: form.isUrgent ? PASTEL.red.bg : "transparent" }}>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={form.isUrgent || false} onChange={(e) => setForm({ ...form, isUrgent: e.target.checked })} className="w-4 h-4" style={{ accentColor: PASTEL.red.dot }} />
-                    <span className="text-sm font-bold" style={{ color: form.isUrgent ? PASTEL.red.text : C.ink }}>🚨 긴급 회의 (겹치는 예약을 뒤로 미룹니다)</span>
+                    <span className="text-sm font-bold" style={{ color: form.isUrgent ? PASTEL.red.text : C.ink }}>🚨 중요 회의 (겹치는 예약을 뒤로 미룹니다)</span>
                   </label>
                   {form.isUrgent && (
                     <input 
@@ -3361,7 +3361,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               )}
             </div>
             
-            {/* 🚨 긴급 사용 요청 */}
+            {/* 🚨 중요 사용 요청 */}
             {user && detail.owner !== user && (() => {
               const [y, mo, da] = detail.date.split("-").map(Number);
               const d = new Date(y, mo - 1, da);
@@ -3371,7 +3371,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               <div className="mt-4 border-t pt-4" style={{ borderColor: C.border }}>
                 {!requestUrgentOpen ? (
                   <button onClick={() => setRequestUrgentOpen(true)} className="lift flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-500 bg-red-50 py-2.5 text-[13px] font-bold text-red-600">
-                    <AlertCircle size={15} /> 이 회의실을 긴급하게 사용해야 하나요?
+                    <AlertCircle size={15} /> 이 회의실을 중요하게 사용해야 하나요?
                   </button>
                 ) : (
                   <div className="flex flex-col gap-2">
@@ -3387,8 +3387,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     <div className="flex gap-2">
                       <button onClick={() => { setRequestUrgentOpen(false); setUrgentMessage(""); }} className="lift rounded border px-3 py-1.5 text-xs font-semibold flex-1" style={{ borderColor: C.border, color: C.muted }}>취소</button>
                       <button onClick={() => {
-                        sendPushNotification('🚨 회의실 긴급 사용 요청', `${nameWithNim(user)}이 긴급 사용을 요청했습니다: "${urgentMessage || '가능하시다면 양보 부탁드립니다ㅠㅠ'}"`, detail.attendees);
-                        showToast('긴급 요청 알림을 전송했습니다.');
+                        sendPushNotification('🚨 회의실 중요 사용 요청', `${nameWithNim(user)}이 중요 사용을 요청했습니다: "${urgentMessage || '가능하시다면 양보 부탁드립니다ㅠㅠ'}"`, detail.attendees);
+                        showToast('중요 요청 알림을 전송했습니다.');
                         setRequestUrgentOpen(false);
                         setUrgentMessage("");
                       }} className="lift rounded px-3 py-1.5 text-xs font-semibold flex-1" style={{ background: PASTEL.red.bg, color: PASTEL.red.text }}>보내기</button>
