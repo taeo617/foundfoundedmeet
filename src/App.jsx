@@ -1110,6 +1110,13 @@ export default function App() {
   const [authOpen, setAuthOpen] = useState(false);
   const [authMsg, setAuthMsg] = useState("");
   const [authPending, setAuthPending] = useState(null);
+
+  useEffect(() => {
+    if (!user && !showSplash) {
+      setAuthMsg("서비스를 이용하려면 로그인이 필요합니다.");
+      setAuthOpen(true);
+    }
+  }, [user, showSplash]);
   
   // PWA & iOS install banner
   const [showIosBanner, setShowIosBanner] = useState(false);
@@ -1433,6 +1440,13 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       subscribeToWebPush(meId);
     }
   }
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("last_user");
+    setSection("book");
+    setMenuDrawerOpen(false);
+  };
   useEffect(() => { if (user && authPending) { const p = authPending; setAuthPending(null); p(); } }, [user]); // eslint-disable-line
 
   const myRes = useMemo(() => {
@@ -2736,7 +2750,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   <button onClick={() => setSection("mine")} className="lift rounded-lg border px-4 py-2.5 text-xs font-semibold" style={{ borderColor: C.border, color: C.muted }}>
                     내 예약 내역
                   </button>
-                  <button onClick={() => { setUser(null); if(section==="admin") setSection("book"); else setSection("book"); }} className="lift rounded-lg border px-4 py-2.5 text-xs font-semibold" style={{ borderColor: C.border, color: PASTEL.red.text }}>
+                  <button onClick={handleLogout} className="lift rounded-lg border px-4 py-2.5 text-xs font-semibold" style={{ borderColor: C.border, color: PASTEL.red.text }}>
                     로그아웃
                   </button>
                 </div>
@@ -3510,13 +3524,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     <div>
                       <div className="font-bold text-[15px]">{nameWithNim(user)}</div>
                       <button 
-                        onClick={() => {
-                          setUser(null);
-                          localStorage.removeItem("auth_token");
-                          localStorage.removeItem("last_user");
-                          setMenuDrawerOpen(false);
-                          setSection("book");
-                        }}
+                        onClick={handleLogout}
                         className="text-xs text-red-500 font-semibold mt-0.5 hover:underline text-left"
                       >
                         로그아웃
