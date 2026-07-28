@@ -2579,14 +2579,18 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               <div className="hidden md:flex flex-col flex-1 w-full">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center rounded-lg border bg-white" style={{ borderColor: C.border }}>
-                    <button onClick={() => view === "calendar" ? setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1)) : setAnchor(addDays(anchor, -1))} className="lift grid h-9 w-9 place-items-center rounded-l-xl" style={{ color: C.muted }}><ChevronLeft size={18} /></button>
-                    <div className="flex items-center gap-2 px-2.5 text-sm font-medium sm:px-3">{view === "calendar" ? <CalendarDays size={15} style={{ color: "var(--bg)" }} /> : <Calendar size={15} style={{ color: C.ink }} />}{view === "calendar" ? `${anchor.getFullYear()}년 ${anchor.getMonth() + 1}월` : fmtK(anchor)}</div>
-                    <button onClick={() => view === "calendar" ? setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1)) : setAnchor(addDays(anchor, 1))} className="lift grid h-9 w-9 place-items-center rounded-r-xl" style={{ color: C.muted }}><ChevronRight size={18} /></button>
-                  </div>
-                  {(view === "calendar" ? isCurMonth : isToday)
-                    ? <span className="rounded-lg px-2.5 py-1 text-xs font-medium" style={{ background: C.ink, color: "var(--bg)" }}>{view === "calendar" ? "이번 달" : "오늘"}</span>
-                    : <button onClick={() => setAnchor(today)} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, background: "var(--bg-input)", color: C.muted }}>오늘</button>}
+                  {view === "calendar" && (
+                    <>
+                      <div className="flex items-center rounded-lg border bg-white" style={{ borderColor: C.border }}>
+                        <button onClick={() => setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1))} className="lift grid h-9 w-9 place-items-center rounded-l-xl" style={{ color: C.muted }}><ChevronLeft size={18} /></button>
+                        <div className="flex items-center gap-2 px-2.5 text-sm font-medium sm:px-3"><CalendarDays size={15} style={{ color: C.ink }} />{`${anchor.getFullYear()}년 ${anchor.getMonth() + 1}월`}</div>
+                        <button onClick={() => setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1))} className="lift grid h-9 w-9 place-items-center rounded-r-xl" style={{ color: C.muted }}><ChevronRight size={18} /></button>
+                      </div>
+                      {isCurMonth
+                        ? <span className="rounded-lg px-2.5 py-1 text-xs font-medium" style={{ background: C.ink, color: "var(--bg)" }}>이번 달</span>
+                        : <button onClick={() => setAnchor(today)} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, background: "var(--bg-input)", color: C.muted }}>오늘</button>}
+                    </>
+                  )}
                 </div>
                 <div className="inline-flex rounded-lg border bg-white p-1" style={{ borderColor: C.border }}>
                   {[["timeline", "타임라인", List], ["calendar", "캘린더", CalendarDays]].map(([k, lbl, Icon]) => (
