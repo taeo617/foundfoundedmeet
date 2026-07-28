@@ -753,9 +753,11 @@ function MemberManagement({ onBack, suspendedIds, toggleSuspend }) {
                 </div>
 
                 <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto">
-                  <div className="text-[12px] font-medium" style={{ color: C.muted }}>
-                    비밀번호: 3377 {isSuspended && <span className="ml-2 text-[#FF3B3B] font-bold">[정지됨]</span>}
-                  </div>
+                  {isSuspended && (
+                    <div className="text-[12px] font-medium text-[#FF3B3B]">
+                      [정지됨]
+                    </div>
+                  )}
                   <button
                     onClick={() => toggleSuspend(m.id)}
                     className="px-4 py-1.5 rounded-lg text-[12px] font-bold transition-all border shrink-0 lift"
@@ -2549,65 +2551,75 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
       <main className="mx-auto max-w-6xl px-4 pb-28 pt-5 sm:px-5 md:pb-10 flex-1 flex flex-col w-full">
         {section === "book" && (
-          <>
-            {/* --- Desktop View --- */}
-            <div className="hidden md:flex flex-col flex-1 w-full">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <div className="flex items-center rounded-lg border bg-white" style={{ borderColor: C.border }}>
-                  <button onClick={() => view === "calendar" ? setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1)) : setAnchor(addDays(anchor, -1))} className="lift grid h-9 w-9 place-items-center rounded-l-xl" style={{ color: C.muted }}><ChevronLeft size={18} /></button>
-                  <div className="flex items-center gap-2 px-2.5 text-sm font-medium sm:px-3">{view === "calendar" ? <CalendarDays size={15} style={{ color: "var(--bg)" }} /> : <Calendar size={15} style={{ color: C.ink }} />}{view === "calendar" ? `${anchor.getFullYear()}년 ${anchor.getMonth() + 1}월` : fmtK(anchor)}</div>
-                  <button onClick={() => view === "calendar" ? setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1)) : setAnchor(addDays(anchor, 1))} className="lift grid h-9 w-9 place-items-center rounded-r-xl" style={{ color: C.muted }}><ChevronRight size={18} /></button>
-                </div>
-                {(view === "calendar" ? isCurMonth : isToday)
-                  ? <span className="rounded-lg px-2.5 py-1 text-xs font-medium" style={{ background: C.ink, color: "var(--bg)" }}>{view === "calendar" ? "이번 달" : "오늘"}</span>
-                  : <button onClick={() => setAnchor(today)} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, background: "var(--bg-input)", color: C.muted }}>오늘</button>}
-              </div>
-              <div className="inline-flex rounded-lg border bg-white p-1" style={{ borderColor: C.border }}>
-                {[["timeline", "타임라인", List], ["calendar", "캘린더", CalendarDays]].map(([k, lbl, Icon]) => (
-                  <button key={k} onClick={() => setView(k)} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium" style={view === k ? { background: C.ink, color: "var(--bg)" } : { color: C.muted }}><Icon size={15} /><span className="hidden sm:inline">{lbl}</span></button>
-                ))}
-              </div>
+          !user ? (
+            <div className="grid place-items-center rounded-lg border bg-white dark:bg-[#1a1a1a] py-16 text-center" style={{ borderColor: C.border }}>
+              <Lock size={30} style={{ color: C.faint }} />
+              <p className="mt-3 text-sm font-semibold" style={{ color: C.muted }}>로그인하면 회의 내역 및 일정을 볼 수 있어요</p>
+              <button onClick={() => requireAuth(() => setSection("book"), "로그인하면 회의 내역 및 일정을 볼 수 있어요.")} className="lift mt-4 flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium" style={{ background: C.ink, color: "var(--bg)" }}>
+                <LogIn size={15} />로그인
+              </button>
             </div>
+          ) : (
+            <>
+              {/* --- Desktop View --- */}
+              <div className="hidden md:flex flex-col flex-1 w-full">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center rounded-lg border bg-white" style={{ borderColor: C.border }}>
+                    <button onClick={() => view === "calendar" ? setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1)) : setAnchor(addDays(anchor, -1))} className="lift grid h-9 w-9 place-items-center rounded-l-xl" style={{ color: C.muted }}><ChevronLeft size={18} /></button>
+                    <div className="flex items-center gap-2 px-2.5 text-sm font-medium sm:px-3">{view === "calendar" ? <CalendarDays size={15} style={{ color: "var(--bg)" }} /> : <Calendar size={15} style={{ color: C.ink }} />}{view === "calendar" ? `${anchor.getFullYear()}년 ${anchor.getMonth() + 1}월` : fmtK(anchor)}</div>
+                    <button onClick={() => view === "calendar" ? setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1)) : setAnchor(addDays(anchor, 1))} className="lift grid h-9 w-9 place-items-center rounded-r-xl" style={{ color: C.muted }}><ChevronRight size={18} /></button>
+                  </div>
+                  {(view === "calendar" ? isCurMonth : isToday)
+                    ? <span className="rounded-lg px-2.5 py-1 text-xs font-medium" style={{ background: C.ink, color: "var(--bg)" }}>{view === "calendar" ? "이번 달" : "오늘"}</span>
+                    : <button onClick={() => setAnchor(today)} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, background: "var(--bg-input)", color: C.muted }}>오늘</button>}
+                </div>
+                <div className="inline-flex rounded-lg border bg-white p-1" style={{ borderColor: C.border }}>
+                  {[["timeline", "타임라인", List], ["calendar", "캘린더", CalendarDays]].map(([k, lbl, Icon]) => (
+                    <button key={k} onClick={() => setView(k)} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium" style={view === k ? { background: C.ink, color: "var(--bg)" } : { color: C.muted }}><Icon size={15} /><span className="hidden sm:inline">{lbl}</span></button>
+                  ))}
+                </div>
+              </div>
 
-            {view === "calendar" ? (
-              <section className="rise rounded-lg border bg-white p-2.5 sm:p-4 flex-1 flex flex-col" style={{ borderColor: C.border, boxShadow: "0 1px 2px rgba(0,0,0,.04)" }}>
-                <div className="mb-2 hidden items-center justify-end px-1 text-xs font-medium sm:flex" style={{ color: C.faint }}>날짜를 누르면 해당 날짜로 이동 · 색상은 예약 시 직접 지정</div>
-                <div className="grid grid-cols-7 overflow-hidden rounded-lg border flex-1" style={{ borderColor: C.border, gridTemplateRows: "auto repeat(6, 1fr)" }}>
-                  {WEEK.map((w, i) => <div key={w} className="border-b py-2 text-center text-[11px] font-medium sm:text-xs" style={{ borderColor: C.border, background: "var(--bg-secondary)", color: i === 0 ? "#C0392B" : i === 6 ? "#2A5DC7" : C.muted }}>{w}</div>)}
-                  {cells.map((cell, i) => {
-                    const inMonth = cell.getMonth() === anchor.getMonth(), cToday = sameDay(cell, today);
-                    const list = (byDate[keyOf(cell)] || []).slice().sort((a, b) => toMin(a.start) - toMin(b.start));
-                    return (
-                      <div key={i} onClick={() => { if (list.length > 0) { setDayEventsDate(cell); } else { tryCreate(roomId === "all" ? "big" : roomId, defStart(), keyOf(cell)); } }} className="cell border-b border-l p-1 sm:p-1.5 flex flex-col" style={{ borderColor: C.border, background: cToday ? C.yellowSoft : inMonth ? "var(--bg-input)" : "var(--bg-tertiary)", opacity: inMonth ? 1 : .5, minHeight: 0 }}>
-                        <div className="flex items-center justify-between">
-                          <span className={cToday ? "grid h-5 w-5 place-items-center rounded-lg text-[11px] font-medium" : "text-[12px] font-medium"} style={cToday ? { background: C.ink, color: "var(--bg)" } : { color: cell.getDay() === 0 ? "#C0392B" : cell.getDay() === 6 ? "#2A5DC7" : C.text }}>{cell.getDate()}</span>
-                          {list.length > 0 && <span className="hidden text-[10px] font-medium sm:inline" style={{ color: C.faint }}>{list.length}</span>}
+              {view === "calendar" ? (
+                <section className="rise rounded-lg border bg-white p-2.5 sm:p-4 flex-1 flex flex-col" style={{ borderColor: C.border, boxShadow: "0 1px 2px rgba(0,0,0,.04)" }}>
+                  <div className="mb-2 hidden items-center justify-end px-1 text-xs font-medium sm:flex" style={{ color: C.faint }}>날짜를 누르면 해당 날짜로 이동 · 색상은 예약 시 직접 지정</div>
+                  <div className="grid grid-cols-7 overflow-hidden rounded-lg border flex-1" style={{ borderColor: C.border, gridTemplateRows: "auto repeat(6, 1fr)" }}>
+                    {WEEK.map((w, i) => <div key={w} className="border-b py-2 text-center text-[11px] font-medium sm:text-xs" style={{ borderColor: C.border, background: "var(--bg-secondary)", color: i === 0 ? "#C0392B" : i === 6 ? "#2A5DC7" : C.muted }}>{w}</div>)}
+                    {cells.map((cell, i) => {
+                      const inMonth = cell.getMonth() === anchor.getMonth(), cToday = sameDay(cell, today);
+                      const list = (byDate[keyOf(cell)] || []).slice().sort((a, b) => toMin(a.start) - toMin(b.start));
+                      return (
+                        <div key={i} onClick={() => { if (list.length > 0) { setDayEventsDate(cell); } else { tryCreate(roomId === "all" ? "big" : roomId, defStart(), keyOf(cell)); } }} className="cell border-b border-l p-1 sm:p-1.5 flex flex-col" style={{ borderColor: C.border, background: cToday ? C.yellowSoft : inMonth ? "var(--bg-input)" : "var(--bg-tertiary)", opacity: inMonth ? 1 : .5, minHeight: 0 }}>
+                          <div className="flex items-center justify-between">
+                            <span className={cToday ? "grid h-5 w-5 place-items-center rounded-lg text-[11px] font-medium" : "text-[12px] font-medium"} style={cToday ? { background: C.ink, color: "var(--bg)" } : { color: cell.getDay() === 0 ? "#C0392B" : cell.getDay() === 6 ? "#2A5DC7" : C.text }}>{cell.getDate()}</span>
+                            {list.length > 0 && <span className="hidden text-[10px] font-medium sm:inline" style={{ color: C.faint }}>{list.length}</span>}
+                          </div>
+                          <div className="mt-1 hidden space-y-1 sm:block flex-1" style={{ minHeight: 54 }}>
+                            {list.slice(0, 3).map((r) => { const p = r.isUrgent ? pal('red') : pal('green'); return (
+                              <div key={r.id} onClick={(e) => { e.stopPropagation(); setDetail(r); }} className="flex items-center gap-1 truncate rounded-lg px-1.5 py-0.5 text-[11px] font-medium" style={{ background: p.bg, color: p.text }}>
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-lg" style={{ background: p.dot }} /><span className="truncate">{r.start} {r.title}</span>
+                              </div>
+                            ); })}
+                            {list.length > 3 && <div className="px-1 text-[10px] font-medium" style={{ color: C.faint }}>+{list.length - 3} 더보기</div>}
+                          </div>
                         </div>
-                        <div className="mt-1 hidden space-y-1 sm:block flex-1" style={{ minHeight: 54 }}>
-                          {list.slice(0, 3).map((r) => { const p = r.isUrgent ? pal('red') : pal('green'); return (
-                            <div key={r.id} onClick={(e) => { e.stopPropagation(); setDetail(r); }} className="flex items-center gap-1 truncate rounded-lg px-1.5 py-0.5 text-[11px] font-medium" style={{ background: p.bg, color: p.text }}>
-                              <span className="h-1.5 w-1.5 shrink-0 rounded-lg" style={{ background: p.dot }} /><span className="truncate">{r.start} {r.title}</span>
-                            </div>
-                          ); })}
-                          {list.length > 3 && <div className="px-1 text-[10px] font-medium" style={{ color: C.faint }}>+{list.length - 3} 더보기</div>}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            ) : view === "timeline" ? (
-              <section className="rise flex-1 flex flex-col h-full rounded-[20px] p-6 sm:p-8 overflow-hidden border w-full" style={{ background: "var(--bg)", borderColor: C.border, boxShadow: "0 8px 32px rgba(0,0,0,0.06)" }}>
-                {/* Full screen Timeline Dashboard */}
-                {renderMobileDashboard(true)}
-              </section>
-            ) : null}
-            </div>
-            
-            {/* --- Mobile View --- */}
-            {renderMobileDashboard()}
-          </>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : view === "timeline" ? (
+                <section className="rise flex-1 flex flex-col h-full rounded-[20px] p-6 sm:p-8 overflow-hidden border w-full" style={{ background: "var(--bg)", borderColor: C.border, boxShadow: "0 8px 32px rgba(0,0,0,0.06)" }}>
+                  {/* Full screen Timeline Dashboard */}
+                  {renderMobileDashboard(true)}
+                </section>
+              ) : null}
+              </div>
+              
+              {/* --- Mobile View --- */}
+              {renderMobileDashboard()}
+            </>
+          )
         )}
 
         
