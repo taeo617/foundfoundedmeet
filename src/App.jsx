@@ -188,7 +188,7 @@ function LoginModal({ message, onClose, onLogin }) {
     const trimmedName = name.trim();
     if (!trimmedName) return setErr("이름을 입력해주세요."); 
     if (trimmedName.toLowerCase() === "admin") {
-      if (pw !== "3913") return setErr("비밀번호가 올바르지 않아요.");
+      if (pw !== import.meta.env.VITE_ADMIN_PASSWORD) return setErr("비밀번호가 올바르지 않아요.");
       return onLogin("admin");
     }
     if (trimmedName.toLowerCase() === "guest") {
@@ -198,7 +198,7 @@ function LoginModal({ message, onClose, onLogin }) {
     const member = MEMBERS.find((m) => m.name === trimmedName);
     if (!member) return setErr("등록되지 않은 멤버 이름입니다. 등록된 이름으로 로그인해 주세요.");
     if (member.inactive) return setErr("해당 계정은 정지되어 로그인할 수 없습니다.");
-    if (pw !== "3377") return setErr("비밀번호가 올바르지 않아요."); 
+    if (pw !== import.meta.env.VITE_MEMBER_PASSWORD) return setErr("비밀번호가 올바르지 않아요."); 
     onLogin(trimmedName); 
   };
   return (
