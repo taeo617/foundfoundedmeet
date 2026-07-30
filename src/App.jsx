@@ -3,6 +3,7 @@ import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, arrayUnion, 
 import { db, auth, isFirebaseConfigured } from "./firebase";
 import HistorySearch from "./screens/HistorySearch";
 import AdminDashboard from "./screens/AdminDashboard";
+import OnboardingGuide from "./screens/OnboardingGuide";
 import { signInAnonymously } from "firebase/auth";
 import {
   Calendar, CalendarDays, Clock, Users, Monitor, Video, Plus, X, Check,
@@ -746,6 +747,8 @@ function OccupancyBar({ capacity, current }) {
 export default function App() {
   const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem('skipSplash'));
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(null);
+  const guideRef = useRef(null);
 
   useEffect(() => {
     if (!isFirebaseConfigured || !auth) return;
@@ -1663,9 +1666,11 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
   function overlaps(rid, date, s, e, ignore) {
     const a = toMin(s), b = toMin(e);
-    const resInfo = resources.find(r => r.id === (rid === 'workroom' ? 'workroom' : 'meeting-room'));
+    const roomDef = ROOMS.find(r => r.id === rid) || {};
+    const targetPolicyId = roomDef.group === 'meeting' ? 'meeting-room' : rid;
+    const resInfo = resources.find(r => r.id === targetPolicyId);
     const isOverlapAllowed = resInfo?.policy?.allowOverlap;
-    const capacity = resInfo?.policy?.capacity || 1;
+    const capacity = resInfo?.policy?.capacity || roomDef.capacity || 1;
 
     const conflicts = reservations.filter(
       (r) => r.roomId === rid && r.date === date && r.id !== ignore && !(b <= toMin(r.start) || a >= toMin(r.end))
@@ -1688,7 +1693,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     const openFromMin = policy.openHours ? toMin(policy.openHours.from) : DAY_START;
     const openToMin = policy.openHours ? toMin(policy.openHours.to) : DAY_END;
     const allowedDays = policy.openHours?.days || [1, 2, 3, 4, 5];
-    const cap = policy.capacity || targetRes?.capacity || 1;
+    const roomDef = ROOMS.find(r => r.id === form.roomId) || {};
+    const cap = policy.capacity || targetRes?.capacity || roomDef.capacity || 1;
 
     const f = form; const e = {};
     const cleanedAttendees = (f.attendees || []).filter(id => id !== "m_room");
@@ -1716,39 +1722,49 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     // Check for room overlaps
     const roomOverlaps = reservations.filter((r) => r.roomId === f.roomId && r.date === f.date && r.id !== f.id && !(endM <= toMin(r.start) || startM >= toMin(r.end)));
     
-    if (roomOverlaps.length > 0) {
-      if (!f.isUrgent) {
-        setErrs({ ...e, time: "선택한 시간에 이미 다른 예약이 있어요. (중요 회의로 설정하면 기존 예약을 미룰 수 있습니다)" });
+    if (policy.allowOverlap) {
+      if (roomOverlaps.length >= cap) {
+        setErrs({ ...e, time: `그 시간에는 정원이 찼습니다 (${cap}명)` });
         return;
-      } else {
-        // Pushing existing normal meetings
-        const hasUrgentOverlap = roomOverlaps.some(r => r.isUrgent);
-        if (hasUrgentOverlap) {
-          setErrs({ ...e, time: "선택한 시간에 이미 다른 중요 회의가 있어서 밀어낼 수 없습니다." });
+      }
+    } else if (roomOverlaps.length > 0) {
+      if (policy.allowUrgentOverride) {
+        if (!f.isUrgent) {
+          setErrs({ ...e, time: "선택한 시간에 이미 다른 예약이 있어요. (중요 회의로 설정하면 기존 예약을 미룰 수 있습니다)" });
           return;
-        }
-        
-        // Push logic: move them right after this meeting
-        let currentPushTime = endM;
-        const sortedOverlaps = roomOverlaps.sort((a, b) => toMin(a.start) - toMin(b.start));
-        
-        for (const overlap of sortedOverlaps) {
-          const duration = toMin(overlap.end) - toMin(overlap.start);
-          const pushedStart = currentPushTime;
-          const pushedEnd = pushedStart + duration;
-          
-          if (pushedEnd > DAY_END) {
-             setErrs({ ...e, time: "기존 예약을 밀어내면 운영 시간(22:00)을 초과하게 됩니다." });
-             return;
+        } else {
+          // Pushing existing normal meetings
+          const hasUrgentOverlap = roomOverlaps.some(r => r.isUrgent);
+          if (hasUrgentOverlap) {
+            setErrs({ ...e, time: "선택한 시간에 이미 다른 중요 회의가 있어서 밀어낼 수 없습니다." });
+            return;
           }
           
-          pushedReservations.push({
-            ...overlap,
-            start: toHHMM(pushedStart),
-            end: toHHMM(pushedEnd)
-          });
-          currentPushTime = pushedEnd;
+          // Push logic: move them right after this meeting
+          let currentPushTime = endM;
+          const sortedOverlaps = roomOverlaps.sort((a, b) => toMin(a.start) - toMin(b.start));
+          
+          for (const overlap of sortedOverlaps) {
+            const duration = toMin(overlap.end) - toMin(overlap.start);
+            const pushedStart = currentPushTime;
+            const pushedEnd = pushedStart + duration;
+            
+            if (pushedEnd > DAY_END) {
+               setErrs({ ...e, time: "기존 예약을 밀어내면 운영 시간(22:00)을 초과하게 됩니다." });
+               return;
+            }
+            
+            pushedReservations.push({
+              ...overlap,
+              start: toHHMM(pushedStart),
+              end: toHHMM(pushedEnd)
+            });
+            currentPushTime = pushedEnd;
+          }
         }
+      } else {
+        setErrs({ ...e, time: "선택한 시간에 이미 다른 예약이 있어요." });
+        return;
       }
     }
 
@@ -2171,7 +2187,14 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
   /* ----- timeline renderers ----- */
    const renderMobileDashboard = (isDesktopSplit = false) => {
     const selKey = keyOf(anchor);
-    const mobDayList = reservations.filter(r => r.date === selKey && (roomId === "all" || (roomId === "printer" ? (r.roomId === "bambu-1" || r.roomId === "bambu-2") : r.roomId === roomId))).sort((a, b) => toMin(a.start) - toMin(b.start));
+    let mobDayList = reservations.filter(r => r.date === selKey && (roomId === "all" || (roomId === "printer" ? (r.roomId === "bambu-1" || r.roomId === "bambu-2") : r.roomId === roomId))).sort((a, b) => toMin(a.start) - toMin(b.start));
+    
+    if (roomId === "printer" && document.body.classList.contains('onb-open')) {
+      const mock1 = { id: 'mock-1', roomId: 'bambu-1', date: selKey, start: '10:00', end: '14:00', title: '[예시] 자정 넘김 출력', isMock: true, attendees: [] };
+      const mock2 = { id: 'mock-2', roomId: 'bambu-2', date: selKey, start: '13:00', end: '16:00', title: '[예시] 결과물 공유', isMock: true, attendees: [] };
+      mobDayList = [...mobDayList, mock1, mock2].sort((a, b) => toMin(a.start) - toMin(b.start));
+    }
+    
     const nowMin = now.getHours() * 60 + now.getMinutes();
     const todayKey = keyOf(today);
     const isTodayAnchor = selKey === todayKey;
@@ -2285,29 +2308,34 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         </div>
         
         {/* Tab Selection */}
-        <div 
-          className="flex gap-2 overflow-x-auto no-scrollbar mb-4 -mx-4 px-4 pb-1 md:mx-0 md:px-0"
-          onWheel={(e) => {
-            if (e.deltaY !== 0) {
-              e.currentTarget.scrollLeft += e.deltaY;
-            }
-          }}
-        >
-          {(() => {
-            const tabs = [
-              { id: "meeting-room", name: "회의실" },
-              { id: "workroom", name: "워크룸" },
-              { id: "printer", name: "3D 프린터" }
-            ];
-            return tabs.map(tab => {
-              const isSelected = roomId === tab.id || (tab.id === 'printer' && (roomId === 'bambu-1' || roomId === 'bambu-2'));
-              return (
-                <button key={tab.id} onClick={() => setRoomId(tab.id)} className="shrink-0 px-4 py-1.5 rounded-full text-[13px] font-semibold border transition-colors" style={isSelected ? { background: C.ink, color: "var(--bg)", borderColor: C.ink } : { borderColor: C.border, color: C.muted }}>
-                  {tab.name}
-                </button>
-              );
-            });
-          })()}
+        <div className="picker res-picker" id="picker">
+          <div className="glass">
+            <div className={`pick pick--room ${['all', 'big', 'small', 'lounge'].includes(roomId) ? 'on' : ''}`}>
+              <button className="pick__head" onClick={() => setRoomId('all')}>
+                <span className="dot"></span>
+                회의실
+                <span className="cur">
+                  {roomId === 'big' ? ' 큰 회의실' : roomId === 'small' ? ' 작은 회의실' : roomId === 'lounge' ? ' 라운지' : ''}
+                </span>
+                <i className="chev">›</i>
+              </button>
+              <div className="sub">
+                <button className={roomId === 'big' ? 'on' : ''} onClick={() => setRoomId('big')}>큰 회의실</button>
+                <button className={roomId === 'small' ? 'on' : ''} onClick={() => setRoomId('small')}>작은 회의실</button>
+                <button className={roomId === 'lounge' ? 'on' : ''} onClick={() => setRoomId('lounge')}>라운지</button>
+              </div>
+            </div>
+            
+            <span className="divider"></span>
+            
+            <button className={`pick pick--work ${roomId === 'workroom' ? 'on' : ''}`} onClick={() => setRoomId('workroom')}>
+              <span className="pick__head"><span className="dot"></span>워크룸</span>
+            </button>
+            
+            <button className={`pick pick--prnt ${roomId === 'printer' ? 'on' : ''}`} onClick={() => setRoomId('printer')}>
+              <span className="pick__head"><span className="dot"></span>3D 프린터</span>
+            </button>
+          </div>
         </div>
 
         {/* Status Card (Only show context for today AND if not "all") */}
@@ -2321,10 +2349,30 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             const busyCount = (b1Busy ? 1 : 0) + (b2Busy ? 1 : 0);
             const isFull = busyCount === 2;
             const titleText = busyCount === 0 ? "2대 모두 사용 가능" : busyCount === 1 ? "2대 중 1대 사용 가능" : "2대 모두 출력 중";
-            const subText = busyCount === 0 ? "뱀부랩 1 · 뱀부랩 2 지금 비어있음" : busyCount === 1 ? (b1Busy ? "뱀부랩 1 출력 중 · 뱀부랩 2 사용 가능" : "뱀부랩 2 출력 중 · 뱀부랩 1 사용 가능") : "지금 2대 모두 출력 중";
+            
+            const freeCount = 2 - busyCount;
+            let subText = "";
+            if (freeCount === 0) {
+              const ends = [b1Busy.end, b2Busy.end].sort();
+              subText = `가장 빨리 끝나는 건 ${ends[0]}입니다`;
+            } else {
+              const freeNames = [];
+              if (!b1Busy) freeNames.push("뱀부랩 1");
+              if (!b2Busy) freeNames.push("뱀부랩 2");
+              subText = `${freeNames.join(' · ')} 지금 비어있음`;
+              if (busyCount > 0) {
+                const busyEnd = b1Busy ? b1Busy.end : b2Busy.end;
+                subText += ` · ${busyEnd}에 한 대 더 비워집니다`;
+              }
+            }
+            
+            const b1Mine = b1Busy && b1Busy.who === user ? b1Busy : null;
+            const b2Mine = b2Busy && b2Busy.who === user ? b2Busy : null;
+            const myLiveRes = b1Mine || b2Mine;
+            const myRoomName = b1Mine ? "뱀부랩 1" : "뱀부랩 2";
 
             return (
-              <div className="mb-6 rounded-[14px] p-4 text-white relative overflow-hidden" style={{ background: isFull ? "var(--mob-busy-bg)" : "var(--mob-free-bg)", margin: "6px 0", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
+              <div className="status-card mb-6 rounded-[14px] p-4 text-white relative overflow-hidden" style={{ background: isFull ? "var(--mob-busy-bg)" : "var(--mob-free-bg)", margin: "6px 0", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
                 <div className="flex items-center gap-2 mb-2 relative z-10">
                   <span className={`w-2.5 h-2.5 rounded-full ${isFull ? "glow-dot-busy" : "glow-dot-free"}`} />
                   <span className="text-[18px] font-bold" style={{ color: isFull ? "var(--mob-busy-text)" : "var(--mob-free-text)" }}>
@@ -2334,8 +2382,13 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 <div className="text-[13px] font-medium mb-5" style={{ color: isFull ? "var(--mob-busy-text)" : "var(--mob-free-text)", opacity: 0.8 }}>
                   {subText}
                 </div>
-                <div className="relative z-10">
-                  <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => tryCreate('bambu-1', defStart(), selKey)}>
+                <div className="relative z-10 btnrow flex gap-2">
+                  {myLiveRes && (
+                    <button className="flex-1 py-2.5 rounded-[10px] text-[13px] font-bold text-white transition-opacity" style={{ background: "var(--busy)" }} onClick={() => completeRes(myLiveRes)}>
+                      {myRoomName} 사용 종료
+                    </button>
+                  )}
+                  <button className="flex-1 py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => tryCreate('bambu-1', defStart(), selKey)}>
                     + 지금 바로 예약하기
                   </button>
                 </div>
@@ -2355,7 +2408,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             const isFull = activeCount >= policy.capacity;
             
             return (
-              <div className="mb-6 rounded-[14px] p-4 text-white relative overflow-hidden" style={{ background: isFull ? "var(--mob-busy-bg)" : "var(--mob-free-bg)", margin: "6px 0", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
+              <div className="status-card mb-6 rounded-[14px] p-4 text-white relative overflow-hidden" style={{ background: isFull ? "var(--mob-busy-bg)" : "var(--mob-free-bg)", margin: "6px 0", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
                 <div className="flex items-center gap-2 mb-2 relative z-10">
                   <span className={`w-2.5 h-2.5 rounded-full ${isFull ? "glow-dot-busy" : "glow-dot-free"}`} />
                   <span className="text-[18px] font-bold" style={{ color: isFull ? "var(--mob-busy-text)" : "var(--mob-free-text)" }}>
@@ -2366,7 +2419,12 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   정원 {policy.capacity}명 · 지금 {activeCount}명 이용 중
                 </div>
                 
-                <OccupancyBar capacity={policy.capacity} current={activeCount} />
+                <div className="caps">
+                  {Array.from({ length: policy.capacity }).map((_, i) => (
+                    <i key={i} className={i < activeCount ? 'on' : ''}></i>
+                  ))}
+                  <b>{activeCount} / {policy.capacity}</b>
+                </div>
                 
                 <div className="relative z-10 mt-5">
                   <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => {
@@ -2376,15 +2434,16 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                       tryCreate(roomId, defStart(), selKey);
                     }
                   }}>
-                    {isFull ? "자리 나면 알림 받기" : "지금 바로 예약하기"}
+                    {isFull ? "자리 나면 알림 받기" : "+ 지금 바로 예약하기"}
                   </button>
                 </div>
+                <div className="text-center text-[12px] mt-2 opacity-80" style={{ color: isFull ? "var(--mob-busy-text)" : "var(--mob-free-text)" }}>예약 시간이 10분 지나면 자동으로 취소됩니다</div>
               </div>
             );
           } else {
             // 단일 자원 (Meeting Room)
             return (
-              <div className="mb-6 rounded-[14px] p-4 text-white relative overflow-hidden" style={{ background: mobCurrentMtg ? "var(--mob-busy-bg)" : "var(--mob-free-bg)", margin: "6px 0", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
+              <div className="status-card mb-6 rounded-[14px] p-4 text-white relative overflow-hidden" style={{ background: mobCurrentMtg ? "var(--mob-busy-bg)" : "var(--mob-free-bg)", margin: "6px 0", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
                 <div className="flex items-center gap-2 mb-2 relative z-10">
                   <span className={`w-2.5 h-2.5 rounded-full ${mobCurrentMtg ? "glow-dot-busy" : "glow-dot-free"}`} />
                   <span className="text-[18px] font-bold" style={{ color: mobCurrentMtg ? "var(--mob-busy-text)" : "var(--mob-free-text)" }}>{mobCurrentMtg ? "지금 회의 중" : "지금 비어있음"}</span>
@@ -2428,12 +2487,178 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
         {/* Timeline List */}
         <div className="flex-1" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-[12px] font-medium" style={{ color: C.faint }}>{isTodayAnchor ? "오늘 일정" : `${anchor.getMonth() + 1}월 ${anchor.getDate()}일 일정`}</span>
-            <div className="flex-1 h-px" style={{ background: C.border }} />
-          </div>
+          {roomId === 'printer' ? (() => {
+            const b1Res = reservations.filter(r => r.roomId === 'bambu-1' && r.date === selKey);
+            const b2Res = reservations.filter(r => r.roomId === 'bambu-2' && r.date === selKey);
+            
+            if (onboardingStep === '프린터 · 1') {
+              b1Res.push({ id: 'mock1', roomId: 'bambu-1', date: selKey, start: '10:00', end: '13:00', who: '사용자', title: '예시', isMock: true });
+              b2Res.push({ id: 'mock2', roomId: 'bambu-2', date: selKey, start: '11:00', end: '15:30', who: '사용자', title: '예시', isMock: true });
+            }
 
-          <div className="flex flex-col gap-2 relative">
+            const nowMin = now.getHours() * 60 + now.getMinutes();
+            const b1Busy = isTodayAnchor && b1Res.find(r => nowMin >= toMin(r.start) && nowMin < toMin(r.end));
+            const b2Busy = isTodayAnchor && b2Res.find(r => nowMin >= toMin(r.start) && nowMin < toMin(r.end));
+
+            return (
+              <div className="dg" style={{ '--cols': 2, '--hours': 15 }}>
+                <div className="dg__head">
+                  <b></b>
+                  <b className={b1Busy ? 'hot' : ''}>
+                    뱀부랩 1
+                    <small>{b1Busy ? `${b1Busy.end} 종료 예정` : '비어 있음'}</small>
+                  </b>
+                  <b className={b2Busy ? 'hot' : ''}>
+                    뱀부랩 2
+                    <small>{b2Busy ? `${b2Busy.end} 종료 예정` : '비어 있음'}</small>
+                  </b>
+                </div>
+                <div className="dg__scroll">
+                  <div className="dg__body">
+                    <div className="dg__gut">
+                      {Array.from({ length: 16 }).map((_, i) => (
+                        <span key={i} style={{ top: `${i * 78}px` }}>{String(9 + i).padStart(2, '0')}시</span>
+                      ))}
+                    </div>
+                    {[b1Res, b2Res].map((resArr, colIdx) => (
+                      <div className="dg__col" key={colIdx}>
+                        {resArr.map(r => {
+                          const sMin = Math.max(0, toMin(r.start) - toMin("09:00"));
+                          const eMin = Math.max(0, toMin(r.end) - toMin("09:00"));
+                          const top = (sMin / 60) * 78;
+                          const h = Math.max(((eMin - sMin) / 60) * 78, 26);
+                          const isLive = isTodayAnchor && nowMin >= toMin(r.start) && nowMin < toMin(r.end);
+                          const isPast = isTodayAnchor && nowMin >= toMin(r.end);
+                          const isMine = r.who === user;
+                          let cls = 'blk--done';
+                          if (!isPast && !isLive) cls = 'blk--plan';
+                          else if (isLive) cls = 'blk--live';
+                          if (isMine) cls += ' blk--mine';
+                          if (r.isMock) cls += ' blk--mock border-2 border-dashed opacity-50';
+                          
+                          let badge = isLive ? '출력 중' : (!isPast && !isLive) ? '예약됨' : '완료';
+                          
+                          return (
+                            <button key={r.id} className={`blk ${cls} ${h < 38 ? 's1' : h < 74 ? 's2' : ''}`} style={{ top: `${top}px`, height: `${h}px`, left: '3px', right: '3px' }} onClick={() => !r.isMock && onBlockClick(r)}>
+                              <b>{isLive && <span className="livedot"></span>}<span>{r.title || r.who}{isMine ? ' · 내 예약' : ''}</span></b>
+                              <small>{r.start} ~ {r.end}</small>
+                              <small>{r.who}님</small>
+                              <span className="badge">{badge}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))}
+                    {isTodayAnchor && nowMin >= toMin("09:00") && nowMin <= toMin("24:00") && (
+                      <div className="nowrow" style={{ top: `${((nowMin - toMin("09:00")) / 60) * 78}px` }}>
+                        <b>{toHHMM(nowMin)}</b>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="legend">
+                  <span><i style={{ background: 'var(--busy)', border: '1px solid var(--busy)' }}></i>출력 중</span>
+                  <span><i style={{ background: 'var(--free-bg)', border: '1px solid var(--free-ln)' }}></i>성공</span>
+                  <span><i style={{ background: 'var(--warn-bg)', border: '1px solid var(--warn-ln)' }}></i>실패</span>
+                  <span><i style={{ background: 'var(--free-bg)', border: '1px dashed var(--free-ln)' }}></i>예약됨</span>
+                  <span><i style={{ background: 'var(--bg-tertiary)', boxShadow: '0 0 0 1.5px var(--bg),0 0 0 3px var(--ink)' }}></i>내 예약</span>
+                </div>
+              </div>
+            );
+          })() : resources.find(x => x.id === roomId)?.policy?.capacity > 1 ? (() => {
+            const wRes = reservations.filter(r => r.roomId === roomId && r.date === selKey);
+            const nowMin = now.getHours() * 60 + now.getMinutes();
+            const activeCount = isTodayAnchor ? wRes.filter(r => nowMin >= toMin(r.start) && nowMin < toMin(r.end)).length : 0;
+            
+            const layoutBlocks = (bars) => {
+              const arr = bars.map(b => ({ b, sMin: toMin(b.start), eMin: toMin(b.end) })).sort((x, y) => x.sMin - y.sMin || x.eMin - y.eMin);
+              let cluster = [], end = -1, out = [];
+              const flush = () => {
+                if (!cluster.length) return;
+                const lanes = [];
+                cluster.forEach(it => {
+                  let i = lanes.findIndex(L => L <= it.sMin);
+                  if (i < 0) { i = lanes.length; lanes.push(0); }
+                  lanes[i] = it.eMin; it.col = i;
+                });
+                cluster.forEach(it => { it.cols = lanes.length; out.push(it); });
+                cluster = []; end = -1;
+              };
+              arr.forEach(it => { if (cluster.length && it.sMin >= end) flush(); cluster.push(it); end = Math.max(end, it.eMin); });
+              flush();
+              return out;
+            };
+            
+            const items = layoutBlocks(wRes);
+            return (
+              <div className="dg" style={{ '--cols': 1, '--hours': 15 }}>
+                <div className="dg__head">
+                  <b></b>
+                  <b className={activeCount > 0 ? 'hot' : ''}>
+                    워크룸 · 정원 {resources.find(x => x.id === roomId)?.policy?.capacity}명
+                    <small>{activeCount > 0 ? `지금 ${activeCount}명 이용 중` : '지금 아무도 없음'}</small>
+                  </b>
+                </div>
+                <div className="dg__scroll">
+                  <div className="dg__body">
+                    <div className="dg__gut">
+                      {Array.from({ length: 16 }).map((_, i) => (
+                        <span key={i} style={{ top: `${i * 78}px` }}>{String(9 + i).padStart(2, '0')}시</span>
+                      ))}
+                    </div>
+                    <div className="dg__col">
+                      {items.map(it => {
+                        const r = it.b;
+                        const sMin = Math.max(0, it.sMin - toMin("09:00"));
+                        const eMin = Math.max(0, it.eMin - toMin("09:00"));
+                        const top = (sMin / 60) * 78;
+                        const h = Math.max(((eMin - sMin) / 60) * 78, 26);
+                        const isLive = isTodayAnchor && nowMin >= toMin(r.start) && nowMin < toMin(r.end);
+                        const isPast = isTodayAnchor && nowMin >= toMin(r.end);
+                        const isMine = r.who === user;
+                        let cls = 'blk--done';
+                        if (!isPast && !isLive) cls = 'blk--plan';
+                        else if (isLive) cls = 'blk--live';
+                        if (isMine) cls += ' blk--mine';
+                        
+                        let badge = isLive ? '사용 중' : (!isPast && !isLive) ? '예약됨' : '완료';
+                        
+                        const w = 100 / it.cols;
+                        const left = it.col * w;
+                        
+                        return (
+                          <button key={r.id} className={`blk ${cls} ${h < 38 ? 's1' : h < 74 ? 's2' : ''}`} style={{ top: `${top}px`, height: `${h}px`, left: `calc(${left}% + 3px)`, width: `calc(${w}% - 6px)` }} onClick={() => onBlockClick(r)}>
+                            <b>{isLive && <span className="livedot"></span>}<span>{r.title || r.who}{isMine ? ' · 내 예약' : ''}</span></b>
+                            <small>{r.start} ~ {r.end}</small>
+                            <small>{r.who}님</small>
+                            <span className="badge">{badge}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {isTodayAnchor && nowMin >= toMin("09:00") && nowMin <= toMin("24:00") && (
+                      <div className="nowrow" style={{ top: `${((nowMin - toMin("09:00")) / 60) * 78}px` }}>
+                        <b>{toHHMM(nowMin)}</b>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="legend">
+                  <span><i style={{ background: 'var(--busy)', border: '1px solid var(--busy)' }}></i>사용 중</span>
+                  <span><i style={{ background: 'var(--free-bg)', border: '1px solid var(--free-ln)' }}></i>완료</span>
+                  <span><i style={{ background: 'var(--free-bg)', border: '1px dashed var(--free-ln)' }}></i>예약됨</span>
+                  <span><i style={{ background: 'var(--bg-tertiary)', boxShadow: '0 0 0 1.5px var(--bg),0 0 0 3px var(--ink)' }}></i>내 예약</span>
+                </div>
+              </div>
+            );
+          })() : (
+            <>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[12px] font-medium" style={{ color: C.faint }}>{isTodayAnchor ? "오늘 일정" : `${anchor.getMonth() + 1}월 ${anchor.getDate()}일 일정`}</span>
+                <div className="flex-1 h-px" style={{ background: C.border }} />
+              </div>
+
+              <div className="flex flex-col gap-2 relative">
             {groupedDayList.length === 0 ? (
               <div className="py-10 flex flex-col items-center justify-center text-center">
                 <Calendar size={28} className="mb-2" style={{ color: C.faint }} />
@@ -2470,9 +2695,13 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                           return (
                             <div 
                               key={r.id} 
-                              onClick={() => onBlockClick(r)}
-                              className={`flex-1 min-w-0 p-3.5 rounded-[10px] relative overflow-visible cursor-pointer transition-all hover:scale-[1.01] ${openAttendanceId === r.id ? 'z-50' : 'z-10'}`} 
-                              style={{ background: r.isUrgent ? "var(--mob-card-urgent)" : "var(--mob-card-normal)" }}
+                              onClick={() => !r.isMock && onBlockClick(r)}
+                              className={`flex-1 min-w-0 p-3.5 rounded-[10px] relative overflow-visible transition-all hover:scale-[1.01] ${openAttendanceId === r.id ? 'z-50' : 'z-10'} ${r.isMock ? 'border-2 border-dashed' : 'cursor-pointer'}`} 
+                              style={{ 
+                                background: r.isUrgent ? "var(--busy-bg)" : "var(--free-bg)",
+                                opacity: r.isMock ? 0.6 : 1,
+                                borderColor: r.isMock ? C.border : 'transparent'
+                              }}
                             >
                               {/* Content Wrapper */}
                               <div className="flex flex-col h-full w-full">
@@ -2618,7 +2847,6 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                         const eM = toMin(activeMtg.end);
                         const exactNowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
                         const progress = Math.max(0, Math.min(100, ((exactNowMin - sM) / (eM - sM)) * 100));
-                        
                         return (
                           <div className="absolute left-0 right-0 flex items-center z-10 pointer-events-none -ml-4" style={{ top: `${progress}%`, transform: 'translateY(-50%)', transition: 'top 1s ease-in-out' }}>
                             <span className="w-[6px] h-[6px] rounded-full" style={{ background: "var(--mob-busy-bg)" }} />
@@ -2632,13 +2860,31 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               })
             )}
           </div>
+          </>)}
         </div>
 
         {/* Bottom Fixed FAB for Mobile/Desktop */}
-        <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+16px)] left-4 right-4 z-30 ${isDesktopSplit ? "md:sticky md:bottom-0 md:mt-auto md:pt-4 md:pb-0 md:bg-[var(--bg)] md:left-auto md:right-auto md:w-full" : ""}`}>
-          <button className="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 text-[14px] font-bold shadow-lg transition-transform active:scale-95" style={{ background: "var(--ink)", color: "var(--bg)" }} onClick={() => tryCreate(roomId === "all" ? "big" : roomId, defStart(), selKey)}>
+        <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+16px)] left-4 right-4 z-30 flex flex-col items-center ${isDesktopSplit ? "md:sticky md:bottom-0 md:mt-auto md:pt-4 md:pb-0 md:bg-[var(--bg)] md:left-auto md:right-auto md:w-full" : ""}`}>
+          <button className="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 text-[14px] font-bold shadow-lg transition-transform active:scale-95" style={{ background: "var(--ink)", color: "var(--bg)" }} onClick={() => {
+            let targetId = roomId;
+            if (roomId === "all") targetId = ROOMS.find(r => r.group === "meeting")?.id || "big";
+            else if (roomId === "printer") targetId = ROOMS.find(r => r.group === "printer")?.id || "bambu-1";
+            tryCreate(targetId, defStart(), selKey);
+          }}>
             <Plus size={18} /> 예약하기
           </button>
+          {(() => {
+            let targetId = roomId;
+            if (roomId === "all") targetId = ROOMS.find(r => r.group === "meeting")?.id || "big";
+            else if (roomId === "printer") targetId = ROOMS.find(r => r.group === "printer")?.id || "bambu-1";
+            const group = ROOMS.find(r => r.id === targetId)?.group;
+            const policyId = group === 'meeting' ? 'meeting-room' : targetId;
+            const policy = resources.find(r => r.id === policyId)?.policy;
+            if (policy?.requiresReport) {
+              return <div className="text-[12.5px] mt-2 text-center" style={{ color: C.faint }}>종료하면 결과를 물어봅니다</div>;
+            }
+            return null;
+          })()}
         </div>
       </div>
     );
@@ -2752,6 +2998,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             <div className="hidden text-right leading-tight sm:block"><div className="text-[12px] font-medium">{fmtK(now)}</div><div className="text-[11px]" style={{ color: C.faint }}>{now.getHours() < 12 ? "오전" : "오후"} {((now.getHours() + 11) % 12) + 1}:{pad(now.getMinutes())}</div></div>
             <div className="relative">
               <button
+                id="bellBtn"
                 onClick={() => {
                   setAnnouncementPanelOpen(!announcementPanelOpen);
                   const nowTime = Date.now();
@@ -2870,6 +3117,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           <div className="flex md:hidden items-center gap-1.5">
             <div className="relative">
               <button
+                id="bellBtnMob"
                 onClick={() => {
                   setAnnouncementPanelOpen(!announcementPanelOpen);
                   const nowTime = Date.now();
@@ -3205,7 +3453,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       {/* ===== Booking modal ===== */}
       {form && (
         <div className="ov fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4" style={{ background: "rgba(20,20,20,.5)" }} onClick={() => { setShowStartList(false); setShowEndList(false); }}>
-          <div className="sheet w-full rounded-t-lg bg-white sm:max-w-md sm:rounded-lg" style={{ maxHeight: "92vh", boxShadow: "0 -4px 12px rgba(0,0,0,.08)" }} onClick={(e) => { e.stopPropagation(); setShowStartList(false); setShowEndList(false); }}>
+          <div id="mForm" className="sheet w-full rounded-t-lg bg-white sm:max-w-md sm:rounded-lg" style={{ maxHeight: "92vh", boxShadow: "0 -4px 12px rgba(0,0,0,.08)" }} onClick={(e) => { e.stopPropagation(); setShowStartList(false); setShowEndList(false); }}>
             <div className="sc max-h-[92vh] overflow-y-auto p-6">
               {(() => {
                 const isWorkroom = form.resourceId === 'workroom' || form.roomId === 'workroom';
@@ -3475,10 +3723,10 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                         )}
                         <div>
                           <div className="mb-1.5 flex items-center justify-between">
-                            <span className="text-xs font-medium" style={{ color: C.muted }}>참석자 <span style={{ color: "var(--faint)" }}>· 참석 인원 {form.attendees.length}명</span></span>
+                            <span className="text-xs font-medium" style={{ color: C.muted }}>참석자 <span style={{ color: "var(--faint)" }}>· 참석 인원 {(form.attendees || []).length}명</span></span>
                           </div>
                           <div className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2.5" style={{ borderColor: errs.att ? "#C0392B" : C.border, background: "var(--bg-secondary)", minHeight: 46 }}>
-                            {form.attendees.length ? form.attendees.map((id) => {
+                            {(form.attendees || []).length ? (form.attendees || []).map((id) => {
                               const m = M(id);
                               if (!m) return null;
                               return (
@@ -4316,6 +4564,22 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           </div>
         );
       })()}
+
+      <OnboardingGuide 
+        ref={guideRef} 
+        meId={MEMBERS.find(m => m.name === user)?.id} 
+        currentRes={roomId} 
+        setRes={setRoomId} 
+        currentTab={section} 
+        setTab={setSection} 
+        isFormOpen={!!form} 
+        openForm={(type) => {
+          const targetId = type === 'printer' ? 'bambu-1' : type;
+          setForm({ roomId: targetId, resourceId: targetId, date: keyOf(now), start: '09:00', end: '09:30', attendees: [] });
+        }} 
+        closeForm={() => setForm(null)} 
+        onStepChange={(st) => setOnboardingStep(st?.step || null)}
+      />
 
       {/* ===== Toast ===== */}
       {toast && <div className="rise fixed left-1/2 bottom-[100px] -translate-x-1/2 z-[80] flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium whitespace-nowrap" style={{ background: C.ink, color: "var(--bg)", boxShadow: "0 4px 12px rgba(0,0,0,.15)" }}><CheckCircle2 size={16} style={{ color: "var(--yellow)" }} /> {toast}</div>}
