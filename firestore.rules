@@ -21,10 +21,10 @@ service cloud.firestore {
       // CREATE: Must not exist and authenticated
       allow create: if isAuthenticated() && resource == null;
 
-      // UPDATE: Only allow if the owner is not being changed.
+      // UPDATE: Strictly restrict updates to the original creator's reservation (owner & ownerId cannot be modified or hijacked)
       allow update: if isAuthenticated() && 
-                    (request.resource.data.ownerId == resource.data.ownerId || 
-                     request.resource.data.owner == resource.data.owner);
+                    resource.data.owner == request.resource.data.owner &&
+                    (!('ownerId' in resource.data) || resource.data.ownerId == request.resource.data.ownerId);
 
       // DELETE: Deny all deletes (must update status to cancelled instead)
       allow delete: if false;
