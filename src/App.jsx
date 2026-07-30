@@ -1181,6 +1181,27 @@ export default function App() {
   const [temp, setTemp] = useState([]);
   const [dz, setDz] = useState(false);
 
+  // TEMP: Cleanup "Test Concurrency" reservations
+  useEffect(() => {
+    const runCleanup = async () => {
+      const tests = reservations.filter(r => r.title.includes("Test Concurrency"));
+      if (tests.length > 0) {
+        if (isFirebaseConfigured) {
+           try {
+             const batch = writeBatch(db);
+             tests.forEach(t => batch.delete(doc(db, "reservations", t.id)));
+             await batch.commit();
+             console.log("Deleted test reservations from Firebase");
+           } catch(e) { console.error(e); }
+        } else {
+           setReservations(prev => prev.filter(r => !r.title.includes("Test Concurrency")));
+           console.log("Deleted test reservations from LocalStorage");
+        }
+      }
+    };
+    runCleanup();
+  }, [reservations]);
+
   useEffect(() => {
     if (section === "book" && !showSplash) {
       const mobEl = document.getElementById(`mob-date-${keyOf(anchor)}`);
@@ -2828,7 +2849,6 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                                     </div>
                                   );
                                 })()}
-                              </div>
                             </div>
                           );
                         })}
