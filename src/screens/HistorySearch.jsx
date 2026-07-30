@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Search, X, Clock, Edit2, Filter } from "lucide-react";
+import { parseSessionTime } from "../utils/time";
 
 export default function HistorySearch({ user, sessions, reservations, ROOMS, MEMBERS, C, PASTEL, formatDate, formatTime, hl, onEditSession }) {
   const [filterType, setFilterType] = useState("all");
@@ -81,24 +82,7 @@ export default function HistorySearch({ user, sessions, reservations, ROOMS, MEM
     (sessions || []).forEach(s => {
       const isMine = s.userId === user || (s.attendees || []).includes(user);
       const status = s.checkOutAt ? "완료" : "진행 중";
-      
-      const st = s.checkInAt ? (s.checkInAt.toDate ? s.checkInAt.toDate() : new Date(s.checkInAt)) : new Date(s.createdAt || 0);
-      const en = s.checkOutAt ? (s.checkOutAt.toDate ? s.checkOutAt.toDate() : new Date(s.checkOutAt)) : null;
-      
-      const pad = (n) => String(n).padStart(2, '0');
-      const dateStr = `${st.getFullYear()}-${pad(st.getMonth()+1)}-${pad(st.getDate())}`;
-      const startTime = `${pad(st.getHours())}:${pad(st.getMinutes())}`;
-      const endTime = en ? `${pad(en.getHours())}:${pad(en.getMinutes())}` : "진행 중";
-      
-      let durationStr = "";
-      if (en) {
-         const diffMin = Math.floor((en - st) / 60000);
-         if (diffMin > 0) {
-           const h = Math.floor(diffMin / 60);
-           const m = diffMin % 60;
-           durationStr = h > 0 ? `${h}시간 ${m}분` : `${m}분`;
-         }
-      }
+      const { dateStr, startTime, endTime, durationStr, st } = parseSessionTime(s);
 
       const relatedResIdx = list.findIndex(r => r.source === 'reservation' && r.raw.id === s.reservationId);
       if (relatedResIdx !== -1) {

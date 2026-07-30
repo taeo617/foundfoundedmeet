@@ -2,12 +2,13 @@ import { useState, useEffect, useMemo, useRef, forwardRef } from "react";
 import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, arrayUnion, runTransaction, writeBatch } from "firebase/firestore";
 import { db, auth, isFirebaseConfigured } from "./firebase";
 import HistorySearch from "./screens/HistorySearch";
+import AdminDashboard from "./screens/AdminDashboard";
 import { signInAnonymously } from "firebase/auth";
 import {
   Calendar, CalendarDays, Clock, Users, Monitor, Video, Plus, X, Check,
   CheckCircle2, Repeat, AlertCircle, ChevronLeft, ChevronRight, ChevronDown, Trash2, Play, Square,
   Building2, List, LogOut, Lock, User, UserPlus, GripVertical, LogIn,
-  LayoutDashboard, HelpCircle, Sun, Moon, Download, FileText, Bell, Grid, ArrowUp,
+  LayoutDashboard, HelpCircle, Sun, Moon, Download, FileText, Bell, Grid, ArrowUp, BarChart3,
 } from "lucide-react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
@@ -2651,7 +2652,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
   const NAV = user 
     ? (user === "admin" 
-       ? [["book", "예약", CalendarDays], ["history", "사용 기록", List], ["admin", "멤버 관리", Users]]
+       ? [["book", "예약", CalendarDays], ["history", "사용 기록", List], ["admin", "멤버 관리", Users], ["stats", "관리자 통계", BarChart3]]
        : [["book", "예약", CalendarDays], ["history", "사용 기록", List]])
     : [["book", "예약", CalendarDays]];
 
@@ -3182,6 +3183,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         )}
         {section === "admin" && user === "admin" && (
           <MemberManagement onBack={() => setSection("book")} suspendedIds={suspendedIds} toggleSuspend={toggleSuspend} />
+        )}
+        {section === "stats" && user === "admin" && (
+          <AdminDashboard sessions={sessions} reservations={reservations} now={now} resources={ROOMS} />
         )}
       </main>
 

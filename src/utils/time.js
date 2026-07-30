@@ -23,3 +23,24 @@ export const getClosestTime = (tStr) => {
   }
   return closest;
 };
+
+export const parseSessionTime = (session) => {
+  if (!session) return { dateStr: "", startTime: "", endTime: "", durationStr: "", st: null, en: null };
+  const st = session.checkInAt ? (session.checkInAt.toDate ? session.checkInAt.toDate() : new Date(session.checkInAt)) : new Date(session.createdAt || 0);
+  const en = session.checkOutAt ? (session.checkOutAt.toDate ? session.checkOutAt.toDate() : new Date(session.checkOutAt)) : null;
+  
+  const dateStr = `${st.getFullYear()}-${pad(st.getMonth()+1)}-${pad(st.getDate())}`;
+  const startTime = `${pad(st.getHours())}:${pad(st.getMinutes())}`;
+  const endTime = en ? `${pad(en.getHours())}:${pad(en.getMinutes())}` : "진행 중";
+  
+  let durationStr = "";
+  if (en) {
+     const diffMin = Math.floor((en - st) / 60000);
+     if (diffMin > 0) {
+       const h = Math.floor(diffMin / 60);
+       const m = diffMin % 60;
+       durationStr = h > 0 ? `${h}시간 ${m}분` : `${m}분`;
+     }
+  }
+  return { dateStr, startTime, endTime, durationStr, st, en };
+};
