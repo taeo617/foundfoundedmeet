@@ -151,8 +151,13 @@ export default function HistorySearch({ user, sessions, reservations, ROOMS, MEM
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter(item => {
-        const members = (item.attendees || []).join(" ");
-        return `${item.title} ${item.owner} ${members}`.toLowerCase().includes(q);
+        const attendeeNames = (item.attendees || [])
+          .map(id => {
+            const member = MEMBERS.find(m => m.id === id);
+            return member ? member.name : "";
+          })
+          .join(" ");
+        return `${item.title} ${item.owner} ${attendeeNames}`.toLowerCase().includes(q);
       });
     }
 
