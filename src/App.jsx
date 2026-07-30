@@ -12,87 +12,13 @@ import {
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 
-/* ===================== design tokens ===================== */
-const C = {
-  ink: "var(--ink)", paper: "var(--paper)", bg: "var(--bg)",
-  yellow: "var(--yellow)", yellowDeep: "var(--yellow-deep)", yellowSoft: "var(--yellow-soft)",
-  border: "var(--border)", line: "var(--line)", text: "var(--text)", muted: "var(--muted)", faint: "var(--faint)",
-};
-const PASTEL = {
-  gray:   { bg: "var(--pastel-gray-bg)", text: "var(--pastel-gray-text)", dot: "var(--pastel-gray-dot)", line: "var(--pastel-gray-line)" },
-  brown:  { bg: "var(--pastel-brown-bg)", text: "var(--pastel-brown-text)", dot: "var(--pastel-brown-dot)", line: "var(--pastel-brown-line)" },
-  orange: { bg: "var(--pastel-orange-bg)", text: "var(--pastel-orange-text)", dot: "var(--pastel-orange-dot)", line: "var(--pastel-orange-line)" },
-  yellow: { bg: "var(--pastel-yellow-bg)", text: "var(--pastel-yellow-text)", dot: "var(--pastel-yellow-dot)", line: "var(--pastel-yellow-line)" },
-  green:  { bg: "var(--pastel-green-bg)", text: "var(--pastel-green-text)", dot: "var(--pastel-green-dot)", line: "var(--pastel-green-line)" },
-  blue:   { bg: "var(--pastel-blue-bg)", text: "var(--pastel-blue-text)", dot: "var(--pastel-blue-dot)", line: "var(--pastel-blue-line)" },
-  purple: { bg: "var(--pastel-purple-bg)", text: "var(--pastel-purple-text)", dot: "var(--pastel-purple-dot)", line: "var(--pastel-purple-line)" },
-  pink:   { bg: "var(--pastel-pink-bg)", text: "var(--pastel-pink-text)", dot: "var(--pastel-pink-dot)", line: "var(--pastel-pink-line)" },
-  red:    { bg: "var(--pastel-red-bg)", text: "var(--pastel-red-text)", dot: "var(--pastel-red-dot)", line: "var(--pastel-red-line)" },
-};
-const COLORS = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"];
-const pal = (c) => PASTEL[c] || PASTEL.yellow;
-
-const EQUIP = { monitor: { label: "모니터", Icon: Monitor }, video: { label: "화상회의", Icon: Video } };
-const ROOMS = [
-  { id: "big",   name: "큰 회의실",   capacity: 8, equip: ["monitor", "video"], group: "meeting" },
-  { id: "small", name: "작은 회의실", capacity: 7, equip: ["monitor"], group: "meeting" },
-  { id: "lounge", name: "라운지", capacity: 20, equip: [], group: "meeting" },
-  { id: "workroom", name: "워크룸", capacity: 3, equip: [], group: "workroom" },
-];
-
-/* members — 성 제외, 표시는 "{name}님" */
-const MEMBERS = [
-  { id: "m15", name: "보아", team: "VD", role: "디렉터", group: "director" },
-  { id: "m1",  name: "규호", team: "ID", role: "디렉터", group: "director" },
-  { id: "m5",  name: "준구", team: "ID", role: "디렉터", group: "director" },
-  { id: "m8",  name: "유진", team: "ID", role: "시니어 디자이너",   group: "staff" },
-  { id: "m10", name: "현열", team: "ID", role: "시니어 디자이너",   group: "staff" },
-  { id: "m2",  name: "진우", team: "ID", role: "디자이너",         group: "staff" },
-  { id: "m3",  name: "다은", team: "ID", role: "디자이너",         group: "staff" },
-  { id: "m6",  name: "태영", team: "ID", role: "디자이너",         group: "staff" },
-  { id: "m7",  name: "경선", team: "ID", role: "디자이너",         group: "staff" },
-  { id: "m9",  name: "준범", team: "ID", role: "프리랜서 디자이너", group: "staff" },
-  { id: "m11", name: "수현", team: "VD", role: "디자이너",         group: "staff" },
-  { id: "m12", name: "혜경", team: "VD", role: "디자이너",         group: "staff" },
-  { id: "m13", name: "지민", team: "VD", role: "디자이너",         group: "staff" },
-  { id: "m4",  name: "도영", team: "VD", role: "인턴",            group: "staff", inactive: true },
-  { id: "m14", name: "정수", team: "ID", role: "인턴",            group: "staff" },
-  { id: "m16", name: "여준", team: "ID", role: "인턴",            group: "staff" },
-  { id: "m_guest", name: "Guest", team: "게스트", role: "게스트", group: "guest" },
-  { id: "m_client", name: "클라이언트", team: "외부", role: "클라이언트", group: "client" },
-  { id: "m_room", name: "회의실", team: "공용", role: "회의실", group: "admin" },
-];
-const M = (id) => MEMBERS.find((x) => x.id === id);
-const memLabel = (id) => { const m = M(id); return m ? `${m.team} ${m.name === "회의실" ? m.name : m.name + "님"}` : id; };
-const nameWithNim = (n) => n === "회의실" ? n : (n ? n + "님" : "");
-
-/* timeline geometry */
-const DAY_START = 9 * 60, DAY_END = 22 * 60, STEP = 5, PX = 15;
-const SLOTS = (DAY_END - DAY_START) / STEP, GUTTER = 48;
-
-/* helpers */
-const pad = (n) => String(n).padStart(2, "0");
-const toMin = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
-const toHHMM = (m) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
-
-const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
-const keyOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const fmtK = (d) => `${d.getMonth() + 1}월 ${d.getDate()}일 (${WEEK[d.getDay()]})`;
-const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
-const dayOnly = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-const sameDay = (a, b) => keyOf(a) === keyOf(b);
-const TIMES = Array.from({ length: SLOTS + 1 }, (_, i) => toHHMM(DAY_START + i * STEP));
-const getClosestTime = (tStr) => {
-  if (!tStr) return TIMES[0];
-  const m = toMin(tStr);
-  if (isNaN(m)) return TIMES[0];
-  let closest = TIMES[0], minDiff = Infinity;
-  for (const t of TIMES) {
-    const diff = Math.abs(toMin(t) - m);
-    if (diff < minDiff) { minDiff = diff; closest = t; }
-  }
-  return closest;
-};
+import {
+  C, PASTEL, COLORS, pal, EQUIP, ROOMS, MEMBERS, M, memLabel, nameWithNim,
+  DAY_START, DAY_END, STEP, PX, SLOTS, GUTTER
+} from "./constants";
+import {
+  pad, toMin, toHHMM, WEEK, keyOf, fmtK, addDays, dayOnly, sameDay, TIMES, getClosestTime
+} from "./utils/time";
 const nid = () => `r_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
 
 
