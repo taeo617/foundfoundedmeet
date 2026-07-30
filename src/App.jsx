@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useRef, forwardRef } from "react";
-import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, arrayUnion, runTransaction } from "firebase/firestore";
-import { db, isFirebaseConfigured } from "./firebase";
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, arrayUnion, runTransaction, writeBatch } from "firebase/firestore";
+import { db, auth, isFirebaseConfigured } from "./firebase";
+import { signInAnonymously } from "firebase/auth";
 import {
   Calendar, CalendarDays, Clock, Users, Monitor, Video, Plus, X, Check,
-  CheckCircle2, Repeat, AlertCircle, ChevronLeft, ChevronRight, ChevronDown, Trash2,
+  CheckCircle2, Repeat, AlertCircle, ChevronLeft, ChevronRight, ChevronDown, Trash2, Play, Square,
   Building2, List, LogOut, Lock, User, UserPlus, GripVertical, LogIn,
   LayoutDashboard, HelpCircle, Sun, Moon, Download, FileText, Bell, Grid, ArrowUp,
 } from "lucide-react";
@@ -32,9 +33,10 @@ const pal = (c) => PASTEL[c] || PASTEL.yellow;
 
 const EQUIP = { monitor: { label: "모니터", Icon: Monitor }, video: { label: "화상회의", Icon: Video } };
 const ROOMS = [
-  { id: "big",   name: "큰 회의실",   capacity: 8, equip: ["monitor", "video"] },
-  { id: "small", name: "작은 회의실", capacity: 7, equip: ["monitor"] },
-  { id: "lounge", name: "라운지", capacity: 20, equip: [] },
+  { id: "big",   name: "큰 회의실",   capacity: 8, equip: ["monitor", "video"], group: "meeting" },
+  { id: "small", name: "작은 회의실", capacity: 7, equip: ["monitor"], group: "meeting" },
+  { id: "lounge", name: "라운지", capacity: 20, equip: [], group: "meeting" },
+  { id: "workroom", name: "워크룸", capacity: 3, equip: [], group: "workroom" },
 ];
 
 /* members — 성 제외, 표시는 "{name}님" */
@@ -767,8 +769,65 @@ function MemberManagement({ onBack, suspendedIds, toggleSuspend }) {
 }
 
 /* ===================== app ===================== */
+function NoticeModal({ notice, onClose, onConfirm }) {
+  const [checked, setChecked] = useState(new Array(notice.length).fill(false));
+  const allChecked = checked.every(Boolean);
+
+  return (
+    <div className="ov fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
+      <div className="bg-white rounded-xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+        <h3 className="text-[17px] font-bold mb-4" style={{ color: "#111" }}>사용 전 확인사항</h3>
+        <ul className="space-y-2 mb-6">
+          {notice.map((txt, i) => (
+            <li key={i} className="flex items-center gap-2 cursor-pointer" onClick={() => {
+              const nc = [...checked];
+              nc[i] = !nc[i];
+              setChecked(nc);
+            }}>
+              <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${checked[i] ? 'bg-[#1d9e75] border-[#1d9e75]' : 'border-gray-300'}`}>
+                {checked[i] && <CheckCircle2 size={14} color="white" />}
+              </div>
+              <span className="text-[14px] text-gray-700">{txt}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-500 font-bold">취소</button>
+          <button 
+            disabled={!allChecked}
+            onClick={() => { if(allChecked) onConfirm(); }} 
+            className={`flex-1 py-3 rounded-xl font-bold transition-opacity ${allChecked ? 'bg-[#1d9e75] text-white' : 'bg-gray-100 text-gray-400'}`}
+          >확인 및 시작</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OccupancyBar({ capacity, current }) {
+  const dots = Array.from({ length: capacity });
+  return (
+    <div className="flex gap-1.5 items-center mt-3">
+      {dots.map((_, i) => (
+        <div key={i} className={`h-2 flex-1 rounded-full transition-colors ${i < current ? 'bg-white' : 'bg-white/30'}`} />
+      ))}
+    </div>
+  );
+}
+
 export default function App() {
   const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem('skipSplash'));
+
+  useEffect(() => {
+    if (!isFirebaseConfigured || !auth) return;
+    signInAnonymously(auth)
+      .then((userCredential) => {
+        console.log("Logged in anonymously as:", userCredential.user.uid);
+      })
+      .catch((error) => {
+        console.error("Anonymous auth failed:", error);
+      });
+  }, []);
   const [user, setUser] = useState(() => {
     try {
       const tokenStr = localStorage.getItem("auth_token");
@@ -795,6 +854,26 @@ export default function App() {
   }, [user]);
   const [now, setNow] = useState(() => new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 20000); return () => clearInterval(t); }, []);
+
+  const [resources, setResources] = useState([]);
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    const unsub = onSnapshot(collection(db, "resources"), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setResources(data);
+    }, (err) => console.error("resources snapshot error:", err));
+    return () => unsub();
+  }, []);
+
+  const [sessions, setSessions] = useState([]);
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    const unsub = onSnapshot(collection(db, "sessions"), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setSessions(data);
+    }, (err) => console.error("sessions snapshot error:", err));
+    return () => unsub();
+  }, []);
 
   const [suspendedIds, setSuspendedIds] = useState(() => {
     try {
@@ -854,7 +933,7 @@ export default function App() {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       data.sort((a, b) => b.createdAt - a.createdAt);
       setAnnouncements(data);
-    });
+    }, (err) => console.error("announcements snapshot error:", err));
     return () => unsub();
   }, []);
 
@@ -888,10 +967,38 @@ export default function App() {
     return [];
   });
 
-  const reservations = useMemo(() => {
+  const allReservations = useMemo(() => {
     const todayKey = keyOf(today);
     const nowMin = now.getHours() * 60 + now.getMinutes();
-    return rawReservations.map(r => {
+    
+    // Group slots by groupId
+    const grouped = new Map();
+    const singles = [];
+    
+    rawReservations.forEach(r => {
+      if (r.groupId) {
+        if (!grouped.has(r.groupId)) {
+          grouped.set(r.groupId, { ...r, _slots: [r.id], _starts: [toMin(r.start)], _ends: [toMin(r.end)] });
+        } else {
+          const g = grouped.get(r.groupId);
+          g._slots.push(r.id);
+          g._starts.push(toMin(r.start));
+          g._ends.push(toMin(r.end));
+        }
+      } else {
+        singles.push(r);
+      }
+    });
+    
+    const mergedGroups = Array.from(grouped.values()).map(g => {
+      const minStart = Math.min(...g._starts);
+      const maxEnd = Math.max(...g._ends);
+      return { ...g, start: toHHMM(minStart), end: toHHMM(maxEnd) };
+    });
+    
+    const allRes = [...singles, ...mergedGroups];
+
+    return allRes.map(r => {
       if (r.date) {
         const isPastDay = r.date < todayKey;
         const isTodayOver30Min = r.date === todayKey && nowMin >= (toMin(r.start) + 30);
@@ -911,13 +1018,52 @@ export default function App() {
       return r;
     });
   }, [rawReservations, today, now]);
+
+  const reservations = useMemo(() => {
+    return allReservations.filter(r => r.status !== 'cancelled');
+  }, [allReservations]);
+
+  // 노쇼 방지 (Auto-Cancel)
+  useEffect(() => {
+    if (!resources.length || !reservations.length || !sessions.length) return;
+    
+    const interval = setInterval(() => {
+      const currentTime = new Date();
+      reservations.forEach(r => {
+        if (r.status !== 'booked') return;
+        
+        const resPolicy = resources.find(res => res.id === (r.resourceId || 'meeting-room'))?.policy;
+        if (!resPolicy || !resPolicy.autoCancelMinutes) return;
+        
+        const [y, m, d] = r.date.split('-').map(Number);
+        const [hh, mm] = r.start.split(':').map(Number);
+        const startDt = new Date(y, m - 1, d, hh, mm);
+        
+        const elapsedMins = (currentTime - startDt) / (1000 * 60);
+        if (elapsedMins > resPolicy.autoCancelMinutes) {
+          const hasSession = sessions.some(s => s.reservationId === r.id);
+          if (!hasSession) {
+            if (r._slots) {
+              const batch = writeBatch(db);
+              r._slots.forEach(slotId => batch.update(doc(db, "reservations", slotId), { status: 'cancelled' }));
+              batch.commit().catch(console.error);
+            } else {
+              updateDoc(doc(db, "reservations", r.id), { status: 'cancelled' }).catch(console.error);
+            }
+          }
+        }
+      });
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [resources, reservations, sessions]);
+
   
   useEffect(() => {
     if (!isFirebaseConfigured) return;
     const unsub = onSnapshot(collection(db, "reservations"), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setReservations(data);
-    });
+    }, (err) => console.error("reservations snapshot error:", err));
     return () => unsub();
   }, []);
 
@@ -1054,6 +1200,7 @@ export default function App() {
   }, [showEndList]);
   const [errs, setErrs] = useState({});
   const [detail, setDetail] = useState(null);
+  const [noticeTarget, setNoticeTarget] = useState(null);
   const [toast, setToast] = useState(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [temp, setTemp] = useState([]);
@@ -1477,12 +1624,54 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     }
     return { kind: list.length ? "soon" : "free", text: list.length ? `예약 ${list.length}건` : "사용 가능", count: list.length };
   }
+  const handleStartSession = async (res) => {
+    const policy = resources.find(r => r.id === (res.resourceId || 'meeting-room'))?.policy;
+    if (policy && policy.notice && policy.notice.length > 0 && !noticeTarget) {
+      setNoticeTarget(res);
+      return;
+    }
+    
+    if (isFirebaseConfigured) {
+      await addDoc(collection(db, "sessions"), {
+        resourceId: res.resourceId || 'meeting-room',
+        userId: user,
+        reservationId: res.id,
+        checkInAt: serverTimestamp(),
+        source: 'button'
+      });
+      showToast("사용을 시작했습니다.");
+      setDetail(null);
+    }
+  };
+
+  const handleEndSession = async (sessionId) => {
+    if (isFirebaseConfigured) {
+      await updateDoc(doc(db, "sessions", sessionId), {
+        checkOutAt: serverTimestamp(),
+        autoClosed: false
+      });
+      showToast("사용을 종료했습니다.");
+      setDetail(null);
+    }
+  };
+
   function overlaps(rid, date, s, e, ignore) {
     const a = toMin(s), b = toMin(e);
-    return reservations.some((r) => r.roomId === rid && r.date === date && r.id !== ignore && !(b <= toMin(r.start) || a >= toMin(r.end)));
+    const resInfo = resources.find(r => r.id === (rid === 'workroom' ? 'workroom' : 'meeting-room'));
+    const isOverlapAllowed = resInfo?.policy?.allowOverlap;
+    const capacity = resInfo?.policy?.capacity || 1;
+
+    const conflicts = reservations.filter(
+      (r) => r.roomId === rid && r.date === date && r.id !== ignore && !(b <= toMin(r.start) || a >= toMin(r.end))
+    );
+
+    if (isOverlapAllowed) {
+      return conflicts.length >= capacity;
+    }
+    return conflicts.length > 0;
   }
   const defStart = () => Math.min(Math.max(isToday ? Math.ceil(nowMin / STEP) * STEP : 10 * 60, DAY_START), DAY_END - 10);
-  function openCreate(rid, startMin, date) { setErrs({}); const me = getMeId(); setForm({ id: null, roomId: rid, title: "", date: date || selKey, start: toHHMM(startMin), end: toHHMM(Math.min(startMin + 10, DAY_END)), attendees: me && me !== "m_room" ? [me] : [], repeat: false, color: "yellow", isUrgent: false, comments: [] }); }
+  function openCreate(rid, startMin, date) { setErrs({}); const me = getMeId(); setForm({ id: null, roomId: rid, resourceId: rid === 'workroom' ? 'workroom' : 'meeting-room', title: "", date: date || selKey, start: toHHMM(startMin), end: toHHMM(Math.min(startMin + 10, DAY_END)), attendees: me && me !== "m_room" ? [me] : [], repeat: false, color: "yellow", isUrgent: false, comments: [] }); }
   const tryCreate = (rid, sm, date) => requireAuth(() => openCreate(rid, sm, date), "일정을 추가하려면 로그인이 필요해요.");
   const openEdit = (r) => { setErrs({}); setForm({ ...r, attendees: [...r.attendees] }); };
 
@@ -1575,10 +1764,85 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       const finalForm = { ...f, id: docId, title: f.title.trim(), owner: f.owner || user, attendees: cleanedAttendees, checkedIn: cleanedCheckedIn };
       
       if (isFirebaseConfigured) {
-        await setDoc(doc(db, "reservations", docId), finalForm);
-        for (const pushed of pushedReservations) {
-          await updateDoc(doc(db, "reservations", pushed.id), { start: pushed.start, end: pushed.end });
+        const resInfo = resources.find(r => r.id === (finalForm.resourceId || 'meeting-room'));
+        const policy = resInfo?.policy || { slotMinutes: 30, allowOverlap: false, capacity: 1 };
+        
+        const startM = toMin(finalForm.start);
+        const endM = toMin(finalForm.end);
+        const slotsCount = Math.ceil((endM - startM) / policy.slotMinutes);
+        const dateStr = finalForm.date.replace(/-/g, '');
+        const batch = writeBatch(db);
+        
+        const groupId = isEdit ? (finalForm.groupId || docId) : docId;
+        finalForm.groupId = groupId;
+        
+        if (isEdit && f._slots) {
+          f._slots.forEach(slotId => {
+            batch.delete(doc(db, "reservations", slotId));
+          });
         }
+        
+        let seatNum = null;
+        if (policy.allowOverlap) {
+          const activeSlots = reservations.filter(r => r.roomId === finalForm.roomId && r.date === finalForm.date && r.status === 'booked' && r.groupId !== groupId && !(endM <= toMin(r.start) || startM >= toMin(r.end)));
+          const usedSeats = new Set(activeSlots.map(r => r.id.split('_').pop()));
+          for (let i = 1; i <= policy.capacity; i++) {
+            if (!usedSeats.has(i.toString())) {
+              seatNum = i;
+              break;
+            }
+          }
+          if (!seatNum) {
+            setErrs({ ...e, time: "해당 시간에 이미 만석입니다." });
+            setIsSubmitting(false);
+            return;
+          }
+        }
+        
+        for (let i = 0; i < slotsCount; i++) {
+          const currentSlotStartMin = startM + (i * policy.slotMinutes);
+          const currentSlotEndMin = Math.min(currentSlotStartMin + policy.slotMinutes, endM);
+          const slotIndex = Math.floor(currentSlotStartMin / policy.slotMinutes);
+          
+          let slotId = `${finalForm.resourceId || 'meeting-room'}_${dateStr}_${slotIndex}`;
+          if (seatNum) {
+            slotId += `_${seatNum}`;
+          }
+          
+          const slotData = {
+            ...finalForm,
+            id: slotId,
+            start: toHHMM(currentSlotStartMin),
+            end: toHHMM(currentSlotEndMin)
+          };
+          delete slotData._slots;
+          delete slotData._starts;
+          delete slotData._ends;
+          
+          batch.set(doc(db, "reservations", slotId), slotData);
+        }
+        
+        for (const pushed of pushedReservations) {
+          if (pushed._slots) {
+            pushed._slots.forEach(slotId => batch.delete(doc(db, "reservations", slotId)));
+            const pStartM = toMin(pushed.start);
+            const pEndM = toMin(pushed.end);
+            const pSlotsCount = Math.ceil((pEndM - pStartM) / policy.slotMinutes);
+            for (let i = 0; i < pSlotsCount; i++) {
+              const currentSlotStartMin = pStartM + (i * policy.slotMinutes);
+              const currentSlotEndMin = Math.min(currentSlotStartMin + policy.slotMinutes, pEndM);
+              const slotIndex = Math.floor(currentSlotStartMin / policy.slotMinutes);
+              let slotId = `${pushed.resourceId || 'meeting-room'}_${dateStr}_${slotIndex}`;
+              const slotData = { ...pushed, id: slotId, start: toHHMM(currentSlotStartMin), end: toHHMM(currentSlotEndMin) };
+              delete slotData._slots; delete slotData._starts; delete slotData._ends;
+              batch.set(doc(db, "reservations", slotId), slotData);
+            }
+          } else {
+            batch.update(doc(db, "reservations", pushed.id), { start: pushed.start, end: pushed.end });
+          }
+        }
+        
+        await batch.commit();
       } else {
         setReservations((prev) => {
           let updated = [...prev];
@@ -1645,23 +1909,37 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
   function cancelRes(id) { 
     const target = reservations.find((x) => x.id === id);
     if (target && !canDelete(target)) {
-      showToast("예약 등록자 본인만 일정을 삭제할 수 있어요.");
+      showToast("예약 등록자 본인만 일정을 취소할 수 있어요.");
       return;
     }
     requireAuth(async () => { 
       if (isFirebaseConfigured) {
         try {
-          await deleteDoc(doc(db, "reservations", id));
-          setForm(null); setDetail(null); showToast("예약을 삭제했어요."); 
+          if (target._slots) {
+            const batch = writeBatch(db);
+            target._slots.forEach(slotId => batch.update(doc(db, "reservations", slotId), { status: 'cancelled' }));
+            await batch.commit();
+          } else {
+            await updateDoc(doc(db, "reservations", id), { status: 'cancelled' });
+          }
+          setForm(null); setDetail(null); showToast("예약을 취소했어요."); 
         } catch (err) {
           console.error(err);
-          showToast("오류가 발생했습니다.");
+          showToast("오류가 발생했습니다: " + (err.message || err.toString()));
         }
       } else {
-        setReservations((prev) => prev.filter((r) => r.id !== id));
-        setForm(null); setDetail(null); showToast("예약을 삭제했어요.");
+        setReservations((prev) => prev.map((r) => {
+          if (target.groupId && r.groupId === target.groupId) {
+            return { ...r, status: 'cancelled' };
+          }
+          if (r.id === id) {
+            return { ...r, status: 'cancelled' };
+          }
+          return r;
+        }));
+        setForm(null); setDetail(null); showToast("예약을 취소했어요.");
       }
-    }, "일정을 삭제하려면 로그인이 필요해요."); 
+    }, "일정을 취소하려면 로그인이 필요해요."); 
   }
 
   function completeRes(r) {
@@ -1684,7 +1962,15 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       const newEnd = Math.max(startM + 1, nowM);
       
       if (isFirebaseConfigured) {
-        updateDoc(doc(db, "reservations", r.id), { end: toHHMM(newEnd) }).then(() => {
+        (async () => {
+          if (r._slots) {
+            const batch = writeBatch(db);
+            r._slots.forEach(slotId => batch.update(doc(db, "reservations", slotId), { end: toHHMM(newEnd) }));
+            await batch.commit();
+          } else {
+            await updateDoc(doc(db, "reservations", r.id), { end: toHHMM(newEnd) });
+          }
+        })().then(() => {
           showToast("회의를 완료 처리했어요.");
         }).catch(err => {
           console.error(err);
@@ -1714,10 +2000,40 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       }
       
       if (isFirebaseConfigured) {
-        updateDoc(doc(db, "reservations", r.id), { end: toHHMM(newEndM) }).then(() => {
+        (async () => {
+          if (r._slots) {
+            const resInfo = resources.find(res => res.id === (r.resourceId || 'meeting-room'));
+            const policy = resInfo?.policy || { slotMinutes: 30, allowOverlap: false, capacity: 1 };
+            const startM = toMin(r.start);
+            const slotsCount = Math.ceil((newEndM - startM) / policy.slotMinutes);
+            const dateStr = r.date.replace(/-/g, '');
+            
+            let seatNum = null;
+            if (policy.allowOverlap && r._slots.length > 0) {
+              const parts = r._slots[0].split('_');
+              seatNum = parts[parts.length - 1];
+            }
+            
+            const batch = writeBatch(db);
+            r._slots.forEach(slotId => batch.delete(doc(db, "reservations", slotId)));
+            
+            for (let i = 0; i < slotsCount; i++) {
+              const currentSlotStartMin = startM + (i * policy.slotMinutes);
+              const currentSlotEndMin = Math.min(currentSlotStartMin + policy.slotMinutes, newEndM);
+              const slotIndex = Math.floor(currentSlotStartMin / policy.slotMinutes);
+              let slotId = `${r.resourceId || 'meeting-room'}_${dateStr}_${slotIndex}`;
+              if (seatNum) slotId += `_${seatNum}`;
+              const slotData = { ...r, id: slotId, start: toHHMM(currentSlotStartMin), end: toHHMM(currentSlotEndMin) };
+              delete slotData._slots; delete slotData._starts; delete slotData._ends;
+              batch.set(doc(db, "reservations", slotId), slotData);
+            }
+            await batch.commit();
+          } else {
+            await updateDoc(doc(db, "reservations", r.id), { end: toHHMM(newEndM) });
+          }
+        })().then(() => {
           showToast(`회의를 ${mins}분 연장했어요.`);
           if(isOverlap && user !== "admin") {
-             // Find overlapping meeting attendees
              const overlapsNext = reservations.filter(x => x.roomId === r.roomId && x.date === r.date && x.id !== r.id && !(toMin(x.end) <= endM || toMin(x.start) >= newEndM));
              overlapsNext.forEach(ov => {
                sendPushNotification('✏️ 회의 일정이 변경됐어요', `${nameWithNim(user)}의 회의 연장으로 인해 일정이 겹쳤습니다. [${ROOMS.find(rm=>rm.id===ov.roomId)?.name}] 확인해주세요.`, ov.attendees);
@@ -1752,7 +2068,13 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       
       if (isFirebaseConfigured) {
         try {
-          await updateDoc(doc(db, "reservations", r.id), { checkedIn: newCheckedIn });
+          if (r._slots) {
+            const batch = writeBatch(db);
+            r._slots.forEach(slotId => batch.update(doc(db, "reservations", slotId), { checkedIn: newCheckedIn }));
+            await batch.commit();
+          } else {
+            await updateDoc(doc(db, "reservations", r.id), { checkedIn: newCheckedIn });
+          }
           showToast(r.checkedIn?.includes(meId) ? "참석 확인을 취소했어요." : "참석을 확인했어요.");
         } catch (err) {
           console.error(err);
@@ -1958,46 +2280,90 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         </div>
 
         {/* Status Card (Only show context for today AND if not "all") */}
-        {isTodayAnchor && roomId !== "all" && (
-          <div className="mb-6 rounded-[14px] p-4 text-white relative overflow-hidden" style={{ background: mobCurrentMtg ? "var(--mob-busy-bg)" : "var(--mob-free-bg)", margin: "6px 0", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
-            <div className="flex items-center gap-2 mb-2 relative z-10">
-              <span className={`w-2.5 h-2.5 rounded-full ${mobCurrentMtg ? "glow-dot-busy" : "glow-dot-free"}`} />
-              <span className="text-[18px] font-bold" style={{ color: mobCurrentMtg ? "var(--mob-busy-text)" : "var(--mob-free-text)" }}>{mobCurrentMtg ? "지금 회의 중" : "지금 비어있음"}</span>
-            </div>
-            <div className="text-[13px] font-medium mb-5" style={{ color: mobCurrentMtg ? "var(--mob-busy-text)" : "var(--mob-free-text)", opacity: 0.8 }}>
-              {mobCurrentMtg ? `${mobCurrentMtg.title} · ${mobCurrentMtg.end} 종료` : mobNextMtg ? `${mobNextMtg.start}까지 사용 가능` : "오늘 남은 시간 계속 사용 가능"}
-            </div>
-            <div className="relative z-10">
-              {mobCurrentMtg ? (
-                canEdit(mobCurrentMtg) ? (
-                  <div className="flex gap-2">
-                    <select 
-                      onChange={(e) => { if (e.target.value) { extendRes(mobCurrentMtg, parseInt(e.target.value)); e.target.value = ""; } }} 
-                      className="flex-1 py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white text-center cursor-pointer outline-none appearance-none"
-                    >
-                      <option value="" hidden>회의 연장</option>
-                      <option value="5" style={{color: "#000"}}>+ 5분</option>
-                      <option value="10" style={{color: "#000"}}>+ 10분</option>
-                      <option value="15" style={{color: "#000"}}>+ 15분</option>
-                      <option value="30" style={{color: "#000"}}>+ 30분</option>
-                    </select>
-                    <button className="flex-1 py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => completeRes(mobCurrentMtg)}>
-                      회의 종료
-                    </button>
-                  </div>
-                ) : (
-                  <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => requireAuth(() => setDetail(mobCurrentMtg), "댓글을 남기려면 로그인이 필요해요.")}>
-                    댓글 남기기
+        {isTodayAnchor && roomId !== "all" && (() => {
+          const resInfo = resources.find(r => (r.id === roomId || (roomId === 'big' || roomId === 'small' || roomId === 'lounge' ? r.id === 'meeting-room' : false)));
+          const policy = resInfo?.policy;
+          
+          if (policy?.capacity > 1) {
+            // 다인용 자원 (Workroom)
+            const activeCount = sessions.filter(s => 
+              s.resourceId === resInfo.id && 
+              !s.checkOutAt &&
+              reservations.some(r => r.id === s.reservationId && r.date === keyOf(now))
+            ).length;
+            const isFull = activeCount >= policy.capacity;
+            
+            return (
+              <div className="mb-6 rounded-[14px] p-4 text-white relative overflow-hidden" style={{ background: isFull ? "var(--mob-busy-bg)" : "var(--mob-free-bg)", margin: "6px 0", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
+                <div className="flex items-center gap-2 mb-2 relative z-10">
+                  <span className={`w-2.5 h-2.5 rounded-full ${isFull ? "glow-dot-busy" : "glow-dot-free"}`} />
+                  <span className="text-[18px] font-bold" style={{ color: isFull ? "var(--mob-busy-text)" : "var(--mob-free-text)" }}>
+                    {isFull ? "지금 만석입니다" : `${policy.capacity - activeCount}자리 남았습니다`}
+                  </span>
+                </div>
+                <div className="text-[13px] font-medium mb-3" style={{ color: isFull ? "var(--mob-busy-text)" : "var(--mob-free-text)", opacity: 0.8 }}>
+                  정원 {policy.capacity}명 · 지금 {activeCount}명 이용 중
+                </div>
+                
+                <OccupancyBar capacity={policy.capacity} current={activeCount} />
+                
+                <div className="relative z-10 mt-5">
+                  <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => {
+                    if (isFull) {
+                      showToast("알림이 설정되었습니다.");
+                    } else {
+                      tryCreate(roomId, defStart(), selKey);
+                    }
+                  }}>
+                    {isFull ? "자리 나면 알림 받기" : "지금 바로 예약하기"}
                   </button>
-                )
-              ) : (
-                <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => tryCreate(roomId, defStart(), selKey)}>
-                  지금 바로 예약하기
-                </button>
-              )}
-            </div>
-          </div>
-        )}
+                </div>
+              </div>
+            );
+          } else {
+            // 단일 자원 (Meeting Room)
+            return (
+              <div className="mb-6 rounded-[14px] p-4 text-white relative overflow-hidden" style={{ background: mobCurrentMtg ? "var(--mob-busy-bg)" : "var(--mob-free-bg)", margin: "6px 0", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
+                <div className="flex items-center gap-2 mb-2 relative z-10">
+                  <span className={`w-2.5 h-2.5 rounded-full ${mobCurrentMtg ? "glow-dot-busy" : "glow-dot-free"}`} />
+                  <span className="text-[18px] font-bold" style={{ color: mobCurrentMtg ? "var(--mob-busy-text)" : "var(--mob-free-text)" }}>{mobCurrentMtg ? "지금 회의 중" : "지금 비어있음"}</span>
+                </div>
+                <div className="text-[13px] font-medium mb-5" style={{ color: mobCurrentMtg ? "var(--mob-busy-text)" : "var(--mob-free-text)", opacity: 0.8 }}>
+                  {mobCurrentMtg ? `${mobCurrentMtg.title} · ${mobCurrentMtg.end} 종료` : mobNextMtg ? `${mobNextMtg.start}까지 사용 가능` : "오늘 남은 시간 계속 사용 가능"}
+                </div>
+                <div className="relative z-10">
+                  {mobCurrentMtg ? (
+                    canEdit(mobCurrentMtg) ? (
+                      <div className="flex gap-2">
+                        <select 
+                          onChange={(e) => { if (e.target.value) { extendRes(mobCurrentMtg, parseInt(e.target.value)); e.target.value = ""; } }} 
+                          className="flex-1 py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white text-center cursor-pointer outline-none appearance-none"
+                        >
+                          <option value="" hidden>회의 연장</option>
+                          <option value="5" style={{color: "#000"}}>+ 5분</option>
+                          <option value="10" style={{color: "#000"}}>+ 10분</option>
+                          <option value="15" style={{color: "#000"}}>+ 15분</option>
+                          <option value="30" style={{color: "#000"}}>+ 30분</option>
+                        </select>
+                        <button className="flex-1 py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => completeRes(mobCurrentMtg)}>
+                          회의 종료
+                        </button>
+                      </div>
+                    ) : (
+                      <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => requireAuth(() => setDetail(mobCurrentMtg), "댓글을 남기려면 로그인이 필요해요.")}>
+                        댓글 남기기
+                      </button>
+                    )
+                  ) : (
+                    <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => tryCreate(roomId, defStart(), selKey)}>
+                      지금 바로 예약하기
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          }
+        })()}
 
         {/* Timeline List */}
         <div className="flex-1" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
@@ -3295,6 +3661,19 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         );
       })()}
 
+      {/* ===== Notice Modal ===== */}
+      {noticeTarget && (
+        <NoticeModal 
+          notice={resources.find(r => r.id === (noticeTarget.resourceId || 'meeting-room'))?.policy?.notice || []} 
+          onClose={() => setNoticeTarget(null)}
+          onConfirm={() => {
+            const target = noticeTarget;
+            setNoticeTarget(null);
+            handleStartSession(target);
+          }}
+        />
+      )}
+
       {/* ===== Detail ===== */}
       {detail && (
         <div className="ov fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4" style={{ background: "rgba(20,20,20,.5)" }} onClick={() => setDetail(null)}>
@@ -3379,6 +3758,36 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 <p className="text-[11px] text-center" style={{ color: C.faint }}>로그인 후 댓글을 작성할 수 있습니다.</p>
               )}
             </div>
+            
+            {/* 🟢 사용 시작/종료 버튼 */}
+            {(() => {
+              if (!user) return null;
+              const isAttendeeOrOwner = detail.owner === user || (detail.attendees && detail.attendees.includes(MEMBERS.find(m => m.name === user)?.id));
+              if (!isAttendeeOrOwner) return null;
+
+              const activeDetailSession = sessions.find(s => s.reservationId === detail.id && !s.checkOutAt);
+              
+              if (activeDetailSession) {
+                return (
+                  <div className="mt-4 border-t pt-4" style={{ borderColor: C.border }}>
+                    <button onClick={() => handleEndSession(activeDetailSession.id)} className="lift flex w-full items-center justify-center gap-1.5 rounded-lg py-3 text-[14px] font-bold shadow-sm" style={{ background: PASTEL.red.bg, color: PASTEL.red.text }}>
+                      <Square size={16} fill="currentColor" /> 사용 종료
+                    </button>
+                  </div>
+                );
+              } else {
+                if (detail.date === keyOf(now)) {
+                  return (
+                    <div className="mt-4 border-t pt-4" style={{ borderColor: C.border }}>
+                      <button onClick={() => handleStartSession(detail)} className="lift flex w-full items-center justify-center gap-1.5 rounded-lg py-3 text-[14px] font-bold shadow-sm text-white" style={{ background: "var(--mob-free-bg)" }}>
+                        <Play size={16} fill="currentColor" /> 사용 시작
+                      </button>
+                    </div>
+                  );
+                }
+              }
+              return null;
+            })()}
             
             {/* 🚨 중요 사용 요청 */}
             {user && detail.owner !== user && (() => {

@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 
 // TODO: Replace this with your actual Firebase project configuration
 // 1. Go to Firebase Console (https://console.firebase.google.com/)
@@ -20,15 +21,18 @@ const firebaseConfig = {
 export const isFirebaseConfigured = true;
 
 let db = null;
+let auth = null;
 
 if (isFirebaseConfigured) {
   try {
     const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
+    auth = getAuth(app);
   } catch (err) {
     console.error("Firebase initialization failed:", err);
   }
 }
 
-export { db };
+export { db, auth };
+
 
