@@ -825,10 +825,19 @@ export default function App() {
       console.error("Anonymous auth failed:", error);
     });
 
-    const unsub = auth.onAuthStateChanged((user) => {
+    const unsub = auth.onAuthStateChanged(async (user) => {
       if (user) {
-        setIsAuthenticated(true);
-        console.log("Logged in anonymously as:", user.uid);
+        try {
+          // Force Firebase to resolve the ID Token first
+          await user.getIdToken(true);
+          // Add a 150ms delay to guarantee token propagation to the Firestore SDK before setting isAuthenticated to true
+          setTimeout(() => {
+            setIsAuthenticated(true);
+            console.log("Logged in anonymously as:", user.uid);
+          }, 150);
+        } catch (e) {
+          console.error("Token propagation failed:", e);
+        }
       } else {
         setIsAuthenticated(false);
       }
