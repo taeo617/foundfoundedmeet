@@ -1240,6 +1240,11 @@ export default function App() {
   const [errs, setErrs] = useState({});
   const [detail, setDetail] = useState(null);
   const [noticeTarget, setNoticeTarget] = useState(null);
+  const [reportModalSession, setReportModalSession] = useState(null);
+  const [confirmModalData, setConfirmModalData] = useState(null);
+  const [checkedNotices, setCheckedNotices] = useState({});
+  const [endCheckedNotices, setEndCheckedNotices] = useState({});
+  const [reportForm, setReportForm] = useState({ result: 'success', filamentG: '', note: '' });
   const [toast, setToast] = useState(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [temp, setTemp] = useState([]);
@@ -1683,13 +1688,47 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     }
   };
 
-  const handleEndSession = async (sessionId) => {
+  const handleEndSession = async (sessionOrId) => {
+    const sessionObj = typeof sessionOrId === 'string' ? sessions.find(s => s.id === sessionOrId) : sessionOrId;
+    const sessionId = sessionObj?.id || sessionOrId;
+    const resInfo = resources.find(r => r.id === (sessionObj?.resourceId || detail?.resourceId || detail?.roomId));
+    const policy = resInfo?.policy;
+
+    const isWorkroom = sessionObj?.resourceId === 'workroom' || detail?.resourceId === 'workroom' || detail?.roomId === 'workroom';
+    const isPrinter = sessionObj?.resourceId === 'bambu-1' || sessionObj?.resourceId === 'bambu-2' || detail?.resourceId === 'bambu-1' || detail?.resourceId === 'bambu-2' || detail?.roomId === 'bambu-1' || detail?.roomId === 'bambu-2' || resInfo?.type === 'equipment';
+
+    if (policy?.requiresReport || isWorkroom || isPrinter) {
+      setReportModalSession(sessionObj || { id: sessionId, resourceId: sessionObj?.resourceId || resInfo?.id || detail?.resourceId || detail?.roomId });
+      setEndCheckedNotices({});
+      setReportForm({ result: 'success', filamentG: '', note: '' });
+      return;
+    }
+
     if (isFirebaseConfigured) {
       await updateDoc(doc(db, "sessions", sessionId), {
         checkOutAt: serverTimestamp(),
         autoClosed: false
       });
       showToast("사용을 종료했습니다.");
+      setDetail(null);
+    }
+  };
+
+  const submitSessionReport = async () => {
+    if (!reportModalSession) return;
+    const sessionId = reportModalSession.id;
+    if (isFirebaseConfigured) {
+      await updateDoc(doc(db, "sessions", sessionId), {
+        checkOutAt: serverTimestamp(),
+        autoClosed: false,
+        report: {
+          result: reportForm.result || 'success',
+          filamentG: Number(reportForm.filamentG) || 0,
+          note: reportForm.note || ''
+        }
+      });
+      showToast("리포트 제출과 함께 사용이 종료되었습니다.");
+      setReportModalSession(null);
       setDetail(null);
     }
   };
@@ -1716,19 +1755,29 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
     async function saveForm() {
     if (isSubmitting) return;
+    const targetRes = resources.find(r => r.id === (form.resourceId || form.roomId)) || ROOMS.find(r => r.id === form.roomId);
+    const policy = targetRes?.policy || {};
+    const openFromMin = policy.openHours ? toMin(policy.openHours.from) : DAY_START;
+    const openToMin = policy.openHours ? toMin(policy.openHours.to) : DAY_END;
+    const allowedDays = policy.openHours?.days || [1, 2, 3, 4, 5];
+    const cap = policy.capacity || targetRes?.capacity || 1;
+
     const f = form; const e = {};
     const cleanedAttendees = (f.attendees || []).filter(id => id !== "m_room");
-    if (!f.title.trim()) e.title = "회의 제목을 입력해주세요.";
+    if (!f.title.trim()) e.title = "예약 목적(제목)을 입력해주세요.";
     if (!f.start || !f.end) e.time = "시간을 정확히 입력해주세요.";
     else if (isNaN(toMin(f.start)) || isNaN(toMin(f.end))) e.time = "시간 형식(예: 14:00)을 올바르게 입력해주세요.";
     else if (toMin(f.end) <= toMin(f.start)) e.time = "종료 시간은 시작 시간보다 늦어야 해요.";
-    else if (toMin(f.start) < DAY_START || toMin(f.end) > DAY_END) e.time = `운영 시간(${toHHMM(DAY_START)} ~ ${toHHMM(DAY_END)}) 내로 설정해주세요.`;
-    else {
+    else if (toMin(f.start) < openFromMin || toMin(f.end) > openToMin) {
+      e.time = `운영 시간(${toHHMM(openFromMin)} ~ ${toHHMM(openToMin)}) 내로 설정해주세요.`;
+    } else {
       const d = new Date(f.date);
-      if (d.getDay() === 0 || d.getDay() === 6) e.time = "주말은 예약할 수 없습니다.";
+      if (!allowedDays.includes(d.getDay())) {
+        e.time = "해당 자원은 선택하신 요일(주말 등)에 운영하지 않습니다.";
+      }
     }
-    if (cleanedAttendees.length === 0) e.att = "참석자를 1명 이상 선택해주세요.";
-    if (cleanedAttendees.length > ROOMS.find((r) => r.id === f.roomId).capacity) e.att = "참석 인원이 회의실 정원을 초과했어요.";
+    if (cleanedAttendees.length === 0) e.att = "참석자(또는 사용자)를 1명 이상 선택해주세요.";
+    if (cleanedAttendees.length > cap) e.att = `정원(${cap}명)을 초과했습니다.`;
     setErrs(e);
     if (Object.keys(e).length) return;
 
@@ -1775,24 +1824,29 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       }
     }
 
-    const conflicts = [];
-    reservations.forEach((r) => {
-      if (r.id !== f.id && r.date === f.date) {
-        if (!(endM <= toMin(r.start) || startM >= toMin(r.end))) {
-          cleanedAttendees.forEach((attId) => {
-            if (r.attendees && r.attendees.includes(attId)) {
-              const mName = MEMBERS.find((m) => m.id === attId)?.name || attId;
-              const rRoomName = ROOMS.find((rm) => rm.id === r.roomId)?.name || r.roomId;
-              conflicts.push(`${nameWithNim(mName)} (${rRoomName} / ${r.start}~${r.end} "${r.title}")`);
-            }
-          });
+    const isFormPrinter = f.resourceId === 'bambu-1' || f.resourceId === 'bambu-2' || f.roomId === 'bambu-1' || f.roomId === 'bambu-2';
+    
+    if (!isFormPrinter) {
+      const conflicts = [];
+      reservations.forEach((r) => {
+        const isRPrinter = r.resourceId === 'bambu-1' || r.resourceId === 'bambu-2' || r.roomId === 'bambu-1' || r.roomId === 'bambu-2';
+        if (r.id !== f.id && r.date === f.date && !isRPrinter) {
+          if (!(endM <= toMin(r.start) || startM >= toMin(r.end))) {
+            cleanedAttendees.forEach((attId) => {
+              if (r.attendees && r.attendees.includes(attId)) {
+                const mName = MEMBERS.find((m) => m.id === attId)?.name || attId;
+                const rRoomName = ROOMS.find((rm) => rm.id === r.roomId)?.name || r.roomId;
+                conflicts.push(`${nameWithNim(mName)} (${rRoomName} / ${r.start}~${r.end} "${r.title}")`);
+              }
+            });
+          }
         }
-      }
-    });
+      });
 
-    if (conflicts.length > 0) {
-      alert(`선택하신 참석자 중 해당 시간에 이미 다른 회의가 예약되어 있는 멤버가 있습니다:\n\n${conflicts.join("\n")}\n\n시간을 변경하거나 참석자 조정을 해주세요.`);
-      return;
+      if (conflicts.length > 0) {
+        alert(`선택하신 참석자 중 해당 시간에 이미 다른 회의가 예약되어 있는 멤버가 있습니다:\n\n${conflicts.join("\n")}\n\n시간을 변경하거나 참석자 조정을 해주세요.`);
+        return;
+      }
     }
     
     setIsSubmitting(true);
@@ -2189,7 +2243,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
   /* ----- timeline renderers ----- */
    const renderMobileDashboard = (isDesktopSplit = false) => {
     const selKey = keyOf(anchor);
-    const mobDayList = reservations.filter(r => r.date === selKey && (roomId === "all" || r.roomId === roomId)).sort((a, b) => toMin(a.start) - toMin(b.start));
+    const mobDayList = reservations.filter(r => r.date === selKey && (roomId === "all" || (roomId === "printer" ? (r.roomId === "bambu-1" || r.roomId === "bambu-2") : r.roomId === roomId))).sort((a, b) => toMin(a.start) - toMin(b.start));
     const nowMin = now.getHours() * 60 + now.getMinutes();
     const todayKey = keyOf(today);
     const isTodayAnchor = selKey === todayKey;
@@ -2311,16 +2365,56 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             }
           }}
         >
-          {ROOMS.map(tab => (
-            <button key={tab.id} onClick={() => setRoomId(tab.id)} className="shrink-0 px-4 py-1.5 rounded-full text-[13px] font-semibold border transition-colors" style={roomId === tab.id ? { background: C.ink, color: "var(--bg)", borderColor: C.ink } : { borderColor: C.border, color: C.muted }}>
-              {tab.name}
-            </button>
-          ))}
+          {(() => {
+            const tabs = [
+              { id: "meeting-room", name: "회의실" },
+              { id: "workroom", name: "워크룸" },
+              { id: "printer", name: "3D 프린터" }
+            ];
+            return tabs.map(tab => {
+              const isSelected = roomId === tab.id || (tab.id === 'printer' && (roomId === 'bambu-1' || roomId === 'bambu-2'));
+              return (
+                <button key={tab.id} onClick={() => setRoomId(tab.id)} className="shrink-0 px-4 py-1.5 rounded-full text-[13px] font-semibold border transition-colors" style={isSelected ? { background: C.ink, color: "var(--bg)", borderColor: C.ink } : { borderColor: C.border, color: C.muted }}>
+                  {tab.name}
+                </button>
+              );
+            });
+          })()}
         </div>
 
         {/* Status Card (Only show context for today AND if not "all") */}
         {isTodayAnchor && roomId !== "all" && (() => {
-          const resInfo = resources.find(r => (r.id === roomId || (roomId === 'big' || roomId === 'small' || roomId === 'lounge' ? r.id === 'meeting-room' : false)));
+          if (roomId === 'printer') {
+            const b1Res = reservations.filter(r => r.roomId === 'bambu-1' && r.date === keyOf(now));
+            const b2Res = reservations.filter(r => r.roomId === 'bambu-2' && r.date === keyOf(now));
+            const nowMin = now.getHours() * 60 + now.getMinutes();
+            const b1Busy = b1Res.find(r => nowMin >= toMin(r.start) && nowMin < toMin(r.end));
+            const b2Busy = b2Res.find(r => nowMin >= toMin(r.start) && nowMin < toMin(r.end));
+            const busyCount = (b1Busy ? 1 : 0) + (b2Busy ? 1 : 0);
+            const isFull = busyCount === 2;
+            const titleText = busyCount === 0 ? "2대 모두 사용 가능" : busyCount === 1 ? "2대 중 1대 사용 가능" : "2대 모두 출력 중";
+            const subText = busyCount === 0 ? "뱀부랩 1 · 뱀부랩 2 지금 비어있음" : busyCount === 1 ? (b1Busy ? "뱀부랩 1 출력 중 · 뱀부랩 2 사용 가능" : "뱀부랩 2 출력 중 · 뱀부랩 1 사용 가능") : "지금 2대 모두 출력 중";
+
+            return (
+              <div className="mb-6 rounded-[14px] p-4 text-white relative overflow-hidden" style={{ background: isFull ? "var(--mob-busy-bg)" : "var(--mob-free-bg)", margin: "6px 0", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
+                <div className="flex items-center gap-2 mb-2 relative z-10">
+                  <span className={`w-2.5 h-2.5 rounded-full ${isFull ? "glow-dot-busy" : "glow-dot-free"}`} />
+                  <span className="text-[18px] font-bold" style={{ color: isFull ? "var(--mob-busy-text)" : "var(--mob-free-text)" }}>
+                    {titleText}
+                  </span>
+                </div>
+                <div className="text-[13px] font-medium mb-5" style={{ color: isFull ? "var(--mob-busy-text)" : "var(--mob-free-text)", opacity: 0.8 }}>
+                  {subText}
+                </div>
+                <div className="relative z-10">
+                  <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => tryCreate('bambu-1', defStart(), selKey)}>
+                    + 지금 바로 예약하기
+                  </button>
+                </div>
+              </div>
+            );
+          }
+          const resInfo = resources.find(r => r.id === roomId) || resources.find(r => (roomId === 'big' || roomId === 'small' || roomId === 'lounge' ? r.id === 'meeting-room' : false));
           const policy = resInfo?.policy;
           
           if (policy?.capacity > 1) {
@@ -2466,7 +2560,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                                 </div>
                                 <div className="text-[11px] font-medium flex items-center gap-1 mt-0.5" style={{ color: C.faint }}>
                                   <Clock size={11} className="shrink-0" style={{ opacity: 0.7 }} />
-                                  <span>{rm?.name || r.roomId} · {r.start}~{r.end}</span>
+                                  <span>{r.roomId === 'bambu-1' ? '뱀부랩 1' : r.roomId === 'bambu-2' ? '뱀부랩 2' : (rm?.name || r.roomId)} · {r.start}~{r.end}</span>
                                 </div>
                                 
                                 {/* Attendees */}
@@ -2630,8 +2724,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
   const NAV = user 
     ? (user === "admin" 
-       ? [["book", "예약", CalendarDays], ["mine", "내 예약", List], ["admin", "멤버 관리", Users]]
-       : [["book", "예약", CalendarDays], ["mine", "내 예약", List]])
+       ? [["book", "예약", CalendarDays], ["history", "사용 기록", List], ["admin", "멤버 관리", Users]]
+       : [["book", "예약", CalendarDays], ["history", "사용 기록", List]])
     : [["book", "예약", CalendarDays]];
 
   return (
@@ -3037,11 +3131,11 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         
 
 
-        {section === "mine" && (
+        {section === "history" && (
           <section>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-3">
-                <h2 className="text-lg font-medium">내 예약</h2>
+                <h2 className="text-lg font-medium">사용 기록</h2>
                 <input 
                   type="date" 
                   value={mineDate} 
@@ -3196,15 +3290,30 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         <div className="ov fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4" style={{ background: "rgba(20,20,20,.5)" }} onClick={() => { setShowStartList(false); setShowEndList(false); }}>
           <div className="sheet w-full rounded-t-lg bg-white sm:max-w-md sm:rounded-lg" style={{ maxHeight: "92vh", boxShadow: "0 -4px 12px rgba(0,0,0,.08)" }} onClick={(e) => { e.stopPropagation(); setShowStartList(false); setShowEndList(false); }}>
             <div className="sc max-h-[92vh] overflow-y-auto p-6">
-              <div className="flex items-center justify-between"><h3 className="text-lg font-medium">{form.id ? "예약 수정" : (selectedResource?.policy?.requiresReservation === false ? `${selectedResource?.name || '자원'} 사용 등록` : `${selectedResource?.name || '회의실'} 예약`)}</h3><button onClick={() => setForm(null)} className="grid h-8 w-8 place-items-center rounded-lg" style={{ color: C.faint }}><X size={18} /></button></div>
-              <div className="mt-5 space-y-4">
-                <Field label={selectedResource?.policy?.allowOverlap ? "어떤 프로젝트 때문에 쓰시나요?" : "회의 제목"} error={errs.title}>
-                  <input value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value }); setErrs((x) => ({ ...x, title: undefined })); }} placeholder={selectedResource?.policy?.allowOverlap ? "예: OOO 프로젝트 작업" : "예: OOO 프로젝트_아이데이션 회의"} className="inp w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none" style={{ borderColor: errs.title ? "#C0392B" : C.border }} />
-                </Field>
-                <Field label="자원"><SelectBox value={form.roomId || form.resourceId} onChange={(v) => setForm({ ...form, roomId: v, resourceId: v })} options={resources.length > 0 ? resources.map((r) => [r.id, `${r.name}${r.policy?.capacity ? ` · ${r.policy.capacity}명` : ''}`]) : ROOMS.map((r) => [r.id, `${r.name} · ${r.capacity}명`])} /></Field>
-                <Field label="날짜">
-                  <input type="date" value={form.date} onClick={(e) => { try { e.target.showPicker(); } catch(err) {} }} onChange={(e) => setForm({ ...form, date: e.target.value })} className="inp w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none cursor-pointer" style={{ borderColor: C.border, background: "var(--bg-select)" }} />
-                </Field>
+              {(() => {
+                const isWorkroom = form.resourceId === 'workroom' || form.roomId === 'workroom';
+                const isPrinter = form.resourceId === 'bambu-1' || form.resourceId === 'bambu-2' || form.roomId === 'bambu-1' || form.roomId === 'bambu-2' || selectedResource?.type === 'equipment';
+                const modalTitle = form.id ? "예약 수정" : isPrinter ? "3D 프린터 예약" : isWorkroom ? "워크룸 예약" : "회의실 예약";
+                const titleLabel = isPrinter ? "출력물 이름" : isWorkroom ? "어떤 프로젝트 때문에 쓰시나요?" : "회의 제목";
+                const titlePh = isPrinter ? "예: LG 웰컴키트 트레이" : isWorkroom ? "예: LG 웰컴키트 리서치" : "예: OOO 프로젝트_아이데이션 회의";
+                const dropdownLabel = isPrinter ? "기계" : "회의실";
+                const dropdownOptions = isPrinter 
+                  ? [["bambu-1", "뱀부랩 1"], ["bambu-2", "뱀부랩 2"]]
+                  : ROOMS.filter(r => r.group === "meeting").map((r) => [r.id, `${r.name} · ${r.capacity}명`]);
+
+                return (
+                  <>
+                    <div className="flex items-center justify-between"><h3 className="text-lg font-medium">{modalTitle}</h3><button onClick={() => setForm(null)} className="grid h-8 w-8 place-items-center rounded-lg" style={{ color: C.faint }}><X size={18} /></button></div>
+                    <div className="mt-5 space-y-4">
+                      <Field label={titleLabel} error={errs.title}>
+                        <input value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value }); setErrs((x) => ({ ...x, title: undefined })); }} placeholder={titlePh} className="inp w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none" style={{ borderColor: errs.title ? "#C0392B" : C.border }} />
+                      </Field>
+                      {!isWorkroom && (
+                        <Field label={dropdownLabel}><SelectBox value={form.roomId || form.resourceId} onChange={(v) => setForm({ ...form, roomId: v, resourceId: v })} options={dropdownOptions} /></Field>
+                      )}
+                      <Field label="날짜">
+                        <input type="date" value={form.date} onClick={(e) => { try { e.target.showPicker(); } catch(err) {} }} onChange={(e) => setForm({ ...form, date: e.target.value })} className="inp w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none cursor-pointer" style={{ borderColor: C.border, background: "var(--bg-select)" }} />
+                      </Field>
                 <Field label="시간" error={errs.time}>
                   <div className="flex flex-col gap-2.5">
                     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
@@ -3378,96 +3487,132 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                         })()}
                       </div>
                     </div>
-                    <div className="flex gap-1.5">
-                      {[
-                        { label: "+5분", mins: 5 },
-                        { label: "+10분", mins: 10 },
-                        { label: "+15분", mins: 15 },
-                      ].map((btn) => (
-                        <button
-                          key={btn.label}
-                          type="button"
-                          onClick={() => {
-                            const startMin = toMin(form.start);
-                            const currentEndMin = toMin(form.end || form.start);
-                            const baseMin = currentEndMin < startMin ? startMin : currentEndMin;
-                            const newEndMin = Math.min(baseMin + btn.mins, DAY_END);
-                            setForm({ ...form, end: toHHMM(newEndMin) });
-                            setErrs((x) => ({ ...x, time: undefined }));
-                          }}
-                          className="lift flex-1 rounded-[6px] border py-2 text-[12px] font-bold transition-all active:scale-95 shadow-sm"
-                          style={{ borderColor: C.border, color: C.ink, background: "var(--bg-input)" }}
-                        >
-                          {btn.label}
-                        </button>
-                      ))}
-                    </div>
+                    {(() => {
+                      const isWorkroom = form.resourceId === 'workroom' || form.roomId === 'workroom';
+                      const isPrinter = form.resourceId === 'bambu-1' || form.resourceId === 'bambu-2' || form.roomId === 'bambu-1' || form.roomId === 'bambu-2' || selectedResource?.type === 'equipment';
+                      const quickBtns = isPrinter
+                        ? [{ label: "+1시간", mins: 60 }, { label: "+2시간", mins: 120 }, { label: "+4시간", mins: 240 }]
+                        : isWorkroom
+                        ? [{ label: "+30분", mins: 30 }, { label: "+1시간", mins: 60 }, { label: "+2시간", mins: 120 }]
+                        : [{ label: "+5분", mins: 5 }, { label: "+10분", mins: 10 }, { label: "+15분", mins: 15 }];
+                      const isNextDay = isPrinter && toMin(form.end || form.start) <= toMin(form.start);
+                      const totalMins = isNextDay ? (toMin(form.end || form.start) + 1440 - toMin(form.start)) : 0;
+
+                      return (
+                        <>
+                          <div className="flex gap-1.5">
+                            {quickBtns.map((btn) => (
+                              <button
+                                key={btn.label}
+                                type="button"
+                                onClick={() => {
+                                  const startMin = toMin(form.start);
+                                  const currentEndMin = toMin(form.end || form.start);
+                                  const baseMin = currentEndMin < startMin ? startMin : currentEndMin;
+                                  const newEndMin = Math.min(baseMin + btn.mins, DAY_END);
+                                  setForm({ ...form, end: toHHMM(newEndMin) });
+                                  setErrs((x) => ({ ...x, time: undefined }));
+                                }}
+                                className="lift flex-1 rounded-[6px] border py-2 text-[12px] font-bold transition-all active:scale-95 shadow-sm"
+                                style={{ borderColor: C.border, color: C.ink, background: "var(--bg-input)" }}
+                              >
+                                {btn.label}
+                              </button>
+                            ))}
+                          </div>
+                          {isNextDay && (
+                            <div style={{ fontSize: "12.5px", color: "var(--warn)", fontWeight: 600, marginTop: "9px" }}>
+                              다음 날 {form.end}까지 이어집니다 · 총 {Math.floor(totalMins / 60)}시간 {totalMins % 60}분
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </Field>
 
-                {selectedResource?.policy?.allowUrgentOverride === true && (
-                  <div className="flex flex-col gap-2 rounded-lg border p-3 mt-1" style={{ borderColor: form.isUrgent ? PASTEL.red.line : C.border, background: form.isUrgent ? PASTEL.red.bg : "transparent" }}>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={form.isUrgent || false} onChange={(e) => setForm({ ...form, isUrgent: e.target.checked })} className="w-4 h-4" style={{ accentColor: PASTEL.red.dot }} />
-                      <span className="text-sm font-bold" style={{ color: form.isUrgent ? PASTEL.red.text : C.ink }}>🚨 중요 회의 (겹치는 예약을 뒤로 미룹니다)</span>
-                    </label>
-                    {form.isUrgent && (
-                      <input 
-                        value={form.urgentComment || ""} 
-                        onChange={(e) => setForm({ ...form, urgentComment: e.target.value })} 
-                        placeholder="사유 (기존 예약자에게 알림으로 전송됩니다)" 
-                        className="inp w-full mt-1 rounded border px-3 py-2 text-xs outline-none bg-white" 
-                        style={{ borderColor: PASTEL.red.line, color: C.text }} 
-                      />
-                    )}
-                  </div>
-                )}
+                {(() => {
+                  const isWorkroom = form.resourceId === 'workroom' || form.roomId === 'workroom';
+                  const isPrinter = form.resourceId === 'bambu-1' || form.resourceId === 'bambu-2' || form.roomId === 'bambu-1' || form.roomId === 'bambu-2' || selectedResource?.type === 'equipment';
+                  const isMeet = !isWorkroom && !isPrinter;
 
-                {(!selectedResource?.policy?.allowOverlap && (selectedResource?.policy?.capacity > 1 || selectedResource?.type === 'space')) && (
-                  <div>
-                    <div className="mb-1.5 flex items-center justify-between">
-                      <span className="text-xs font-medium" style={{ color: C.muted }}>참석자 <span style={{ color: "var(--faint)" }}>· 참석 인원 {form.attendees.length}명</span></span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2.5" style={{ borderColor: errs.att ? "#C0392B" : C.border, background: "var(--bg-secondary)", minHeight: 46 }}>
-                      {form.attendees.length ? form.attendees.map((id) => {
-                        const m = M(id);
-                        if (!m) return null;
-                        return (
-                          <span key={id} className="inline-flex items-center gap-1.5 rounded-full pl-2.5 pr-1.5 py-1 text-[13px]" style={{ background: "var(--bg-chip)", color: C.text }}>
-                            <span className="h-2 w-2 rounded-full" style={{ background: C.muted }} />
-                            <span><span className="font-bold">{m.team}</span> <span className="font-medium">{nameWithNim(m.name)}</span></span>
-                            <button 
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setForm({ ...form, attendees: form.attendees.filter(x => x !== id) });
-                              }}
-                              className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 transition-all text-xs font-semibold ml-0.5 opacity-60 hover:opacity-100"
-                            >
-                              <X size={10} />
-                            </button>
-                          </span>
-                        );
-                      }) : <span className="text-sm" style={{ color: C.faint }}>선택된 참석자가 없어요</span>}
-                    </div>
-                    {errs.att && <div className="mt-1.5 flex items-center gap-1 text-xs font-semibold" style={{ color: PASTEL.red.text }}><AlertCircle size={12} />{errs.att}</div>}
-                    <button onClick={openPicker} className="lift mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border py-2.5 text-sm font-medium" style={{ borderColor: C.ink, color: C.ink }}><UserPlus size={16} /> 참석자 선택</button>
-                  </div>
-                )}
+                  if (isMeet) {
+                    return (
+                      <>
+                        {selectedResource?.policy?.allowUrgentOverride === true && (
+                          <div className="flex flex-col gap-2 rounded-lg border p-3 mt-1" style={{ borderColor: form.isUrgent ? PASTEL.red.line : C.border, background: form.isUrgent ? PASTEL.red.bg : "transparent" }}>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input type="checkbox" checked={form.isUrgent || false} onChange={(e) => setForm({ ...form, isUrgent: e.target.checked })} className="w-4 h-4" style={{ accentColor: PASTEL.red.dot }} />
+                              <span className="text-sm font-bold" style={{ color: form.isUrgent ? PASTEL.red.text : C.ink }}>🚨 중요 회의 (겹치는 예약을 뒤로 미룹니다)</span>
+                            </label>
+                            {form.isUrgent && (
+                              <input 
+                                value={form.urgentComment || ""} 
+                                onChange={(e) => setForm({ ...form, urgentComment: e.target.value })} 
+                                placeholder="사유 (기존 예약자에게 알림으로 전송됩니다)" 
+                                className="inp w-full mt-1 rounded border px-3 py-2 text-xs outline-none bg-white" 
+                                style={{ borderColor: PASTEL.red.line, color: C.text }} 
+                              />
+                            )}
+                          </div>
+                        )}
+                        <div>
+                          <div className="mb-1.5 flex items-center justify-between">
+                            <span className="text-xs font-medium" style={{ color: C.muted }}>참석자 <span style={{ color: "var(--faint)" }}>· 참석 인원 {form.attendees.length}명</span></span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2.5" style={{ borderColor: errs.att ? "#C0392B" : C.border, background: "var(--bg-secondary)", minHeight: 46 }}>
+                            {form.attendees.length ? form.attendees.map((id) => {
+                              const m = M(id);
+                              if (!m) return null;
+                              return (
+                                <span key={id} className="inline-flex items-center gap-1.5 rounded-full pl-2.5 pr-1.5 py-1 text-[13px]" style={{ background: "var(--bg-chip)", color: C.text }}>
+                                  <span className="h-2 w-2 rounded-full" style={{ background: C.muted }} />
+                                  <span><span className="font-bold">{m.team}</span> <span className="font-medium">{nameWithNim(m.name)}</span></span>
+                                  <button 
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setForm({ ...form, attendees: form.attendees.filter(x => x !== id) });
+                                    }}
+                                    className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 transition-all text-xs font-semibold ml-0.5 opacity-60 hover:opacity-100"
+                                  >
+                                    <X size={10} />
+                                  </button>
+                                </span>
+                              );
+                            }) : <span className="text-sm" style={{ color: C.faint }}>선택된 참석자가 없어요</span>}
+                          </div>
+                          {errs.att && <div className="mt-1.5 flex items-center gap-1 text-xs font-semibold" style={{ color: PASTEL.red.text }}><AlertCircle size={12} />{errs.att}</div>}
+                          <button onClick={openPicker} className="lift mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border py-2.5 text-sm font-medium" style={{ borderColor: C.ink, color: C.ink }}><UserPlus size={16} /> 참석자 선택</button>
+                        </div>
+                      </>
+                    );
+                  }
 
-                {selectedResource?.policy?.notice && selectedResource.policy.notice.length > 0 && (
-                  <div className="rounded-lg border p-3.5 text-xs space-y-1.5 mt-2" style={{ borderColor: C.border, background: "var(--bg-secondary)" }}>
-                    <div className="font-bold flex items-center gap-1.5" style={{ color: C.ink }}>
-                      <AlertCircle size={14} className="text-amber-500" />
-                      <span>{selectedResource.name} 이용 수칙</span>
-                    </div>
-                    <ul className="list-disc list-inside space-y-1" style={{ color: C.muted }}>
-                      {selectedResource.policy.notice.map((note, idx) => (
-                        <li key={idx} className="leading-relaxed">{note}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                  if (isWorkroom) {
+                    const activeCount = sessions.filter(s => 
+                      s.resourceId === 'workroom' && 
+                      !s.checkOutAt &&
+                      reservations.some(r => r.id === s.reservationId && r.date === keyOf(now))
+                    ).length;
+                    const isFull = activeCount >= 3;
+                    return (
+                      <div className={`rounded-lg border p-3.5 text-xs font-semibold ${isFull ? 'border-red-400 bg-red-50 text-red-600' : ''}`} style={{ borderColor: isFull ? undefined : C.border, background: isFull ? undefined : "var(--bg-secondary)", color: isFull ? undefined : C.text }}>
+                        정원 3명 · 지금 {activeCount}명 이용 중 · {Math.max(0, 3 - activeCount)}자리 남음
+                      </div>
+                    );
+                  }
+
+                  if (isPrinter) {
+                    return (
+                      <div className="rounded-lg border p-3.5 text-xs font-semibold" style={{ borderColor: C.border, background: "var(--bg-secondary)", color: C.text }}>
+                        24시간 · 주말에도 예약할 수 있습니다
+                      </div>
+                    );
+                  }
+
+                  return null;
+                })()}
 
                 {form.id && (
                   <div className="mt-4 border-t pt-4" style={{ borderColor: C.border }}>
@@ -3546,7 +3691,14 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 )}
                 <button onClick={() => setForm(null)} className="lift flex-1 rounded-lg border py-3 text-sm font-medium" style={{ borderColor: C.border, color: C.muted }}>취소</button>
                 <button 
-                  onClick={saveForm} 
+                  onClick={() => {
+                    if (isPrinter || isWorkroom) {
+                      setConfirmModalData(form);
+                      setCheckedNotices({});
+                    } else {
+                      saveForm();
+                    }
+                  }} 
                   disabled={isSubmitting}
                   className="lift flex flex-[2] items-center justify-center gap-1.5 rounded-lg py-3 text-sm font-medium" 
                   style={{ 
@@ -3560,6 +3712,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   <Check size={16} /> {isSubmitting ? "처리 중..." : (form.id ? "수정 완료" : "지금 예약하기")}
                 </button>
               </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -3827,7 +3982,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               if (activeDetailSession) {
                 return (
                   <div className="mt-4 border-t pt-4" style={{ borderColor: C.border }}>
-                    <button onClick={() => handleEndSession(activeDetailSession.id)} className="lift flex w-full items-center justify-center gap-1.5 rounded-lg py-3 text-[14px] font-bold shadow-sm" style={{ background: PASTEL.red.bg, color: PASTEL.red.text }}>
+                    <button onClick={() => handleEndSession(activeDetailSession)} className="lift flex w-full items-center justify-center gap-1.5 rounded-lg py-3 text-[14px] font-bold shadow-sm" style={{ background: PASTEL.red.bg, color: PASTEL.red.text }}>
                       <Square size={16} fill="currentColor" /> 사용 종료
                     </button>
                   </div>
@@ -4016,12 +4171,12 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 <button 
                   onClick={() => { 
                     setMenuDrawerOpen(false);
-                    requireAuth(() => setSection("mine"), "이용하시려면 로그인이 필요해요."); 
+                    requireAuth(() => setSection("history"), "이용하시려면 로그인이 필요해요."); 
                   }}
                   className="flex items-center w-full px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-black/5 dark:hover:bg-white/5"
-                  style={section === "mine" ? { background: "var(--bg-secondary)", color: C.ink } : {}}
+                  style={section === "history" ? { background: "var(--bg-secondary)", color: C.ink } : {}}
                 >
-                  <span>내 예약</span>
+                  <span>사용 기록</span>
                 </button>
                 <button 
                   onClick={() => { setSection("dash"); setMenuDrawerOpen(false); }}
@@ -4041,6 +4196,209 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         </div>
       )}
 
+
+      {/* ===== 예약 2단계: 수칙 확인 모달 (openConfirm) ===== */}
+      {confirmModalData && (() => {
+        const f = confirmModalData;
+        const isPrinter = f.resourceId === 'bambu-1' || f.resourceId === 'bambu-2' || f.roomId === 'bambu-1' || f.roomId === 'bambu-2';
+        const resName = isPrinter ? "3D 프린터" : "워크룸";
+        const notices = isPrinter ? [
+          { id: 1, title: "출력 전 베드가 비어 있는지 확인", sub: "앞 사람 출력물이 남아 있을 수 있습니다" },
+          { id: 2, title: "필라멘트 잔량 확인하기", sub: "중간에 떨어지면 처음부터 다시입니다" },
+          { id: 3, title: "종료 시각은 넉넉하게 잡기", sub: "예상보다 오래 걸리는 경우가 많습니다" }
+        ] : [
+          { id: 1, title: "정원 3명입니다", sub: "같은 시간에 3명까지만 예약됩니다" },
+          { id: 2, title: "예약 시간이 10분 지나면 자동으로 취소됩니다", sub: "못 오게 되면 미리 취소해주세요" },
+          { id: 3, title: "음식물은 가지고 들어오지 않기", sub: "냄새와 부스러기가 남습니다" }
+        ];
+        const checkedCount = Object.values(checkedNotices).filter(Boolean).length;
+        const allChecked = checkedCount === notices.length;
+
+        return (
+          <div className="ov fixed inset-0 z-[70] flex items-end justify-center p-0 sm:items-center sm:p-4" style={{ background: "rgba(20,20,20,.5)" }} onClick={() => setConfirmModalData(null)}>
+            <div className="sheet w-full rounded-t-lg bg-white sm:max-w-md sm:rounded-lg p-6" style={{ maxHeight: "92vh", boxShadow: "0 -4px 12px rgba(0,0,0,.08)" }} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: C.border }}>
+                <div>
+                  <h4 className="text-base font-bold" style={{ color: C.text }}>{resName} 사용 주의사항</h4>
+                  <p className="text-xs mt-0.5" style={{ color: C.muted }}>아래를 모두 확인해야 예약됩니다</p>
+                </div>
+                <button onClick={() => setConfirmModalData(null)} className="grid h-8 w-8 place-items-center rounded-lg" style={{ color: C.faint }}><X size={18} /></button>
+              </div>
+
+              <div className="my-4 rounded-lg p-3 space-y-1 text-xs" style={{ background: "var(--bg-secondary)", border: `1px solid ${C.border}` }}>
+                {isPrinter ? (
+                  <>
+                    <div className="flex justify-between"><span>기계</span><span className="font-bold">{f.roomId === 'bambu-1' ? '뱀부랩 1' : '뱀부랩 2'}</span></div>
+                    <div className="flex justify-between"><span>출력물</span><span className="font-bold">{f.title}</span></div>
+                    <div className="flex justify-between"><span>시간</span><span className="font-bold">{f.date} · {f.start} ~ {toMin(f.end) <= toMin(f.start) ? '다음 날 ' : ''}{f.end}</span></div>
+                    <div className="flex justify-between"><span>예약자</span><span className="font-bold">{user || ''}님</span></div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between"><span>자원</span><span className="font-bold">워크룸</span></div>
+                    <div className="flex justify-between"><span>프로젝트</span><span className="font-bold">{f.title}</span></div>
+                    <div className="flex justify-between"><span>시간</span><span className="font-bold">{f.date} · {f.start} ~ {f.end}</span></div>
+                    <div className="flex justify-between"><span>예약자</span><span className="font-bold">{user || ''}님</span></div>
+                  </>
+                )}
+              </div>
+
+              <div className="space-y-2.5">
+                {notices.map((nt) => (
+                  <label key={nt.id} className="flex items-start gap-2.5 p-3 rounded-lg border cursor-pointer transition-all" style={{ borderColor: checkedNotices[nt.id] ? C.ink : C.border, background: checkedNotices[nt.id] ? "var(--bg-chip)" : "transparent" }}>
+                    <input type="checkbox" checked={!!checkedNotices[nt.id]} onChange={(e) => setCheckedNotices({ ...checkedNotices, [nt.id]: e.target.checked })} className="mt-0.5 w-4 h-4 rounded" style={{ accentColor: C.ink }} />
+                    <div className="flex-1">
+                      <div className="text-sm font-bold" style={{ color: C.text }}>{nt.title}</div>
+                      <div className="text-xs mt-0.5" style={{ color: C.muted }}>{nt.sub}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              <div className="text-xs font-semibold text-right mt-3" style={{ color: allChecked ? "var(--green)" : C.muted }}>
+                {notices.length}개 중 {checkedCount}개 확인
+              </div>
+
+              <div className="mt-6 flex gap-2.5">
+                <button onClick={() => setConfirmModalData(null)} className="lift flex-1 rounded-lg border py-3 text-sm font-medium" style={{ borderColor: C.border, color: C.muted }}>뒤로</button>
+                <button 
+                  onClick={() => {
+                    saveForm();
+                    setConfirmModalData(null);
+                  }}
+                  disabled={!allChecked}
+                  className="lift flex-[2] rounded-lg py-3 text-sm font-bold transition-all"
+                  style={{
+                    background: allChecked ? "#2383E2" : "#a0aec0",
+                    color: "#fff",
+                    cursor: allChecked ? "pointer" : "not-allowed",
+                    opacity: allChecked ? 1 : 0.6
+                  }}
+                >
+                  확인하고 예약하기
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ===== 사용/출력 종료 모달 (openEnd) ===== */}
+      {reportModalSession && (() => {
+        const s = reportModalSession;
+        const isPr = s.resourceId === 'bambu-1' || s.resourceId === 'bambu-2';
+        const machineName = s.resourceId === 'bambu-1' ? '뱀부랩 1' : '뱀부랩 2';
+        const endNotices = isPr ? [
+          { id: 1, title: "베드에서 출력물 조심스럽게 분리", sub: "베드가 식은 뒤 스크레이퍼를 사용하세요" },
+          { id: 2, title: "주변 필라멘트 찌꺼기 청소", sub: "다음 사람을 위해 바닥과 베드를 깨끗이" },
+          { id: 3, title: "사용한 공구 제자리에 두기", sub: "니퍼, 스크레이퍼 등 원래 자리에" }
+        ] : [
+          { id: 1, title: "다음 사람이 바로 쓸 수 있게 자리 정리", sub: "개인 물품과 쓰레기는 꼭 챙겨가세요" },
+          { id: 2, title: "의자 제자리에 넣고 전원 확인", sub: "멀티탭과 조명 전원 확인" },
+          { id: 3, title: "잊은 물건 없나 마지막으로 확인", sub: "충전기, 마우스 등 소지품" }
+        ];
+        const checkedCount = Object.values(endCheckedNotices).filter(Boolean).length;
+        const allChecked = checkedCount === endNotices.length;
+
+        return (
+          <div className="ov fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setReportModalSession(null)}>
+            <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#1e1e1e] border p-6 shadow-2xl space-y-4" style={{ borderColor: C.border }} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: C.border }}>
+                <div>
+                  <h4 className="text-base font-bold" style={{ color: C.text }}>{isPr ? "출력을 종료합니다" : "사용을 종료합니다"}</h4>
+                  <p className="text-xs mt-0.5" style={{ color: C.muted }}>{isPr ? machineName : '워크룸'} · {s.checkInAt ? new Date(s.checkInAt?.toDate ? s.checkInAt.toDate() : s.checkInAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '시작'} ~ {new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</p>
+                </div>
+                <button onClick={() => setReportModalSession(null)} className="grid h-8 w-8 place-items-center rounded-lg" style={{ color: C.faint }}><X size={18} /></button>
+              </div>
+
+              <div className="space-y-2.5">
+                {endNotices.map((nt) => (
+                  <label key={nt.id} className="flex items-start gap-2.5 p-3 rounded-lg border cursor-pointer transition-all" style={{ borderColor: endCheckedNotices[nt.id] ? C.ink : C.border, background: endCheckedNotices[nt.id] ? "var(--bg-chip)" : "transparent" }}>
+                    <input type="checkbox" checked={!!endCheckedNotices[nt.id]} onChange={(e) => setEndCheckedNotices({ ...endCheckedNotices, [nt.id]: e.target.checked })} className="mt-0.5 w-4 h-4 rounded" style={{ accentColor: C.ink }} />
+                    <div className="flex-1">
+                      <div className="text-sm font-bold" style={{ color: C.text }}>{nt.title}</div>
+                      <div className="text-xs mt-0.5" style={{ color: C.muted }}>{nt.sub}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              <div className="text-xs font-semibold text-right mt-2" style={{ color: allChecked ? "var(--green)" : C.muted }}>
+                {endNotices.length}개 중 {checkedCount}개 확인
+              </div>
+
+              {isPr && (
+                <div className="space-y-3 pt-2 border-t" style={{ borderColor: C.border }}>
+                  <div>
+                    <label className="block text-xs font-bold mb-1.5" style={{ color: C.text }}>출력 결과</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        ['success', '성공'],
+                        ['partial', '부분 실패'],
+                        ['fail', '실패']
+                      ].map(([val, label]) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setReportForm(f => ({ ...f, result: val }))}
+                          className={`py-2 rounded-lg text-xs font-bold border transition-colors ${
+                            reportForm.result === val ? 'bg-[#2383E2] text-white border-[#2383E2]' : 'bg-transparent text-gray-400 border-gray-600'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold mb-1.5" style={{ color: C.text }}>남길 말 · 선택</label>
+                    <textarea
+                      placeholder="다음 사람이 알아야 할 게 있다면"
+                      rows={2}
+                      value={reportForm.note}
+                      onChange={(e) => setReportForm(f => ({ ...f, note: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg border text-sm outline-none bg-transparent resize-none"
+                      style={{ borderColor: C.border, color: C.text }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2.5 pt-2 border-t" style={{ borderColor: C.border }}>
+                <button
+                  type="button"
+                  onClick={() => setReportModalSession(null)}
+                  className="px-4 py-2.5 rounded-lg border text-xs font-semibold hover:bg-gray-800/40"
+                  style={{ borderColor: C.border, color: C.muted }}
+                >
+                  닫기
+                </button>
+                <button
+                  type="button"
+                  disabled={!allChecked}
+                  onClick={() => {
+                    if (isPr && (s.resourceId || true)) {
+                      submitSessionReport();
+                    } else {
+                      handleEndSession(s.id);
+                      setReportModalSession(null);
+                    }
+                  }}
+                  className="px-4 py-2.5 rounded-lg text-white text-xs font-bold transition-all"
+                  style={{
+                    background: allChecked ? "#E53E3E" : "#a0aec0",
+                    cursor: allChecked ? "pointer" : "not-allowed",
+                    opacity: allChecked ? 1 : 0.6
+                  }}
+                >
+                  확인했어요, 종료하기
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ===== Toast ===== */}
       {toast && <div className="rise fixed left-1/2 bottom-[100px] -translate-x-1/2 z-[80] flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium whitespace-nowrap" style={{ background: C.ink, color: "var(--bg)", boxShadow: "0 4px 12px rgba(0,0,0,.15)" }}><CheckCircle2 size={16} style={{ color: "var(--yellow)" }} /> {toast}</div>}
