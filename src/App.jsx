@@ -1203,6 +1203,28 @@ export default function App() {
   };
 
   const [form, setForm] = useState(null);
+  const selectedResource = useMemo(() => {
+    if (!form) return null;
+    const targetId = form.resourceId || form.roomId;
+    const dbRes = resources.find(r => r.id === targetId);
+    if (dbRes) return dbRes;
+    const roomRes = ROOMS.find(r => r.id === targetId);
+    if (roomRes) {
+      return {
+        id: roomRes.id,
+        name: roomRes.name,
+        type: 'space',
+        policy: {
+          requiresReservation: true,
+          allowOverlap: false,
+          allowUrgentOverride: true,
+          capacity: roomRes.capacity,
+          notice: []
+        }
+      };
+    }
+    return null;
+  }, [form, resources]);
   const [showStartList, setShowStartList] = useState(false);
   const [showEndList, setShowEndList] = useState(false);
   const hasScrolledStartRef = useRef(false);
@@ -3174,12 +3196,12 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         <div className="ov fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4" style={{ background: "rgba(20,20,20,.5)" }} onClick={() => { setShowStartList(false); setShowEndList(false); }}>
           <div className="sheet w-full rounded-t-lg bg-white sm:max-w-md sm:rounded-lg" style={{ maxHeight: "92vh", boxShadow: "0 -4px 12px rgba(0,0,0,.08)" }} onClick={(e) => { e.stopPropagation(); setShowStartList(false); setShowEndList(false); }}>
             <div className="sc max-h-[92vh] overflow-y-auto p-6">
-              <div className="flex items-center justify-between"><h3 className="text-lg font-medium">{form.id ? "예약 수정" : "회의실 예약"}</h3><button onClick={() => setForm(null)} className="grid h-8 w-8 place-items-center rounded-lg" style={{ color: C.faint }}><X size={18} /></button></div>
+              <div className="flex items-center justify-between"><h3 className="text-lg font-medium">{form.id ? "예약 수정" : (selectedResource?.policy?.requiresReservation === false ? `${selectedResource?.name || '자원'} 사용 등록` : `${selectedResource?.name || '회의실'} 예약`)}</h3><button onClick={() => setForm(null)} className="grid h-8 w-8 place-items-center rounded-lg" style={{ color: C.faint }}><X size={18} /></button></div>
               <div className="mt-5 space-y-4">
-                <Field label="회의 제목" error={errs.title}>
-                  <input value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value }); setErrs((x) => ({ ...x, title: undefined })); }} placeholder="예: OOO 프로젝트_아이데이션 회의" className="inp w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none" style={{ borderColor: errs.title ? "#C0392B" : C.border }} />
+                <Field label={selectedResource?.policy?.allowOverlap ? "어떤 프로젝트 때문에 쓰시나요?" : "회의 제목"} error={errs.title}>
+                  <input value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value }); setErrs((x) => ({ ...x, title: undefined })); }} placeholder={selectedResource?.policy?.allowOverlap ? "예: OOO 프로젝트 작업" : "예: OOO 프로젝트_아이데이션 회의"} className="inp w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none" style={{ borderColor: errs.title ? "#C0392B" : C.border }} />
                 </Field>
-                <Field label="회의실"><SelectBox value={form.roomId} onChange={(v) => setForm({ ...form, roomId: v })} options={ROOMS.map((r) => [r.id, `${r.name} · ${r.capacity}명`])} /></Field>
+                <Field label="자원"><SelectBox value={form.roomId || form.resourceId} onChange={(v) => setForm({ ...form, roomId: v, resourceId: v })} options={resources.length > 0 ? resources.map((r) => [r.id, `${r.name}${r.policy?.capacity ? ` · ${r.policy.capacity}명` : ''}`]) : ROOMS.map((r) => [r.id, `${r.name} · ${r.capacity}명`])} /></Field>
                 <Field label="날짜">
                   <input type="date" value={form.date} onClick={(e) => { try { e.target.showPicker(); } catch(err) {} }} onChange={(e) => setForm({ ...form, date: e.target.value })} className="inp w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none cursor-pointer" style={{ borderColor: C.border, background: "var(--bg-select)" }} />
                 </Field>
@@ -3383,51 +3405,69 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   </div>
                 </Field>
 
-                <div className="flex flex-col gap-2 rounded-lg border p-3 mt-1" style={{ borderColor: form.isUrgent ? PASTEL.red.line : C.border, background: form.isUrgent ? PASTEL.red.bg : "transparent" }}>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={form.isUrgent || false} onChange={(e) => setForm({ ...form, isUrgent: e.target.checked })} className="w-4 h-4" style={{ accentColor: PASTEL.red.dot }} />
-                    <span className="text-sm font-bold" style={{ color: form.isUrgent ? PASTEL.red.text : C.ink }}>🚨 중요 회의 (겹치는 예약을 뒤로 미룹니다)</span>
-                  </label>
-                  {form.isUrgent && (
-                    <input 
-                      value={form.urgentComment || ""} 
-                      onChange={(e) => setForm({ ...form, urgentComment: e.target.value })} 
-                      placeholder="사유 (기존 예약자에게 알림으로 전송됩니다)" 
-                      className="inp w-full mt-1 rounded border px-3 py-2 text-xs outline-none bg-white" 
-                      style={{ borderColor: PASTEL.red.line, color: C.text }} 
-                    />
-                  )}
-                </div>
+                {selectedResource?.policy?.allowUrgentOverride === true && (
+                  <div className="flex flex-col gap-2 rounded-lg border p-3 mt-1" style={{ borderColor: form.isUrgent ? PASTEL.red.line : C.border, background: form.isUrgent ? PASTEL.red.bg : "transparent" }}>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={form.isUrgent || false} onChange={(e) => setForm({ ...form, isUrgent: e.target.checked })} className="w-4 h-4" style={{ accentColor: PASTEL.red.dot }} />
+                      <span className="text-sm font-bold" style={{ color: form.isUrgent ? PASTEL.red.text : C.ink }}>🚨 중요 회의 (겹치는 예약을 뒤로 미룹니다)</span>
+                    </label>
+                    {form.isUrgent && (
+                      <input 
+                        value={form.urgentComment || ""} 
+                        onChange={(e) => setForm({ ...form, urgentComment: e.target.value })} 
+                        placeholder="사유 (기존 예약자에게 알림으로 전송됩니다)" 
+                        className="inp w-full mt-1 rounded border px-3 py-2 text-xs outline-none bg-white" 
+                        style={{ borderColor: PASTEL.red.line, color: C.text }} 
+                      />
+                    )}
+                  </div>
+                )}
 
-                <div>
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <span className="text-xs font-medium" style={{ color: C.muted }}>참석자 <span style={{ color: "var(--faint)" }}>· 참석 인원 {form.attendees.length}명</span></span>
+                {(!selectedResource?.policy?.allowOverlap && (selectedResource?.policy?.capacity > 1 || selectedResource?.type === 'space')) && (
+                  <div>
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <span className="text-xs font-medium" style={{ color: C.muted }}>참석자 <span style={{ color: "var(--faint)" }}>· 참석 인원 {form.attendees.length}명</span></span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2.5" style={{ borderColor: errs.att ? "#C0392B" : C.border, background: "var(--bg-secondary)", minHeight: 46 }}>
+                      {form.attendees.length ? form.attendees.map((id) => {
+                        const m = M(id);
+                        if (!m) return null;
+                        return (
+                          <span key={id} className="inline-flex items-center gap-1.5 rounded-full pl-2.5 pr-1.5 py-1 text-[13px]" style={{ background: "var(--bg-chip)", color: C.text }}>
+                            <span className="h-2 w-2 rounded-full" style={{ background: C.muted }} />
+                            <span><span className="font-bold">{m.team}</span> <span className="font-medium">{nameWithNim(m.name)}</span></span>
+                            <button 
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setForm({ ...form, attendees: form.attendees.filter(x => x !== id) });
+                              }}
+                              className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 transition-all text-xs font-semibold ml-0.5 opacity-60 hover:opacity-100"
+                            >
+                              <X size={10} />
+                            </button>
+                          </span>
+                        );
+                      }) : <span className="text-sm" style={{ color: C.faint }}>선택된 참석자가 없어요</span>}
+                    </div>
+                    {errs.att && <div className="mt-1.5 flex items-center gap-1 text-xs font-semibold" style={{ color: PASTEL.red.text }}><AlertCircle size={12} />{errs.att}</div>}
+                    <button onClick={openPicker} className="lift mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border py-2.5 text-sm font-medium" style={{ borderColor: C.ink, color: C.ink }}><UserPlus size={16} /> 참석자 선택</button>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2.5" style={{ borderColor: errs.att ? "#C0392B" : C.border, background: "var(--bg-secondary)", minHeight: 46 }}>
-                    {form.attendees.length ? form.attendees.map((id) => {
-                      const m = M(id);
-                      if (!m) return null;
-                      return (
-                        <span key={id} className="inline-flex items-center gap-1.5 rounded-full pl-2.5 pr-1.5 py-1 text-[13px]" style={{ background: "var(--bg-chip)", color: C.text }}>
-                          <span className="h-2 w-2 rounded-full" style={{ background: C.muted }} />
-                          <span><span className="font-bold">{m.team}</span> <span className="font-medium">{nameWithNim(m.name)}</span></span>
-                          <button 
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setForm({ ...form, attendees: form.attendees.filter(x => x !== id) });
-                            }}
-                            className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 transition-all text-xs font-semibold ml-0.5 opacity-60 hover:opacity-100"
-                          >
-                            <X size={10} />
-                          </button>
-                        </span>
-                      );
-                    }) : <span className="text-sm" style={{ color: C.faint }}>선택된 참석자가 없어요</span>}
+                )}
+
+                {selectedResource?.policy?.notice && selectedResource.policy.notice.length > 0 && (
+                  <div className="rounded-lg border p-3.5 text-xs space-y-1.5 mt-2" style={{ borderColor: C.border, background: "var(--bg-secondary)" }}>
+                    <div className="font-bold flex items-center gap-1.5" style={{ color: C.ink }}>
+                      <AlertCircle size={14} className="text-amber-500" />
+                      <span>{selectedResource.name} 이용 수칙</span>
+                    </div>
+                    <ul className="list-disc list-inside space-y-1" style={{ color: C.muted }}>
+                      {selectedResource.policy.notice.map((note, idx) => (
+                        <li key={idx} className="leading-relaxed">{note}</li>
+                      ))}
+                    </ul>
                   </div>
-                  {errs.att && <div className="mt-1.5 flex items-center gap-1 text-xs font-semibold" style={{ color: PASTEL.red.text }}><AlertCircle size={12} />{errs.att}</div>}
-                  <button onClick={openPicker} className="lift mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border py-2.5 text-sm font-medium" style={{ borderColor: C.ink, color: C.ink }}><UserPlus size={16} /> 참석자 선택</button>
-                </div>
+                )}
 
                 {form.id && (
                   <div className="mt-4 border-t pt-4" style={{ borderColor: C.border }}>
