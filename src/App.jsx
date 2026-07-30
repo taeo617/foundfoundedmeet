@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, forwardRef } from "react";
 import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, arrayUnion, runTransaction, writeBatch } from "firebase/firestore";
 import { db, auth, isFirebaseConfigured } from "./firebase";
-import HistorySearch from "./HistorySearch";
+import HistorySearch from "./screens/HistorySearch";
 import { signInAnonymously } from "firebase/auth";
 import {
   Calendar, CalendarDays, Clock, Users, Monitor, Video, Plus, X, Check,
@@ -3063,13 +3063,6 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-3">
                 <h2 className="text-lg font-medium">사용 기록</h2>
-                <input 
-                  type="date" 
-                  value={mineDate} 
-                  onChange={(e) => setMineDate(e.target.value || keyOf(new Date()))} 
-                  className="inp rounded-lg border px-2 py-1.5 text-xs font-medium outline-none" 
-                  style={{ borderColor: C.border, background: "var(--bg-input)" }} 
-                />
               </div>
               {user && (
                 <button 
@@ -3083,55 +3076,48 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             </div>
             {!user ? (
               <div className="grid place-items-center rounded-lg border bg-white py-16 text-center" style={{ borderColor: C.border }}>
-                <Lock size={30} style={{ color: C.faint }} /><p className="mt-3 text-sm font-semibold" style={{ color: C.muted }}>로그인하면 내 예약을 볼 수 있어요</p>
-                <button onClick={() => requireAuth(() => setSection("mine"), "로그인하면 내 예약을 볼 수 있어요.")} className="lift mt-4 flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium" style={{ background: C.ink, color: "var(--bg)" }}><LogIn size={15} />로그인</button>
-              </div>
-            ) : myRes.length === 0 ? (
-              <div className="grid place-items-center rounded-lg border bg-white py-16 text-center" style={{ borderColor: C.border }}>
-                <Calendar size={32} style={{ color: C.faint }} /><p className="mt-3 text-sm font-semibold" style={{ color: C.muted }}>아직 예약이 없어요</p>
-                <button onClick={() => setSection("book")} className="lift mt-4 rounded-lg px-4 py-2 text-sm font-medium" style={{ background: C.ink, color: "var(--bg)" }}>예약하러 가기</button>
+                <Lock size={30} style={{ color: C.faint }} /><p className="mt-3 text-sm font-semibold" style={{ color: C.muted }}>로그인하면 사용 기록을 볼 수 있어요</p>
+                <button onClick={() => requireAuth(() => setSection("history"), "로그인하면 사용 기록을 볼 수 있어요.")} className="lift mt-4 flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium" style={{ background: C.ink, color: "var(--bg)" }}><LogIn size={15} />로그인</button>
               </div>
             ) : (
-              <div className="grid gap-3">
-                {myRes.map((r) => { 
-                  const p = r.isUrgent ? pal('red') : pal('green'), rm = ROOMS.find((x) => x.id === r.roomId), [y, mo, da] = r.date.split("-").map(Number), d = new Date(y, mo - 1, da); 
-                  const now = new Date();
-                  const todayKey = keyOf(now);
-                  const nowMin = now.getHours() * 60 + now.getMinutes();
-                  const isMeetingPast = r.date < todayKey || (r.date === todayKey && toMin(r.end) <= nowMin);
+              <HistorySearch 
+                user={user} 
+                sessions={sessions}
+                reservations={reservations}
+                ROOMS={ROOMS} 
+                MEMBERS={MEMBERS} 
+                C={C} 
+                PASTEL={PASTEL} 
+                formatDate={keyOf} 
+                formatTime={(dateStr) => {
+                  if (!dateStr) return "";
+                  const d = dateStr.toDate ? dateStr.toDate() : new Date(dateStr);
+                  if (isNaN(d)) return String(dateStr);
+                  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                }}
+                onEditSession={async (session) => {
+                  if (user !== "admin") return;
+                  const newEnd = prompt("수정할 종료 시각을 입력하세요 (HH:MM 형식)", "");
+                  if (!newEnd || !/^\d{2}:\d{2}$/.test(newEnd)) return alert("취소되었거나 형식이 올바르지 않습니다.");
                   
-                  return (
-                  <div key={r.id} className="lift flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 rounded-lg border bg-white p-3.5 sm:p-4" style={{ borderColor: C.border }}>
-                    <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-                      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg" style={{ background: p.bg, color: p.text }}><span className="text-lg font-medium">{da}</span></div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2"><span className="truncate text-[15px] font-medium">{r.title}</span>{r.repeat && <span className="inline-flex shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium" style={{ background: PASTEL.yellow.bg, color: PASTEL.yellow.text }}><Repeat size={10} />매주</span>}</div>
-                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium" style={{ color: C.muted }}><span className="flex items-center gap-1"><Building2 size={12} />{rm.name}</span><span className="flex items-center gap-1"><Clock size={12} />{fmtK(d)} {r.start}~{r.end}</span><span className="flex items-center gap-1"><Users size={12} />{r.attendees.length}명</span></div>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 flex-wrap gap-1.5 justify-end sm:flex-nowrap sm:gap-2 mt-1 sm:mt-0">
-                      {!isMeetingPast && (
-                        <>
-                          <select onChange={(e) => { if (e.target.value) { extendRes(r, parseInt(e.target.value)); e.target.value = ""; } }} className="lift rounded-lg border px-2 py-1.5 text-xs font-medium outline-none cursor-pointer" style={{ borderColor: C.border, color: C.ink, background: "transparent" }}>
-                            <option value="">연장하기</option>
-                            <option value="5">+ 5분</option>
-                            <option value="10">+ 10분</option>
-                            <option value="15">+ 15분</option>
-                            <option value="30">+ 30분</option>
-                          </select>
-                          <button onClick={() => completeRes(r)} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, color: C.ink }}>회의 종료</button>
-                        </>
-                      )}
-                      {!isMeetingPast && canEdit(r) && (
-                        <button onClick={() => { setRoomId(r.roomId); setAnchor(d); openEdit(r); setSection("book"); }} className="lift rounded-lg border px-3 py-2 text-xs font-medium" style={{ borderColor: C.border, color: C.muted }}>수정</button>
-                      )}
-                      {canDelete(r) && (
-                        <button onClick={() => cancelRes(r.id)} className="lift flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-medium" style={{ background: PASTEL.red.bg, color: PASTEL.red.text }}><Trash2 size={13} /></button>
-                      )}
-                    </div>
-                  </div>
-                ); })}
-              </div>
+                  const baseDate = session.checkOutAt ? (session.checkOutAt.toDate ? session.checkOutAt.toDate() : new Date(session.checkOutAt)) : new Date();
+                  const [h, m] = newEnd.split(":").map(Number);
+                  baseDate.setHours(h, m, 0, 0);
+
+                  const beforeVal = session.checkOutAt ? (session.checkOutAt.toDate ? session.checkOutAt.toDate().toISOString() : session.checkOutAt) : null;
+                  const afterVal = baseDate.toISOString();
+
+                  try {
+                    await updateDoc(doc(db, "sessions", session.id), {
+                      checkOutAt: baseDate,
+                      edits: arrayUnion({ by: user, at: new Date().toISOString(), field: "checkOutAt", before: beforeVal, after: afterVal })
+                    });
+                    setToast("수정되었습니다.");
+                  } catch (err) {
+                    setToast("수정에 실패했습니다.");
+                  }
+                }}
+              />
             )}
           </section>
         )}
