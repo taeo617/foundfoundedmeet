@@ -817,16 +817,23 @@ function OccupancyBar({ capacity, current }) {
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem('skipSplash'));
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     if (!isFirebaseConfigured || !auth) return;
-    signInAnonymously(auth)
-      .then((userCredential) => {
-        console.log("Logged in anonymously as:", userCredential.user.uid);
-      })
-      .catch((error) => {
-        console.error("Anonymous auth failed:", error);
-      });
+    signInAnonymously(auth).catch((error) => {
+      console.error("Anonymous auth failed:", error);
+    });
+
+    const unsub = auth.onAuthStateChanged((user) => {
+      if (user) {
+        setIsAuthenticated(true);
+        console.log("Logged in anonymously as:", user.uid);
+      } else {
+        setIsAuthenticated(false);
+      }
+    });
+    return () => unsub();
   }, []);
   const [user, setUser] = useState(() => {
     try {
@@ -857,23 +864,23 @@ export default function App() {
 
   const [resources, setResources] = useState([]);
   useEffect(() => {
-    if (!isFirebaseConfigured) return;
+    if (!isFirebaseConfigured || !isAuthenticated) return;
     const unsub = onSnapshot(collection(db, "resources"), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setResources(data);
     }, (err) => console.error("resources snapshot error:", err));
     return () => unsub();
-  }, []);
+  }, [isAuthenticated]);
 
   const [sessions, setSessions] = useState([]);
   useEffect(() => {
-    if (!isFirebaseConfigured) return;
+    if (!isFirebaseConfigured || !isAuthenticated) return;
     const unsub = onSnapshot(collection(db, "sessions"), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setSessions(data);
     }, (err) => console.error("sessions snapshot error:", err));
     return () => unsub();
-  }, []);
+  }, [isAuthenticated]);
 
   const [suspendedIds, setSuspendedIds] = useState(() => {
     try {
@@ -929,13 +936,14 @@ export default function App() {
       }
       return;
     }
+    if (!isAuthenticated) return;
     const unsub = onSnapshot(collection(db, "announcements"), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       data.sort((a, b) => b.createdAt - a.createdAt);
       setAnnouncements(data);
     }, (err) => console.error("announcements snapshot error:", err));
     return () => unsub();
-  }, []);
+  }, [isAuthenticated]);
 
   const hasUnreadAnn = useMemo(() => announcements.some(a => a.createdAt > lastReadTime), [announcements, lastReadTime]);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -1059,13 +1067,13 @@ export default function App() {
 
   
   useEffect(() => {
-    if (!isFirebaseConfigured) return;
+    if (!isFirebaseConfigured || !isAuthenticated) return;
     const unsub = onSnapshot(collection(db, "reservations"), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setReservations(data);
     }, (err) => console.error("reservations snapshot error:", err));
     return () => unsub();
-  }, []);
+  }, [isAuthenticated]);
 
   // Trigger ending notifications
   useEffect(() => {
