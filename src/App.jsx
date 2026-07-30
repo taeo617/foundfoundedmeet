@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, forwardRef } from "react";
 import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, arrayUnion, runTransaction, writeBatch } from "firebase/firestore";
 import { db, auth, isFirebaseConfigured } from "./firebase";
+import HistorySearch from "./HistorySearch";
 import { signInAnonymously } from "firebase/auth";
 import {
   Calendar, CalendarDays, Clock, Users, Monitor, Video, Plus, X, Check,
