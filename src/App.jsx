@@ -1029,7 +1029,8 @@ export default function App() {
     const grouped = new Map();
     const singles = [];
     
-    rawReservations.forEach(r => {
+    const activeRaw = rawReservations.filter(r => r.status !== 'cancelled');
+    activeRaw.forEach(r => {
       if (r.groupId) {
         if (!grouped.has(r.groupId)) {
           grouped.set(r.groupId, { ...r, _slots: [r.id], _starts: [toMin(r.start)], _ends: [toMin(r.end)] });
@@ -1836,7 +1837,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     setErrs({});
     const me = getMeId();
     const targetId = (rid === 'all' || rid === 'meeting-room') ? 'big' : rid;
-    setForm({ id: null, roomId: targetId, resourceId: targetId === 'workroom' ? 'workroom' : 'meeting-room', title: "", date: date || selKey, start: toHHMM(startMin), end: toHHMM(Math.min(startMin + 10, DAY_END)), attendees: me && me !== "m_room" ? [me] : [], repeat: false, color: "yellow", isUrgent: false, comments: [] });
+    setForm({ id: null, roomId: targetId, resourceId: targetId === 'workroom' ? 'workroom' : 'meeting-room', title: "", date: date || selKey, start: toHHMM(startMin), end: toHHMM(Math.min(startMin + 10, DAY_END)), attendees: me && me !== "m_room" ? [me] : [], repeat: false, color: "yellow", isUrgent: false, comments: [], status: 'booked' });
   }
   const tryCreate = (rid, sm, date) => requireAuth(() => openCreate(rid, sm, date), "일정을 추가하려면 로그인이 필요해요.");
   const openEdit = (r) => {
@@ -2048,7 +2049,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           const currentSlotEndMin = Math.min(currentSlotStartMin + policy.slotMinutes, endM);
           const slotIndex = Math.floor(currentSlotStartMin / policy.slotMinutes);
           
-          let slotId = `${finalForm.resourceId || 'meeting-room'}_${dateStr}_${slotIndex}`;
+          let slotId = `${finalForm.roomId}_${dateStr}_${slotIndex}`;
           if (seatNum) {
             slotId += `_${seatNum}`;
           }
@@ -2083,7 +2084,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               const currentSlotStartMin = pStartM + (i * policy.slotMinutes);
               const currentSlotEndMin = Math.min(currentSlotStartMin + policy.slotMinutes, pEndM);
               const slotIndex = Math.floor(currentSlotStartMin / policy.slotMinutes);
-              let slotId = `${pushed.resourceId || 'meeting-room'}_${dateStr}_${slotIndex}`;
+              let slotId = `${pushed.roomId}_${dateStr}_${slotIndex}`;
               const slotData = { ...pushed, id: slotId, start: toHHMM(currentSlotStartMin), end: toHHMM(currentSlotEndMin) };
               delete slotData._slots; delete slotData._starts; delete slotData._ends;
               console.log('밀어낸 새 슬롯 생성 중:', slotId);

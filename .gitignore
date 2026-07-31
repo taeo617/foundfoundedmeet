@@ -27,3 +27,6 @@ dist-ssr
 .vercel
 _handoff/
 check_syntax.cjs
+# Firebase Service Account Keys
+*-adminsdk-*.json
+serviceAccountKey.json
