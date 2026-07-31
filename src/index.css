@@ -577,3 +577,56 @@ body.onb-open .ov { z-index: 320 !important; }
     display: none !important;
   }
 }
+
+/* Update Notification Item Styles */
+.chglist {
+  list-style: none !important;
+  margin-top: 6px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  padding-left: 0 !important;
+}
+.chglist li {
+  font-size: 11.5px !important;
+  color: var(--muted) !important;
+  padding-left: 12px !important;
+  position: relative !important;
+  line-height: 1.45 !important;
+}
+.chglist li::before {
+  content: '' !important;
+  position: absolute !important;
+  left: 2px !important;
+  top: 7px !important;
+  width: 4px !important;
+  height: 4px !important;
+  border-radius: 99px !important;
+  background: var(--room) !important;
+}
+.newtag {
+  display: inline-block !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  background: #2383E2 !important;
+  color: #ffffff !important;
+  padding: 1px 7px !important;
+  border-radius: 99px !important;
+  vertical-align: middle !important;
+  margin-right: 4px !important;
+}
+.ngo {
+  margin-top: 8px !important;
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  color: #2383E2 !important;
+  padding: 5px 11px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  cursor: pointer !important;
+  transition: background 0.15s !important;
+}
+.ngo:hover {
+  background: rgba(35, 131, 226, 0.1) !important;
+}

@@ -64,3 +64,46 @@ export const STEP = 5;
 export const PX = 15;
 export const SLOTS = (DAY_END - DAY_START) / STEP;
 export const GUTTER = 48;
+
+/* update notifications from prototype */
+export const UPDATE_NOTES = [
+  {
+    id: 'upd-meeting',
+    kind: 'update',
+    ic: 'up',
+    guide: 'meeting',
+    title: '회의실 예약이 바뀌었어요',
+    body: '예약 창은 그대로지만 몇 가지가 편해졌습니다.',
+    changes: [
+      '세로 타임라인으로 하루 일정을 한눈에',
+      '중요 회의 표시는 그대로 — 겹치는 예약을 뒤로 미룹니다',
+      '참석자 선택 창에서 전체 선택·비우기 지원'
+    ]
+  },
+  {
+    id: 'upd-workroom',
+    kind: 'update',
+    ic: 'up',
+    guide: 'workroom',
+    title: '워크룸 예약이 새로 생겼어요',
+    body: '이제 워크룸도 예약제로 관리됩니다.',
+    changes: [
+      '프로젝트 이름과 시간만 넣으면 예약 완료 (정원 3명)',
+      '예약 전·후로 주의사항을 확인합니다',
+      '예약 시간 10분이 지나면 자동으로 취소돼요'
+    ]
+  },
+  {
+    id: 'upd-printer',
+    kind: 'update',
+    ic: 'up',
+    guide: 'printer',
+    title: '3D 프린터 예약이 추가됐어요',
+    body: '뱀부랩 1·2를 예약해서 쓸 수 있습니다.',
+    changes: [
+      '출력물 이름과 기계를 골라 예약',
+      '밤 11시에 걸어 아침에 찾는 자정 넘김 출력도 가능',
+      '끝나면 성공·실패 결과를 남겨 다음 사람에게 공유'
+    ]
+  }
+];

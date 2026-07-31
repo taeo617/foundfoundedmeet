@@ -37,14 +37,7 @@ const OnboardingGuide = forwardRef(({ meId, currentRes, setRes, currentTab, setT
   const startOnboarding = useCallback((groups = null) => {
     let newSteps = ONB_ALL.slice();
     if (groups) {
-      newSteps = ONB_ALL.filter(s => s.group === 'intro' || s.group === 'common' || groups.includes(s.group));
-      if (newSteps[0] && newSteps[0].group === 'intro') {
-        newSteps[0] = {
-          ...newSteps[0],
-          title: '새로운 기능이 추가됐어요',
-          body: '그동안 안 보던 사이에 새 예약이 생겼습니다. 추가된 부분만 짚어드릴게요.'
-        };
-      }
+      newSteps = ONB_ALL.filter(s => groups.includes(s.group));
     }
     setSteps(newSteps);
     setCurrentIndex(0);

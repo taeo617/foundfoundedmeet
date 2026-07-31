@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, forwardRef } from "react";
-import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, arrayUnion, runTransaction, writeBatch } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, arrayUnion, serverTimestamp, runTransaction, writeBatch } from "firebase/firestore";
 import { db, auth, isFirebaseConfigured } from "./firebase";
 import HistorySearch from "./screens/HistorySearch";
 import AdminDashboard from "./screens/AdminDashboard";
@@ -16,7 +16,7 @@ import { jsPDF } from "jspdf";
 
 import {
   C, PASTEL, COLORS, pal, EQUIP, ROOMS, MEMBERS, M, memLabel, nameWithNim,
-  DAY_START, DAY_END, STEP, PX, SLOTS, GUTTER
+  DAY_START, DAY_END, STEP, PX, SLOTS, GUTTER, UPDATE_NOTES
 } from "./constants";
 import {
   pad, toMin, toHHMM, WEEK, keyOf, fmtK, addDays, dayOnly, sameDay, TIMES, getClosestTime
@@ -865,6 +865,51 @@ export default function App() {
   const [announcementPanelOpen, setAnnouncementPanelOpen] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] = useState(null);
   const [lastReadTime, setLastReadTime] = useState(() => Number(localStorage.getItem("announcement_last_read") || 0));
+  const [userGuideSeen, setUserGuideSeen] = useState([]);
+
+  useEffect(() => {
+    const meId = MEMBERS.find(m => m.name === user)?.id;
+    if (!meId) return;
+
+    if (isFirebaseConfigured) {
+      const unsub = onSnapshot(doc(db, "users", meId), (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setUserGuideSeen(data.guideSeen || []);
+        }
+      }, (err) => console.error("users guideSeen snapshot error:", err));
+      return () => unsub();
+    } else {
+      try {
+        const local = JSON.parse(localStorage.getItem(`rsv_guide_${meId}`) || 'null');
+        setUserGuideSeen(local?.seen || []);
+      } catch (e) {
+        setUserGuideSeen([]);
+      }
+    }
+  }, [user]);
+
+  const handleMarkGuideSeen = async (guideKey) => {
+    const meId = MEMBERS.find(m => m.name === user)?.id;
+    const updated = Array.from(new Set([...userGuideSeen, guideKey]));
+    setUserGuideSeen(updated);
+
+    if (isFirebaseConfigured && meId) {
+      try {
+        await setDoc(doc(db, "users", meId), {
+          guideSeen: arrayUnion(guideKey),
+          lastSeenAt: serverTimestamp()
+        }, { merge: true });
+      } catch (err) {
+        console.error("Failed to update guideSeen in Firestore:", err);
+      }
+    } else if (meId) {
+      try {
+        const existing = JSON.parse(localStorage.getItem(`rsv_guide_${meId}`) || '{}');
+        localStorage.setItem(`rsv_guide_${meId}`, JSON.stringify({ ...existing, seen: updated, ver: '2026-07', lastSeenAt: Date.now() }));
+      } catch (e) {}
+    }
+  };
 
   useEffect(() => {
     if (!isFirebaseConfigured) {
@@ -885,7 +930,10 @@ export default function App() {
     return () => unsub();
   }, [isAuthenticated]);
 
-  const hasUnreadAnn = useMemo(() => announcements.some(a => a.createdAt > lastReadTime), [announcements, lastReadTime]);
+  const hasUnreadAnn = useMemo(() => {
+    const hasUnreadUpdate = UPDATE_NOTES.some(n => !userGuideSeen.includes(n.guide));
+    return hasUnreadUpdate || announcements.some(a => a.createdAt > lastReadTime);
+  }, [announcements, lastReadTime, userGuideSeen]);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [menuDrawerOpen, setMenuDrawerOpen] = useState(false);
   const [view, setView] = useState("timeline");
@@ -3045,12 +3093,12 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               </button>
               {announcementPanelOpen && (
                 <>
-                  <div className="fixed inset-0 z-40 cursor-default" onClick={() => setAnnouncementPanelOpen(false)} />
-                  <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-[#1a1a1a] rounded-xl border p-4 shadow-xl z-50 flex flex-col max-h-[420px]" style={{ borderColor: C.border }}>
+                  <div className="fixed inset-0 z-[450] cursor-default" onClick={() => setAnnouncementPanelOpen(false)} />
+                  <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-[#1a1a1a] rounded-xl border p-4 shadow-xl z-[500] flex flex-col max-h-[480px]" style={{ borderColor: C.border }}>
                     <div className="flex items-center justify-between pb-2 mb-2 border-b" style={{ borderColor: C.border }}>
                       <div className="flex items-center gap-1.5">
                         <Bell size={15} className="text-[#2383E2]" />
-                        <span className="text-[13px] font-bold" style={{ color: C.text }}>공지사항</span>
+                        <span className="text-[13px] font-bold" style={{ color: C.text }}>알림 및 공지사항</span>
                       </div>
                       {user === "admin" && !editingAnnouncement && (
                         <button 
@@ -3078,38 +3126,73 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                         </div>
                       </div>
                     )}
-                    {/* Announcements List */}
+                    {/* Content List */}
                     <div className="sc overflow-y-auto flex-1 space-y-3 pr-1 text-left no-scrollbar">
-                      {announcements.length === 0 ? (
-                        <div className="py-8 text-center text-[11px] font-semibold" style={{ color: C.faint }}>등록된 공지사항이 없습니다.</div>
-                      ) : (
-                        announcements.map((a) => {
-                          const dateStr = new Date(a.createdAt).toLocaleString("ko-KR", {
-                            year: "numeric",
-                            month: "2-digit",
-                            day: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit"
-                          });
-                          return (
-                            <div key={a.id} className="p-2.5 rounded-lg border flex flex-col justify-between" style={{ borderColor: C.border, background: "var(--bg-secondary)" }}>
-                              <div className="flex justify-between items-start gap-3">
-                                <div className="flex-1 text-[11px] font-medium leading-relaxed whitespace-pre-wrap break-all" style={{ color: C.text }}>
-                                  {a.text}
-                                </div>
-                                {user === "admin" && (
-                                  <div className="flex gap-1 shrink-0 text-[9px] font-bold">
-                                    <button onClick={() => setEditingAnnouncement({ id: a.id, text: a.text })} className="text-blue-500 hover:underline cursor-pointer">수정</button>
-                                    <span className="opacity-20">|</span>
-                                    <button onClick={() => deleteAnnouncement(a.id)} className="text-red-500 hover:underline cursor-pointer">삭제</button>
-                                  </div>
-                                )}
-                              </div>
-                              <div className="mt-2 text-[9px]" style={{ color: C.faint }}>{dateStr}</div>
+                      {/* Update Notifications */}
+                      {UPDATE_NOTES.map((n) => {
+                        const isNew = !userGuideSeen.includes(n.guide);
+                        return (
+                          <div 
+                            key={n.id} 
+                            onClick={() => handleMarkGuideSeen(n.guide)}
+                            className="p-3 rounded-xl border relative transition-all hover:opacity-95 cursor-pointer text-left"
+                            style={{ 
+                              borderColor: isNew ? "rgba(35, 131, 226, 0.4)" : C.border, 
+                              background: isNew ? (theme === "dark" ? "rgba(35, 131, 226, 0.12)" : "#f0f7ff") : "var(--bg-secondary)" 
+                            }}
+                          >
+                            <div className="flex items-center gap-1.5 font-bold text-[13px] mb-1" style={{ color: C.text }}>
+                              {isNew && <span className="newtag">새로 추가됨</span>}
+                              <span>{n.title}</span>
                             </div>
-                          );
-                        })
-                      )}
+                            <p className="text-[12px] font-medium leading-normal mb-1.5" style={{ color: C.muted }}>{n.body}</p>
+                            <ul className="chglist mb-2">
+                              {n.changes.map((c, i) => (
+                                <li key={i}>{c}</li>
+                              ))}
+                            </ul>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMarkGuideSeen(n.guide);
+                                setAnnouncementPanelOpen(false);
+                                guideRef.current?.startOnboarding([n.guide]);
+                              }}
+                              className="ngo inline-flex items-center gap-1"
+                            >
+                              가이드 보기 ›
+                            </button>
+                          </div>
+                        );
+                      })}
+
+                      {/* Admin Announcements */}
+                      {announcements.map((a) => {
+                        const dateStr = new Date(a.createdAt).toLocaleString("ko-KR", {
+                          year: "numeric",
+                          month: "2-digit",
+                          day: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit"
+                        });
+                        return (
+                          <div key={a.id} className="p-2.5 rounded-lg border flex flex-col justify-between" style={{ borderColor: C.border, background: "var(--bg-secondary)" }}>
+                            <div className="flex justify-between items-start gap-3">
+                              <div className="flex-1 text-[11px] font-medium leading-relaxed whitespace-pre-wrap break-all" style={{ color: C.text }}>
+                                {a.text}
+                              </div>
+                              {user === "admin" && (
+                                <div className="flex gap-1 shrink-0 text-[9px] font-bold">
+                                  <button onClick={() => setEditingAnnouncement({ id: a.id, text: a.text })} className="text-blue-500 hover:underline cursor-pointer">수정</button>
+                                  <span className="opacity-20">|</span>
+                                  <button onClick={() => deleteAnnouncement(a.id)} className="text-red-500 hover:underline cursor-pointer">삭제</button>
+                                </div>
+                              )}
+                            </div>
+                            <div className="mt-2 text-[9px]" style={{ color: C.faint }}>{dateStr}</div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </>
@@ -3164,12 +3247,12 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               </button>
               {announcementPanelOpen && (
                 <>
-                  <div className="fixed inset-0 z-40 cursor-default" onClick={() => setAnnouncementPanelOpen(false)} />
-                  <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-[#1a1a1a] rounded-xl border p-4 shadow-xl z-50 flex flex-col max-h-[420px] -mr-16" style={{ borderColor: C.border }}>
+                  <div className="fixed inset-0 z-[450] cursor-default" onClick={() => setAnnouncementPanelOpen(false)} />
+                  <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-[#1a1a1a] rounded-xl border p-4 shadow-xl z-[500] flex flex-col max-h-[480px] -mr-16" style={{ borderColor: C.border }}>
                     <div className="flex items-center justify-between pb-2 mb-2 border-b" style={{ borderColor: C.border }}>
                       <div className="flex items-center gap-1.5">
                         <Bell size={15} className="text-[#2383E2]" />
-                        <span className="text-[13px] font-bold" style={{ color: C.text }}>공지사항</span>
+                        <span className="text-[13px] font-bold" style={{ color: C.text }}>알림 및 공지사항</span>
                       </div>
                       {user === "admin" && !editingAnnouncement && (
                         <button 
@@ -3197,38 +3280,73 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                         </div>
                       </div>
                     )}
-                    {/* Announcements List */}
+                    {/* Content List */}
                     <div className="sc overflow-y-auto flex-1 space-y-3 pr-1 text-left no-scrollbar">
-                      {announcements.length === 0 ? (
-                        <div className="py-8 text-center text-[11px] font-semibold" style={{ color: C.faint }}>등록된 공지사항이 없습니다.</div>
-                      ) : (
-                        announcements.map((a) => {
-                          const dateStr = new Date(a.createdAt).toLocaleString("ko-KR", {
-                            year: "numeric",
-                            month: "2-digit",
-                            day: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit"
-                          });
-                          return (
-                            <div key={a.id} className="p-2.5 rounded-lg border flex flex-col justify-between" style={{ borderColor: C.border, background: "var(--bg-secondary)" }}>
-                              <div className="flex justify-between items-start gap-3">
-                                <div className="flex-1 text-[11px] font-medium leading-relaxed whitespace-pre-wrap break-all" style={{ color: C.text }}>
-                                  {a.text}
-                                </div>
-                                {user === "admin" && (
-                                  <div className="flex gap-1 shrink-0 text-[9px] font-bold">
-                                    <button onClick={() => setEditingAnnouncement({ id: a.id, text: a.text })} className="text-blue-500 hover:underline cursor-pointer">수정</button>
-                                    <span className="opacity-20">|</span>
-                                    <button onClick={() => deleteAnnouncement(a.id)} className="text-red-500 hover:underline cursor-pointer">삭제</button>
-                                  </div>
-                                )}
-                              </div>
-                              <div className="mt-2 text-[9px]" style={{ color: C.faint }}>{dateStr}</div>
+                      {/* Update Notifications */}
+                      {UPDATE_NOTES.map((n) => {
+                        const isNew = !userGuideSeen.includes(n.guide);
+                        return (
+                          <div 
+                            key={n.id} 
+                            onClick={() => handleMarkGuideSeen(n.guide)}
+                            className="p-3 rounded-xl border relative transition-all hover:opacity-95 cursor-pointer text-left"
+                            style={{ 
+                              borderColor: isNew ? "rgba(35, 131, 226, 0.4)" : C.border, 
+                              background: isNew ? (theme === "dark" ? "rgba(35, 131, 226, 0.12)" : "#f0f7ff") : "var(--bg-secondary)" 
+                            }}
+                          >
+                            <div className="flex items-center gap-1.5 font-bold text-[13px] mb-1" style={{ color: C.text }}>
+                              {isNew && <span className="newtag">새로 추가됨</span>}
+                              <span>{n.title}</span>
                             </div>
-                          );
-                        })
-                      )}
+                            <p className="text-[12px] font-medium leading-normal mb-1.5" style={{ color: C.muted }}>{n.body}</p>
+                            <ul className="chglist mb-2">
+                              {n.changes.map((c, i) => (
+                                <li key={i}>{c}</li>
+                              ))}
+                            </ul>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMarkGuideSeen(n.guide);
+                                setAnnouncementPanelOpen(false);
+                                guideRef.current?.startOnboarding([n.guide]);
+                              }}
+                              className="ngo inline-flex items-center gap-1"
+                            >
+                              가이드 보기 ›
+                            </button>
+                          </div>
+                        );
+                      })}
+
+                      {/* Admin Announcements */}
+                      {announcements.map((a) => {
+                        const dateStr = new Date(a.createdAt).toLocaleString("ko-KR", {
+                          year: "numeric",
+                          month: "2-digit",
+                          day: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit"
+                        });
+                        return (
+                          <div key={a.id} className="p-2.5 rounded-lg border flex flex-col justify-between" style={{ borderColor: C.border, background: "var(--bg-secondary)" }}>
+                            <div className="flex justify-between items-start gap-3">
+                              <div className="flex-1 text-[11px] font-medium leading-relaxed whitespace-pre-wrap break-all" style={{ color: C.text }}>
+                                {a.text}
+                              </div>
+                              {user === "admin" && (
+                                <div className="flex gap-1 shrink-0 text-[9px] font-bold">
+                                  <button onClick={() => setEditingAnnouncement({ id: a.id, text: a.text })} className="text-blue-500 hover:underline cursor-pointer">수정</button>
+                                  <span className="opacity-20">|</span>
+                                  <button onClick={() => deleteAnnouncement(a.id)} className="text-red-500 hover:underline cursor-pointer">삭제</button>
+                                </div>
+                              )}
+                            </div>
+                            <div className="mt-2 text-[9px]" style={{ color: C.faint }}>{dateStr}</div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </>
