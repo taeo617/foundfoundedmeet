@@ -1734,11 +1734,12 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
   function overlaps(rid, date, s, e, ignore) {
     const a = toMin(s), b = toMin(e);
-    const roomDef = ROOMS.find(r => r.id === rid) || {};
-    const targetPolicyId = roomDef.group === 'meeting' ? 'meeting-room' : rid;
+    const effectiveRoomId = (rid === 'meeting-room' || !rid) ? 'big' : rid;
+    const roomDef = ROOMS.find(r => r.id === effectiveRoomId) || ROOMS.find(r => r.id === 'big') || {};
+    const targetPolicyId = roomDef.group === 'meeting' ? 'meeting-room' : effectiveRoomId;
     const resInfo = resources.find(r => r.id === targetPolicyId);
     const isOverlapAllowed = resInfo?.policy?.allowOverlap;
-    const capacity = roomDef.capacity || resInfo?.policy?.capacity || 1;
+    const capacity = roomDef.capacity || (effectiveRoomId === 'workroom' ? 3 : 8);
 
     const conflicts = reservations.filter(
       (r) => r.roomId === rid && r.date === date && r.id !== ignore && !(b <= toMin(r.start) || a >= toMin(r.end))
@@ -1750,19 +1751,29 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     return conflicts.length > 0;
   }
   const defStart = () => Math.min(Math.max(isToday ? Math.ceil(nowMin / STEP) * STEP : 10 * 60, DAY_START), DAY_END - 10);
-  function openCreate(rid, startMin, date) { setErrs({}); const me = getMeId(); setForm({ id: null, roomId: rid, resourceId: rid === 'workroom' ? 'workroom' : 'meeting-room', title: "", date: date || selKey, start: toHHMM(startMin), end: toHHMM(Math.min(startMin + 10, DAY_END)), attendees: me && me !== "m_room" ? [me] : [], repeat: false, color: "yellow", isUrgent: false, comments: [] }); }
+  function openCreate(rid, startMin, date) {
+    setErrs({});
+    const me = getMeId();
+    const targetId = (rid === 'all' || rid === 'meeting-room') ? 'big' : rid;
+    setForm({ id: null, roomId: targetId, resourceId: targetId === 'workroom' ? 'workroom' : 'meeting-room', title: "", date: date || selKey, start: toHHMM(startMin), end: toHHMM(Math.min(startMin + 10, DAY_END)), attendees: me && me !== "m_room" ? [me] : [], repeat: false, color: "yellow", isUrgent: false, comments: [] });
+  }
   const tryCreate = (rid, sm, date) => requireAuth(() => openCreate(rid, sm, date), "일정을 추가하려면 로그인이 필요해요.");
-  const openEdit = (r) => { setErrs({}); setForm({ ...r, attendees: [...r.attendees] }); };
+  const openEdit = (r) => {
+    setErrs({});
+    const targetId = (r.roomId === 'meeting-room' || !r.roomId) ? 'big' : r.roomId;
+    setForm({ ...r, roomId: targetId, attendees: [...r.attendees] });
+  };
 
     async function saveForm() {
     if (isSubmitting) return;
-    const roomDef = ROOMS.find(r => r.id === form.roomId) || {};
-    const targetRes = resources.find(r => r.id === form.roomId) || resources.find(r => r.id === form.resourceId);
+    const effectiveRoomId = (form.roomId === 'meeting-room' || !form.roomId) ? 'big' : form.roomId;
+    const roomDef = ROOMS.find(r => r.id === effectiveRoomId) || ROOMS.find(r => r.id === 'big') || {};
+    const targetRes = resources.find(r => r.id === effectiveRoomId) || resources.find(r => r.id === form.resourceId);
     const policy = targetRes?.policy || {};
     const openFromMin = policy.openHours ? toMin(policy.openHours.from) : DAY_START;
     const openToMin = policy.openHours ? toMin(policy.openHours.to) : DAY_END;
     const allowedDays = policy.openHours?.days || [1, 2, 3, 4, 5];
-    const cap = roomDef.capacity || policy.capacity || targetRes?.capacity || 1;
+    const cap = roomDef.capacity || (effectiveRoomId === 'workroom' ? 3 : 8);
 
     const f = form; const e = {};
     const cleanedAttendees = (f.attendees || []).filter(id => id !== "m_room");
