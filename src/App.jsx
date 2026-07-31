@@ -968,7 +968,7 @@ export default function App() {
   }, [rawReservations, today, now]);
 
   const reservations = useMemo(() => {
-    return allReservations.filter(r => r.status !== 'cancelled');
+    return allReservations.filter(r => r.status !== 'cancelled' && !r.title?.includes('Test Concurrency'));
   }, [allReservations]);
 
   // 노쇼 방지 (Auto-Cancel)
@@ -1180,27 +1180,26 @@ export default function App() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [temp, setTemp] = useState([]);
   const [dz, setDz] = useState(false);
+  const [isRoomDropdownOpen, setIsRoomDropdownOpen] = useState(false);
+  const roomPickerRef = useRef(null);
 
-  // TEMP: Cleanup "Test Concurrency" reservations
   useEffect(() => {
-    const runCleanup = async () => {
-      const tests = reservations.filter(r => r.title.includes("Test Concurrency"));
-      if (tests.length > 0) {
-        if (isFirebaseConfigured) {
-           try {
-             const batch = writeBatch(db);
-             tests.forEach(t => batch.delete(doc(db, "reservations", t.id)));
-             await batch.commit();
-             console.log("Deleted test reservations from Firebase");
-           } catch(e) { console.error(e); }
-        } else {
-           setReservations(prev => prev.filter(r => !r.title.includes("Test Concurrency")));
-           console.log("Deleted test reservations from LocalStorage");
-        }
+    const handleClickOutside = (e) => {
+      if (isRoomDropdownOpen && roomPickerRef.current && !roomPickerRef.current.contains(e.target)) {
+        setIsRoomDropdownOpen(false);
       }
     };
-    runCleanup();
-  }, [reservations]);
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') setIsRoomDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEsc);
+    };
+  }, [isRoomDropdownOpen]);
+
 
   useEffect(() => {
     if (section === "book" && !showSplash) {
@@ -1691,7 +1690,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     const targetPolicyId = roomDef.group === 'meeting' ? 'meeting-room' : rid;
     const resInfo = resources.find(r => r.id === targetPolicyId);
     const isOverlapAllowed = resInfo?.policy?.allowOverlap;
-    const capacity = resInfo?.policy?.capacity || roomDef.capacity || 1;
+    const capacity = roomDef.capacity || resInfo?.policy?.capacity || 1;
 
     const conflicts = reservations.filter(
       (r) => r.roomId === rid && r.date === date && r.id !== ignore && !(b <= toMin(r.start) || a >= toMin(r.end))
@@ -1709,13 +1708,13 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
     async function saveForm() {
     if (isSubmitting) return;
-    const targetRes = resources.find(r => r.id === (form.resourceId || form.roomId)) || ROOMS.find(r => r.id === form.roomId);
+    const roomDef = ROOMS.find(r => r.id === form.roomId) || {};
+    const targetRes = resources.find(r => r.id === form.roomId) || resources.find(r => r.id === form.resourceId);
     const policy = targetRes?.policy || {};
     const openFromMin = policy.openHours ? toMin(policy.openHours.from) : DAY_START;
     const openToMin = policy.openHours ? toMin(policy.openHours.to) : DAY_END;
     const allowedDays = policy.openHours?.days || [1, 2, 3, 4, 5];
-    const roomDef = ROOMS.find(r => r.id === form.roomId) || {};
-    const cap = policy.capacity || targetRes?.capacity || roomDef.capacity || 1;
+    const cap = roomDef.capacity || policy.capacity || targetRes?.capacity || 1;
 
     const f = form; const e = {};
     const cleanedAttendees = (f.attendees || []).filter(id => id !== "m_room");
@@ -2252,7 +2251,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     const mobNextMtg = roomId === "all" ? null : currentRoomRes.filter(r => toMin(r.start) >= nowMin && (!mobCurrentMtg || r.id !== mobCurrentMtg.id)).sort((a,b)=>toMin(a.start)-toMin(b.start))[0];
 
     return (
-      <div className={`${isDesktopSplit ? "hidden md:flex min-h-0 overflow-y-auto no-scrollbar" : "flex md:hidden"} flex-col flex-1 w-full pt-2 ${isDesktopSplit ? "pb-24" : "pb-20"} relative`}>
+      <div className={`${isDesktopSplit ? "hidden md:flex min-h-0 overflow-y-auto no-scrollbar" : "flex md:hidden"} flex-col flex-1 w-full pt-2 ${isDesktopSplit ? "pb-24" : "pb-36"} relative`}>
         {/* Mobile Header / Desktop Timeline Header */}
         <div className="flex items-center justify-between mb-4 px-1 md:px-0">
           <div>
@@ -2329,10 +2328,13 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         </div>
         
         {/* Tab Selection */}
-        <div className="picker res-picker" id="picker">
+        <div className="picker res-picker" id="picker" ref={roomPickerRef}>
           <div className="glass">
-            <div className={`pick pick--room ${['all', 'big', 'small', 'lounge'].includes(roomId) ? 'on' : ''}`}>
-              <button className="pick__head" onClick={() => setRoomId('all')}>
+            <div className={`pick pick--room ${['all', 'big', 'small', 'lounge'].includes(roomId) ? 'on' : ''} ${isRoomDropdownOpen ? 'open' : ''}`}>
+              <button className="pick__head" onClick={() => {
+                setRoomId('all');
+                setIsRoomDropdownOpen(!isRoomDropdownOpen);
+              }}>
                 <span className="dot"></span>
                 회의실
                 <span className="cur">
@@ -2341,19 +2343,25 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 <i className="chev">›</i>
               </button>
               <div className="sub">
-                <button className={roomId === 'big' ? 'on' : ''} onClick={() => setRoomId('big')}>큰 회의실</button>
-                <button className={roomId === 'small' ? 'on' : ''} onClick={() => setRoomId('small')}>작은 회의실</button>
-                <button className={roomId === 'lounge' ? 'on' : ''} onClick={() => setRoomId('lounge')}>라운지</button>
+                <button className={roomId === 'big' ? 'on' : ''} onClick={(e) => { setRoomId('big'); setIsRoomDropdownOpen(false); e.currentTarget.blur(); }}>
+                  큰 회의실
+                </button>
+                <button className={roomId === 'small' ? 'on' : ''} onClick={(e) => { setRoomId('small'); setIsRoomDropdownOpen(false); e.currentTarget.blur(); }}>
+                  작은 회의실
+                </button>
+                <button className={roomId === 'lounge' ? 'on' : ''} onClick={(e) => { setRoomId('lounge'); setIsRoomDropdownOpen(false); e.currentTarget.blur(); }}>
+                  라운지
+                </button>
               </div>
             </div>
             
             <span className="divider"></span>
             
-            <button className={`pick pick--work ${roomId === 'workroom' ? 'on' : ''}`} onClick={() => setRoomId('workroom')}>
+            <button className={`pick pick--work ${roomId === 'workroom' ? 'on' : ''}`} onClick={() => { setRoomId('workroom'); setIsRoomDropdownOpen(false); }}>
               <span className="pick__head"><span className="dot"></span>워크룸</span>
             </button>
             
-            <button className={`pick pick--prnt ${roomId === 'printer' ? 'on' : ''}`} onClick={() => setRoomId('printer')}>
+            <button className={`pick pick--prnt ${roomId === 'printer' ? 'on' : ''}`} onClick={() => { setRoomId('printer'); setIsRoomDropdownOpen(false); }}>
               <span className="pick__head"><span className="dot"></span>3D 프린터</span>
             </button>
           </div>
@@ -2717,11 +2725,11 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                             <div 
                               key={r.id} 
                               onClick={() => !r.isMock && onBlockClick(r)}
-                              className={`flex-1 min-w-0 p-3.5 rounded-[10px] relative overflow-visible transition-all hover:scale-[1.01] ${openAttendanceId === r.id ? 'z-50' : 'z-10'} ${r.isMock ? 'border-2 border-dashed' : 'cursor-pointer'}`} 
+                              className={`flex-1 min-w-0 p-3.5 rounded-[10px] relative overflow-visible transition-all hover:scale-[1.01] ${openAttendanceId === r.id ? 'z-50' : 'z-10'} ${r.isMock ? 'border-2 border-dashed' : 'border cursor-pointer'}`} 
                               style={{ 
-                                background: r.isUrgent ? "var(--busy-bg)" : "var(--free-bg)",
+                                background: r.isUrgent ? "var(--mob-card-urgent)" : "var(--mob-card-normal)",
                                 opacity: r.isMock ? 0.6 : 1,
-                                borderColor: r.isMock ? C.border : 'transparent'
+                                borderColor: r.isMock ? C.border : 'var(--border)'
                               }}
                             >
                               {/* Content Wrapper */}
@@ -2849,6 +2857,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                                     </div>
                                   );
                                 })()}
+                              </div>
                             </div>
                           );
                         })}
@@ -2884,7 +2893,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         </div>
 
         {/* Bottom Fixed FAB for Mobile/Desktop */}
-        <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+16px)] left-4 right-4 z-30 flex flex-col items-center ${isDesktopSplit ? "md:sticky md:bottom-0 md:mt-auto md:pt-4 md:pb-0 md:bg-[var(--bg)] md:left-auto md:right-auto md:w-full" : ""}`}>
+        <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+74px)] md:bottom-[calc(env(safe-area-inset-bottom)+16px)] left-4 right-4 z-30 flex flex-col items-center ${isDesktopSplit ? "md:sticky md:bottom-0 md:mt-auto md:pt-4 md:pb-0 md:bg-[var(--bg)] md:left-auto md:right-auto md:w-full" : ""}`}>
           <button className="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 text-[14px] font-bold shadow-lg transition-transform active:scale-95" style={{ background: "var(--ink)", color: "var(--bg)" }} onClick={() => {
             let targetId = roomId;
             if (roomId === "all") targetId = ROOMS.find(r => r.group === "meeting")?.id || "big";
@@ -3008,7 +3017,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             <div className="absolute left-1/2 -translate-x-1/2 hidden md:block">
               <nav className="flex items-center gap-1 rounded-lg p-1" style={{ background: "var(--bg-quaternary)" }}>
                 {NAV.map(([k, lbl, Icon]) => (
-                  <button key={k} onClick={() => setSection(k)} className="lift flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium" style={section === k ? { background: C.ink, color: "var(--bg)" } : { color: C.muted }}><Icon size={15} />{lbl}{k === "mine" && myRes.length ? ` · ${myRes.length}` : ""}</button>
+                  <button key={k} id={`nav-btn-${k}`} onClick={() => setSection(k)} className="lift flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium" style={section === k ? { background: C.ink, color: "var(--bg)" } : { color: C.muted }}><Icon size={15} />{lbl}{k === "mine" && myRes.length ? ` · ${myRes.length}` : ""}</button>
                 ))}
               </nav>
             </div>
@@ -3461,7 +3470,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t md:hidden" style={{ background: theme === "dark" ? "rgba(0,0,0,0.92)" : "rgba(255,255,255,.92)", borderColor: C.border, backdropFilter: "blur(10px)", paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div className="mx-auto flex max-w-md items-stretch justify-around">
           {NAV.filter(([k]) => k !== "install").map(([k, lbl, Icon]) => { const on = section === k; return (
-            <button key={k} onClick={() => setSection(k)} className="relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium" style={{ color: on ? C.ink : (theme === "dark" ? "#D1D5DB" : C.faint) }}>
+            <button key={k} id={`nav-btn-${k}`} onClick={() => setSection(k)} className="relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium" style={{ color: on ? C.ink : (theme === "dark" ? "#D1D5DB" : C.faint) }}>
               {on && <span className="absolute left-1/2 top-0 h-0.5 w-8 -translate-x-1/2 rounded-lg" style={{ background: C.ink }} />}
               <Icon size={20} />{lbl}{k === "mine" && myRes.length ? ` ${myRes.length}` : ""}
             </button>
@@ -4486,8 +4495,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         const allChecked = checkedCount === endNotices.length;
 
         return (
-          <div className="ov fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setReportModalSession(null)}>
-            <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#1e1e1e] border p-6 shadow-2xl space-y-4" style={{ borderColor: C.border }} onClick={(e) => e.stopPropagation()}>
+          <div className="ov fixed inset-0 z-[400] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setReportModalSession(null)}>
+            <div id="report-modal" className="w-full max-w-md rounded-2xl bg-white dark:bg-[#1e1e1e] border p-6 shadow-2xl space-y-4" style={{ borderColor: C.border }} onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: C.border }}>
                 <div>
                   <h4 className="text-base font-bold" style={{ color: C.text }}>{isPr ? "출력을 종료합니다" : "사용을 종료합니다"}</h4>
@@ -4598,6 +4607,21 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           setForm({ roomId: targetId, resourceId: targetId, date: keyOf(now), start: '09:00', end: '09:30', attendees: [] });
         }} 
         closeForm={() => setForm(null)} 
+        openReport={() => {
+          setReportModalSession({
+            id: 'mock-session',
+            reservationId: 'mock2',
+            resourceId: 'bambu-1',
+            title: '웰컴키트 트레이',
+            who: user,
+            owner: user,
+            checkInAt: new Date(),
+            isMock: true
+          });
+          setReportForm({ result: 'success', note: '' });
+        }}
+        closeReport={() => setReportModalSession(null)}
+        isReportOpen={!!reportModalSession}
         onStepChange={(st) => setOnboardingStep(st?.step || null)}
       />
 

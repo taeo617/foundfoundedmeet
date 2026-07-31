@@ -14,18 +14,25 @@ const ONB_ALL = [
   { group: 'workroom', tab: 'book', res: 'workroom', sel: '.status-card', step: '워크룸 · 1', title: '워크룸은 정원 3명', body: '지금 몇 명이 쓰는지 카드에서 바로 보입니다. 자리가 남으면 초록, 꽉 차면 빨강이에요. 자리 번호는 없고 인원만 관리합니다.' },
   { group: 'workroom', tab: 'book', res: 'workroom', popup: 'workroom', sel: '#mForm', step: '워크룸 · 2', title: '프로젝트와 시간만 넣으면 끝', body: '예약 창은 이렇게 생겼어요. "어떤 프로젝트로 쓰는지"와 시간만 적으면 됩니다. 예약 전·후로 정리 주의사항을 확인하고, 10분 안 오면 자동 취소돼요.' },
   { group: 'printer', tab: 'book', res: 'printer', sel: '.dg', step: '프린터 · 1', title: '뱀부랩 예약', body: '세로줄 하나가 기계 한 대입니다. 어느 기계가 언제 비는지 머리글에서 바로 확인할 수 있어요.' },
-  { group: 'printer', tab: 'book', res: 'printer', popup: 'bambu-1', sel: '.sheet', step: '프린터 · 2', title: '밤샘 출력도, 결과 공유도', body: '출력물 이름과 기계를 고르면 됩니다. 밤 11시에 걸어 아침에 찾는 자정 넘김 출력도 되고, 끝나면 성공·실패 결과를 남겨 다음 사람에게 알려줄 수 있어요.' },
-  { group: 'common', tab: 'history', res: 'meeting-room', sel: '#main-tabs', step: '거의 다 왔어요', title: '지난 이용은 사용 기록에서', body: '내가 언제 뭘 썼는지, 이름이나 프로젝트로 검색해 찾을 수 있습니다.' },
+  { group: 'printer', tab: 'book', res: 'printer', openReport: true, sel: '#report-modal', step: '프린터 · 2', title: '밤샘 출력도, 결과 공유도', body: '출력물 이름과 기계를 고르면 됩니다. 밤 11시에 걸어 아침에 찾는 자정 넘김 출력도 되고, 끝나면 성공·실패 결과를 남겨 다음 사람에게 알려줄 수 있어요.' },
+  { group: 'common', tab: 'history', res: 'meeting-room', sel: '#nav-btn-history', step: '거의 다 왔어요', title: '지난 이용은 사용 기록에서', body: '내가 언제 뭘 썼는지, 이름이나 프로젝트로 검색해 찾을 수 있습니다.' },
   { group: 'common', tab: 'book', sel: '#bellBtn, #bellBtnMob', step: '마지막', title: '알림은 여기로 옵니다', body: '예약 확정, 시작 5분 전, 자리가 났을 때 알려드려요. 새 기능이 생기면 여기서 먼저 알려드립니다.' }
 ];
 
-const OnboardingGuide = forwardRef(({ meId, currentRes, setRes, currentTab, setTab, isFormOpen, openForm, closeForm, onStepChange }, ref) => {
+const OnboardingGuide = forwardRef(({ meId, currentRes, setRes, currentTab, setTab, isFormOpen, openForm, closeForm, openReport, closeReport, isReportOpen, onStepChange }, ref) => {
   const [isOpen, setIsOpen] = useState(false);
   const [steps, setSteps] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [spotStyle, setSpotStyle] = useState({ display: 'none' });
   const [cardStyle, setCardStyle] = useState({});
   const cardRef = useRef(null);
+  const initialRestoreState = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      initialRestoreState.current = { tab: currentTab, res: currentRes };
+    }
+  }, [isOpen, currentTab, currentRes]);
 
   const startOnboarding = useCallback((groups = null) => {
     let newSteps = ONB_ALL.slice();
@@ -131,6 +138,13 @@ const OnboardingGuide = forwardRef(({ meId, currentRes, setRes, currentTab, setT
     if (isFormOpen) {
       closeForm();
     }
+    if (isReportOpen) {
+      closeReport();
+    }
+    if (initialRestoreState.current) {
+      if (initialRestoreState.current.tab && initialRestoreState.current.tab !== currentTab) setTab(initialRestoreState.current.tab);
+      if (initialRestoreState.current.res && initialRestoreState.current.res !== currentRes) setRes(initialRestoreState.current.res);
+    }
     markGuideSeen();
     if (onStepChange) onStepChange(null);
   };
@@ -172,11 +186,17 @@ const OnboardingGuide = forwardRef(({ meId, currentRes, setRes, currentTab, setT
       
       const cardW = Math.min(360, vw - 40);
       const leftPos = Math.max(16, Math.min(r.left, vw - cardW - 16));
-      if (st.popup) {
+      if (st.popup || st.openReport) {
         if (vw <= 760) {
-          cStyle = { left: '16px', right: '16px', width: 'auto', top: '16px', bottom: 'auto' };
+          cStyle = { left: '16px', right: '16px', width: 'auto', bottom: '24px', top: 'auto' };
         } else {
-          cStyle = { width: Math.min(340, vw - 40) + 'px', left: '24px', right: 'auto', bottom: '24px', top: 'auto' };
+          if (vw - r.right > cardW + 24) {
+             cStyle = { left: (r.right + 24) + 'px', top: Math.max(24, r.top) + 'px', width: cardW + 'px', bottom: 'auto', right: 'auto' };
+          } else if (r.left > cardW + 24) {
+             cStyle = { left: (r.left - cardW - 24) + 'px', top: Math.max(24, r.top) + 'px', width: cardW + 'px', bottom: 'auto', right: 'auto' };
+          } else {
+             cStyle = { left: (vw / 2 - cardW / 2) + 'px', bottom: '24px', width: cardW + 'px', right: 'auto', top: 'auto' };
+          }
         }
       } else {
         if (r.bottom + 20 + 200 < window.innerHeight) {
@@ -188,19 +208,20 @@ const OnboardingGuide = forwardRef(({ meId, currentRes, setRes, currentTab, setT
         }
       }
     } else {
-      if (st.sel) console.warn(`스텝 ${currentIndex + 1}: 대상 못 찾음 (선택자: ${st.sel})`);
       setSpotStyle({ display: 'none' });
-      if (st.popup) {
+      if (st.sel) return; // Wait for DOM to update instead of jumping to center
+      const cardW = Math.min(360, vw - 40);
+      if (st.popup || st.openReport) {
         if (vw <= 760) {
-          cStyle = { left: '16px', right: '16px', width: 'auto', top: '16px', bottom: 'auto' };
+          cStyle = { left: '16px', right: '16px', width: 'auto', bottom: '24px', top: 'auto', transform: 'none' };
         } else {
-          cStyle = { width: Math.min(340, vw - 40) + 'px', left: '24px', right: 'auto', bottom: '24px', top: 'auto' };
+          cStyle = { left: (vw / 2 - cardW / 2) + 'px', top: '50%', transform: 'translateY(-50%)', width: cardW + 'px', right: 'auto', bottom: 'auto' };
         }
       } else {
         if (vw <= 760) {
-          cStyle = { left: '16px', right: '16px', width: 'auto', bottom: '16px', top: 'auto' };
+          cStyle = { left: '16px', right: '16px', width: 'auto', top: '50%', transform: 'translateY(-50%)', bottom: 'auto' };
         } else {
-          cStyle = { width: Math.min(360, vw - 40) + 'px', right: '24px', left: 'auto', bottom: '24px', top: 'auto' };
+          cStyle = { left: (vw / 2 - cardW / 2) + 'px', top: '50%', transform: 'translateY(-50%)', width: cardW + 'px', right: 'auto', bottom: 'auto' };
         }
       }
     }
@@ -226,7 +247,13 @@ const OnboardingGuide = forwardRef(({ meId, currentRes, setRes, currentTab, setT
       if (isFormOpen) closeForm();
     }
 
-    if (st.res && !st.popup && st.res !== currentRes) {
+    if (st.openReport) {
+      if (!isReportOpen && openReport) openReport();
+    } else {
+      if (isReportOpen && closeReport) closeReport();
+    }
+
+    if (st.res && !st.popup && !st.openReport && st.res !== currentRes) {
       setRes(st.res);
     }
 
@@ -273,7 +300,7 @@ const OnboardingGuide = forwardRef(({ meId, currentRes, setRes, currentTab, setT
     <>
       <div 
         className="onb__scrim" 
-        style={{ position: 'fixed', inset: 0, zIndex: 310, background: st.popup ? '#00000055' : 'transparent', transition: 'background .3s', pointerEvents: 'auto' }} 
+        style={{ position: 'fixed', inset: 0, zIndex: 510, background: st.popup || st.openReport ? '#00000055' : 'transparent', transition: 'background .3s', pointerEvents: 'auto' }} 
       />
       
       <div 
@@ -282,7 +309,7 @@ const OnboardingGuide = forwardRef(({ meId, currentRes, setRes, currentTab, setT
           position: 'fixed', borderRadius: '14px', 
           boxShadow: '0 0 0 4px #ffffff59, 0 0 0 9999px #00000075',
           transition: 'top .18s ease, left .18s ease, width .18s ease, height .18s ease',
-          pointerEvents: 'none', zIndex: 311,
+          pointerEvents: 'none', zIndex: 511,
           ...spotStyle
         }} 
       />
@@ -294,7 +321,7 @@ const OnboardingGuide = forwardRef(({ meId, currentRes, setRes, currentTab, setT
           position: 'fixed', background: 'var(--bg)', borderRadius: '16px',
           padding: '26px 22px 22px', boxShadow: '0 24px 60px -18px #0000005c',
           transition: 'left .3s, right .3s, bottom .3s, top .3s',
-          pointerEvents: 'auto', zIndex: 350,
+          pointerEvents: 'auto', zIndex: 550,
           ...cardStyle
         }}
       >

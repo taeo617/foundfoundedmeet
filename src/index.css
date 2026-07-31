@@ -197,7 +197,7 @@
   --mob-free-bg: #064e3b;
   --mob-free-text: #6ee7b7;
   --mob-card-urgent: #1c0a0a;
-  --mob-card-normal: #0a1c12;
+  --mob-card-normal: #122219;
   --mob-line-urgent: #E24B4A;
   --mob-line-normal: #1D9E75;
   
@@ -411,20 +411,27 @@ body, header, section, .sheet, .cell, input, select, button {
 .pick--prnt .pick__head .dot{background:var(--prnt);opacity:.75}
 .pick__head .chev{font-style:normal;font-size:11px;opacity:.5;transition:transform .38s cubic-bezier(.22,1,.36,1)}
 .pick__head .cur{font-size:12.5px;font-weight:600;opacity:.62;white-space:nowrap;overflow:hidden;max-width:120px;transition:max-width .38s cubic-bezier(.22,1,.36,1),opacity .22s}
-.pick--room:hover .cur,.pick--room:focus-within .cur,.pick--room.open .cur{max-width:0;opacity:0}
+.pick--room.open .cur{max-width:0;opacity:0}
 .pick--room .sub{display:flex;align-items:center;gap:6px;overflow:hidden;max-width:0;opacity:0;padding-right:0;
   transition:max-width .42s cubic-bezier(.22,1,.36,1),opacity .3s,padding-right .42s}
-.pick--room:hover .sub,.pick--room:focus-within .sub,.pick--room.open .sub{max-width:340px;opacity:1;padding-right:7px}
-.pick--room:hover .chev,.pick--room.open .chev{transform:rotate(90deg)}
+.pick--room.open .sub{max-width:340px;opacity:1;padding-right:7px}
+.pick--room.open .chev{transform:rotate(90deg)}
 .sub button{font-size:12.5px;font-weight:600;white-space:nowrap;padding:7px 13px;border-radius:99px;
   background:#ffffff5c;border:1px solid transparent;color:var(--room);transform:translateX(-10px);opacity:0;
   transition:transform .42s cubic-bezier(.22,1,.36,1),opacity .32s,background .2s}
 [data-theme="dark"] .sub button{background:#ffffff0f}
-.pick--room:hover .sub button,.pick--room:focus-within .sub button,.pick--room.open .sub button{transform:none;opacity:1}
+.pick--room.open .sub button{transform:none;opacity:1}
 .sub button:nth-child(1){transition-delay:.03s}.sub button:nth-child(2){transition-delay:.08s}.sub button:nth-child(3){transition-delay:.13s}
 .sub button:hover,.sub button.on{background:var(--room);color:#fff;border-color:var(--room)}
 [data-theme="dark"] .sub button:hover,[data-theme="dark"] .sub button.on{color:#16211a}
-.pick--room:hover,.pick--room.open,.pick--room.on{background:var(--room-bg);border-color:var(--room-ln);color:var(--room)}
+.pick--room.open,.pick--room.on{background:var(--room-bg);border-color:var(--room-ln);color:var(--room)}
+@media (min-width: 761px) {
+  .pick--room:hover .cur { max-width: 0; opacity: 0; }
+  .pick--room:hover .sub { max-width: 340px; opacity: 1; padding-right: 7px; }
+  .pick--room:hover .chev { transform: rotate(90deg); }
+  .pick--room:hover .sub button { transform: none; opacity: 1; }
+  .pick--room:hover { background: var(--room-bg); border-color: var(--room-ln); color: var(--room); }
+}
 .pick--work:hover,.pick--work.on{background:var(--work-bg);border-color:var(--work-ln);color:var(--work)}
 .pick--prnt:hover,.pick--prnt.on{background:var(--prnt-bg);border-color:var(--prnt-ln);color:var(--prnt)}
 .pick.on{box-shadow:0 2px 8px -2px #0000001f;font-weight:700}
@@ -507,3 +514,66 @@ body, header, section, .sheet, .cell, input, select, button {
 /* 온보딩 중 예약 팝업은 스크림 위로 올려 실제로 보이게 */
 body.onb-open .ov { z-index: 320 !important; }
 
+/* 모바일 카테고리 탭 2줄 현상 해결 및 팝업화 */
+@media (max-width: 760px) {
+  /* 한 줄 유지 방법 - 폰트/여백 축소 (여유가 생겨 약간 키움) */
+  .pick__head {
+    font-size: 12.5px !important;
+    padding: 10px 12px !important;
+  }
+  .glass {
+    gap: 4px !important;
+  }
+  .pick__head .cur {
+    font-size: 12.5px !important;
+  }
+  .pick--room .sub button {
+    font-size: 12.5px !important;
+    padding: 7px 12px !important;
+  }
+
+  /* 팝업 동작 (회의실 탭) - 가로 방향 Absolute */
+  .pick--room {
+    position: relative !important;
+  }
+  
+  .pick--room .sub {
+    position: absolute !important;
+    top: -1px !important;
+    bottom: -1px !important;
+    left: calc(100% + 4px) !important;
+    
+    background: var(--bg) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 99px !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15) !important;
+    z-index: 100 !important;
+  }
+  
+  [data-theme="dark"] .pick--room .sub {
+    background: var(--bg-tertiary) !important;
+  }
+
+  .pick--room.open .sub {
+    padding-left: 7px !important;
+  }
+
+  /* 모바일에서는 클릭(open 클래스)으로만 제어되도록 hover 효과 무효화 */
+  .pick--room:not(.open):hover .cur {
+    max-width: 120px !important;
+    opacity: 0.62 !important;
+  }
+  .pick--room:not(.open):hover .sub {
+    max-width: 0 !important;
+    opacity: 0 !important;
+    padding-right: 0 !important;
+    pointer-events: none !important;
+  }
+}
+
+/* 380px 이하 매우 좁은 화면 안전장치 */
+@media (max-width: 380px) {
+  .pick__head .cur {
+    display: none !important;
+  }
+}
