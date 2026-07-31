@@ -1890,6 +1890,17 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       return true;
     });
     
+    console.log('겹침검사:', {
+      내roomId: f.roomId,
+      전체예약수: reservations.length,
+      같은방예약: reservations.filter(r => {
+        const rEffRoomId = (r.roomId === 'meeting-room' || !r.roomId) ? 'big' : r.roomId;
+        const fEffRoomId = (f.roomId === 'meeting-room' || !f.roomId) ? 'big' : f.roomId;
+        return rEffRoomId === fEffRoomId && r.date === f.date;
+      }).map(r => ({id: r.id, roomId: r.roomId, start: r.start, end: r.end, status: r.status, owner: r.owner})),
+      roomOverlaps: roomOverlaps.map(r => r.id)
+    });
+    
     if (policy.allowOverlap) {
       if (roomOverlaps.length >= cap) {
         setErrs({ ...e, time: `그 시간에는 정원이 찼습니다 (${cap}명)` });
