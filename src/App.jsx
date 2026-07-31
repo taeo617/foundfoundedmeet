@@ -1880,7 +1880,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     let pushedReservations = [];
 
     const roomOverlaps = reservations.filter((r) => {
-      if (r.roomId !== f.roomId || r.date !== f.date) return false;
+      const rEffRoomId = (r.roomId === 'meeting-room' || !r.roomId) ? 'big' : r.roomId;
+      const fEffRoomId = (f.roomId === 'meeting-room' || !f.roomId) ? 'big' : f.roomId;
+      if (rEffRoomId !== fEffRoomId || r.date !== f.date) return false;
       if (r.id === f.id) return false; // Exclude exact same monolithic reservation
       if (f.id && r.groupId === f.id) return false; // If editing a group (f.id is docId), exclude its slots
       if (f.groupId && r.groupId === f.groupId) return false; // If editing a slot directly (f.groupId exists)
@@ -1939,14 +1941,15 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     if (!isFormPrinter) {
       const conflicts = [];
       reservations.forEach((r) => {
-        const isRPrinter = r.resourceId === 'bambu-1' || r.resourceId === 'bambu-2' || r.roomId === 'bambu-1' || r.roomId === 'bambu-2';
+        const rEffRoomId = (r.roomId === 'meeting-room' || !r.roomId) ? 'big' : r.roomId;
+        const isRPrinter = r.resourceId === 'bambu-1' || r.resourceId === 'bambu-2' || rEffRoomId === 'bambu-1' || rEffRoomId === 'bambu-2';
         const isSameRes = r.id === f.id || (f.id && r.groupId === f.id) || (f.groupId && r.groupId === f.groupId);
         if (!isSameRes && r.date === f.date && !isRPrinter) {
           if (!(endM <= toMin(r.start) || startM >= toMin(r.end))) {
             cleanedAttendees.forEach((attId) => {
               if (r.attendees && r.attendees.includes(attId)) {
                 const mName = MEMBERS.find((m) => m.id === attId)?.name || attId;
-                const rRoomName = ROOMS.find((rm) => rm.id === r.roomId)?.name || r.roomId;
+                const rRoomName = ROOMS.find((rm) => rm.id === rEffRoomId)?.name || rEffRoomId;
                 conflicts.push(`${nameWithNim(mName)} (${rRoomName} / ${r.start}~${r.end} "${r.title}")`);
               }
             });
