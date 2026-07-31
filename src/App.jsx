@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useRef, forwardRef } from "react";
-import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, arrayUnion, serverTimestamp, runTransaction, writeBatch } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, arrayUnion, serverTimestamp, runTransaction, writeBatch, deleteField } from "firebase/firestore";
 import { db, auth, isFirebaseConfigured } from "./firebase";
 import HistorySearch from "./screens/HistorySearch";
 import AdminDashboard from "./screens/AdminDashboard";
 import OnboardingGuide from "./screens/OnboardingGuide";
+import MyPage from "./screens/MyPage";
 import { signInAnonymously } from "firebase/auth";
 import {
   Calendar, CalendarDays, Clock, Users, Monitor, Video, Plus, X, Check,
@@ -119,7 +120,7 @@ const defaultProfiles = {
   "여준": "/여준.png"
 };
 
-function Avatar({ name, label, size = 36, solid = false, onClick, className, style }) {
+function Avatar({ name, label, size = 36, solid = false, onClick, className, style, dbProfiles }) {
   const [img, setImg] = useState(null);
   const [imgError, setImgError] = useState(false);
   const [retryDefault, setRetryDefault] = useState(false);
@@ -128,19 +129,29 @@ function Avatar({ name, label, size = 36, solid = false, onClick, className, sty
     setImgError(false);
     setRetryDefault(false);
     const loadImg = () => {
+      const meId = MEMBERS.find(m => m.name === name)?.id;
+      // 1. Firestore profileImage
+      if (meId && dbProfiles && dbProfiles[meId]) {
+        setImg(dbProfiles[meId]);
+        return;
+      }
+      // 2. localStorage fallback
       try {
         const x = localStorage.getItem("profile_images");
         const p = x ? JSON.parse(x) : {};
-        setImg(name ? (p[name] || defaultProfiles[name]) : null);
-      } catch {
-        setImg(name ? defaultProfiles[name] : null);
-      }
+        if (name && p[name]) {
+          setImg(p[name]);
+          return;
+        }
+      } catch {}
+      // 3. public/{name}.png default fallback
+      setImg(name ? defaultProfiles[name] : null);
     };
     loadImg();
     const handler = () => loadImg();
     window.addEventListener("profile_updated", handler);
     return () => window.removeEventListener("profile_updated", handler);
-  }, [name]);
+  }, [name, dbProfiles]);
 
   if (img && !imgError) {
     return (
@@ -830,6 +841,53 @@ export default function App() {
     return MEMBERS.filter(m => m.inactive).map(m => m.id);
   });
 
+  const [membersList, setMembersList] = useState(() => MEMBERS.map(m => ({ ...m, active: !suspendedIds.includes(m.id) })));
+  const [dbProfiles, setDbProfiles] = useState({});
+
+  useEffect(() => {
+    if (!isFirebaseConfigured) {
+      try {
+        const local = JSON.parse(localStorage.getItem("members_active_state") || "{}");
+        setMembersList(MEMBERS.map(m => ({
+          ...m,
+          active: local[m.id] !== undefined ? local[m.id] : !suspendedIds.includes(m.id)
+        })));
+      } catch (e) {}
+      return;
+    }
+    const unsub = onSnapshot(collection(db, "users"), (snapshot) => {
+      const dbUsersMap = new Map();
+      const pMap = {};
+      snapshot.docs.forEach(docSnap => {
+        dbUsersMap.set(docSnap.id, docSnap.data());
+        const data = docSnap.data();
+        if (data.profileImage) {
+          pMap[docSnap.id] = data.profileImage;
+        }
+      });
+      setDbProfiles(pMap);
+      setMembersList(MEMBERS.map(m => {
+        const uData = dbUsersMap.get(m.id);
+        const isActive = uData?.active !== undefined ? uData.active : !suspendedIds.includes(m.id);
+        return { ...m, active: isActive };
+      }));
+      window.dispatchEvent(new CustomEvent("profile_updated"));
+    }, (err) => console.error("users snapshot error:", err));
+    return () => unsub();
+  }, [suspendedIds]);
+
+  useEffect(() => {
+    if (user && membersList.length > 0) {
+      const me = membersList.find((m) => m.name === user);
+      if (me && me.active === false) {
+        showToast("정지된 계정입니다. 관리자에게 문의하세요.");
+        setUser(null);
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("last_user");
+      }
+    }
+  }, [user, membersList]);
+
   useEffect(() => {
     localStorage.setItem("suspended_members", JSON.stringify(suspendedIds));
     MEMBERS.forEach(m => {
@@ -1357,9 +1415,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new Image();
-      img.onload = () => {
+      img.onload = async () => {
         const canvas = document.createElement("canvas");
-        const size = 120;
+        const size = 300; // 300x300
         canvas.width = size;
         canvas.height = size;
         const ctx = canvas.getContext("2d");
@@ -1368,11 +1426,26 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         const sy = (img.height - minDim) / 2;
         ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
         const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+
+        const meId = MEMBERS.find(m => m.name === user)?.id;
+        if (isFirebaseConfigured && meId) {
+          try {
+            await setDoc(doc(db, "users", meId), {
+              profileImage: dataUrl,
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+          } catch (err) {
+            console.error("Failed to save profileImage to Firestore:", err);
+          }
+        }
+
         const updated = { ...profiles, [user]: dataUrl };
         setProfiles(updated);
-        localStorage.setItem("profile_images", JSON.stringify(updated));
+        try {
+          localStorage.setItem("profile_images", JSON.stringify(updated));
+        } catch (e) {}
         window.dispatchEvent(new CustomEvent("profile_updated"));
-        showToast("프로필 이미지를 등록했습니다.");
+        showToast("프로필 이미지를 변경했습니다.");
       };
       img.src = event.target.result;
     };
@@ -1462,26 +1535,34 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     }
   };
 
-  const handleDeleteProfileImage = () => {
+  const handleDeleteProfileImage = async () => {
     if (!user) return;
-    const updated = { ...profiles };
-    if (defaultProfiles[user]) {
-      updated[user] = defaultProfiles[user];
-    } else {
-      delete updated[user];
+    const meId = MEMBERS.find(m => m.name === user)?.id;
+
+    if (isFirebaseConfigured && meId) {
+      try {
+        await updateDoc(doc(db, "users", meId), {
+          profileImage: deleteField(),
+          updatedAt: serverTimestamp()
+        });
+      } catch (err) {
+        console.error("Failed to delete profileImage in Firestore:", err);
+      }
     }
+
+    const updated = { ...profiles };
+    delete updated[user];
     setProfiles(updated);
     try {
       const x = localStorage.getItem("profile_images");
       const saved = x ? JSON.parse(x) : {};
       delete saved[user];
       localStorage.setItem("profile_images", JSON.stringify(saved));
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) {}
+
     setShowProfileMenu(false);
     window.dispatchEvent(new CustomEvent("profile_updated"));
-    showToast("프로필 이미지를 복구했습니다.");
+    showToast("기본 프로필 이미지로 되돌렸습니다.");
   };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1894,7 +1975,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         
         if (isEdit && f._slots) {
           f._slots.forEach(slotId => {
-            batch.delete(doc(db, "reservations", slotId));
+            batch.update(doc(db, "reservations", slotId), { status: 'cancelled' });
           });
         }
         
@@ -1940,7 +2021,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         
         for (const pushed of pushedReservations) {
           if (pushed._slots) {
-            pushed._slots.forEach(slotId => batch.delete(doc(db, "reservations", slotId)));
+            pushed._slots.forEach(slotId => batch.update(doc(db, "reservations", slotId), { status: 'cancelled' }));
             const pStartM = toMin(pushed.start);
             const pEndM = toMin(pushed.end);
             const pSlotsCount = Math.ceil((pEndM - pStartM) / policy.slotMinutes);
@@ -3465,6 +3546,24 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         
 
 
+        {section === "mypage" && (
+          <MyPage 
+            user={user}
+            setUser={setUser}
+            theme={theme}
+            setTheme={setTheme}
+            setSection={setSection}
+            reservations={rawReservations}
+            membersList={membersList}
+            setMembersList={setMembersList}
+            resources={resources}
+            onboardingRef={guideRef}
+            showToast={showToast}
+            Avatar={(props) => <Avatar {...props} dbProfiles={dbProfiles} />}
+            onOpenProfileMenu={() => setShowProfileMenu(true)}
+          />
+        )}
+
         {section === "history" && (
           <section>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -4100,7 +4199,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               {/* roster */}
               <div className="sc order-2 flex-1 overflow-y-auto p-3 md:order-1">
                 {[["director", "디렉터"], ["staff", "임직원"]].map(([g, label]) => {
-                  const rows = MEMBERS.filter((m) => m.group === g && !m.inactive);
+                  const rows = (membersList || MEMBERS).filter((m) => m.group === g && m.active !== false && !m.inactive);
                   return (
                     <div key={g} className="mb-2">
                       <div className="px-1.5 py-1 text-xs font-medium" style={{ color: C.muted }}>{label} ({rows.length})</div>
@@ -4451,21 +4550,24 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               {/* User profile section */}
               <div className="py-5">
                 {user ? (
-                  <div className="flex items-center gap-3">
-                    <div className="relative cursor-pointer shrink-0" onClick={() => setShowProfileMenu(true)} title="프로필 설정">
-                      <Avatar name={user} size={36} />
+                  <div 
+                    className="flex items-center gap-3 cursor-pointer p-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-all"
+                    onClick={() => {
+                      setSection("mypage");
+                      setMenuDrawerOpen(false);
+                    }}
+                  >
+                    <div className="relative shrink-0" onClick={(e) => { e.stopPropagation(); setShowProfileMenu(true); }} title="프로필 설정">
+                      <Avatar name={user} size={38} />
                       <div className="absolute inset-0 bg-black/35 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 active:opacity-100 transition-opacity">
                         <span className="text-[8px] text-white font-semibold text-center">편집</span>
                       </div>
                     </div>
-                    <div>
-                      <div className="font-bold text-[15px]">{nameWithNim(user)}</div>
-                      <button 
-                        onClick={handleLogout}
-                        className="text-xs text-red-500 font-semibold mt-0.5 hover:underline text-left"
-                      >
-                        로그아웃
-                      </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-[15px] flex items-center gap-1">
+                        <span className="truncate">{nameWithNim(user)}</span>
+                        <span className="text-[10px] font-bold text-[#2383E2]">›</span>
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -4486,7 +4588,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               <nav className="flex flex-col gap-2 mt-2">
                 <button 
                   onClick={() => { setSection("book"); setMenuDrawerOpen(false); }}
-                  className="flex items-center w-full px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-black/5 dark:hover:bg-white/5"
+                  className="flex items-center w-full px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
                   style={section === "book" ? { background: "var(--bg-secondary)", color: C.ink } : {}}
                 >
                   <span>예약하기</span>
@@ -4494,16 +4596,26 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 <button 
                   onClick={() => { 
                     setMenuDrawerOpen(false);
+                    requireAuth(() => setSection("mypage"), "마이페이지를 이용하시려면 로그인이 필요해요."); 
+                  }}
+                  className="flex items-center w-full px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
+                  style={section === "mypage" ? { background: "var(--bg-secondary)", color: C.ink } : {}}
+                >
+                  <span>마이페이지</span>
+                </button>
+                <button 
+                  onClick={() => { 
+                    setMenuDrawerOpen(false);
                     requireAuth(() => setSection("history"), "이용하시려면 로그인이 필요해요."); 
                   }}
-                  className="flex items-center w-full px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-black/5 dark:hover:bg-white/5"
+                  className="flex items-center w-full px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
                   style={section === "history" ? { background: "var(--bg-secondary)", color: C.ink } : {}}
                 >
                   <span>사용 기록</span>
                 </button>
                 <button 
                   onClick={() => { setSection("dash"); setMenuDrawerOpen(false); }}
-                  className="flex items-center w-full px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-black/5 dark:hover:bg-white/5"
+                  className="flex items-center w-full px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
                   style={section === "dash" ? { background: "var(--bg-secondary)", color: C.ink } : {}}
                 >
                   <span>대시보드</span>
