@@ -1976,6 +1976,16 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         const slotsCount = Math.ceil((endM - startM) / policy.slotMinutes);
         const dateStr = finalForm.date.replace(/-/g, '');
         const batch = writeBatch(db);
+        const ops = [];
+        
+        const myBatchUpdate = (docRef, data) => {
+          ops.push({ type: 'update', id: docRef.id, data });
+          batch.update(docRef, data);
+        };
+        const myBatchSet = (docRef, data) => {
+          ops.push({ type: 'set', id: docRef.id, owner: data.owner, ownerId: data.ownerId, data });
+          batch.set(docRef, data);
+        };
         
         const groupId = isEdit ? (finalForm.groupId || docId) : docId;
         finalForm.groupId = groupId;
@@ -1983,7 +1993,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         if (isEdit && f._slots) {
           f._slots.forEach(slotId => {
             console.log('예약 수정 중 기존 슬롯 상태 cancelled 로 업데이트:', slotId);
-            batch.update(doc(db, "reservations", slotId), { status: 'cancelled' });
+            myBatchUpdate(doc(db, "reservations", slotId), { status: 'cancelled' });
           });
         }
         
@@ -2024,7 +2034,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           delete slotData._starts;
           delete slotData._ends;
           
-          batch.set(doc(db, "reservations", slotId), slotData);
+          myBatchSet(doc(db, "reservations", slotId), slotData);
         }
         
         for (const pushed of pushedReservations) {
@@ -2032,7 +2042,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           if (pushed._slots) {
             pushed._slots.forEach(slotId => {
               console.log('밀어내기 대상 슬롯 취소 중:', slotId);
-              batch.update(doc(db, "reservations", slotId), { status: 'cancelled' });
+              myBatchUpdate(doc(db, "reservations", slotId), { status: 'cancelled' });
             });
             const pStartM = toMin(pushed.start);
             const pEndM = toMin(pushed.end);
@@ -2045,17 +2055,24 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               const slotData = { ...pushed, id: slotId, start: toHHMM(currentSlotStartMin), end: toHHMM(currentSlotEndMin) };
               delete slotData._slots; delete slotData._starts; delete slotData._ends;
               console.log('밀어낸 새 슬롯 생성 중:', slotId);
-              batch.set(doc(db, "reservations", slotId), slotData);
+              myBatchSet(doc(db, "reservations", slotId), slotData);
             }
           } else {
             console.log('밀어내기 통문서(옛 포맷) 변경 중:', pushed.id);
-            batch.update(doc(db, "reservations", pushed.id), { start: pushed.start, end: pushed.end });
+            myBatchUpdate(doc(db, "reservations", pushed.id), { start: pushed.start, end: pushed.end });
           }
         }
         
-        console.log('배치 쓰기(commit) 시작');
-        await batch.commit();
-        console.log('배치 쓰기 성공!');
+        console.log('BATCH:', ops);
+        try {
+          console.log('배치 쓰기(commit) 시작');
+          await batch.commit();
+          console.log('배치 쓰기 성공!');
+        } catch (commitErr) {
+          console.error('Batch Commit Error Code:', commitErr.code);
+          console.error('Batch Commit Error Message:', commitErr.message);
+          throw commitErr;
+        }
       } else {
         setReservations((prev) => {
           let updated = [...prev];
