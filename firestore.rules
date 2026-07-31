@@ -21,8 +21,9 @@ service cloud.firestore {
       // CREATE: Must not exist and authenticated
       allow create: if isAuthenticated() && resource == null;
 
-      // UPDATE: Allow authenticated users to update reservations (edit, cancel slots, push schedules)
-      allow update: if isAuthenticated();
+      // UPDATE: Strictly restrict updates to the original creator's reservation (owner cannot be modified or hijacked)
+      allow update: if isAuthenticated() && 
+                    request.resource.data.owner == resource.data.owner;
 
       // DELETE: Deny all deletes (must update status to cancelled instead)
       allow delete: if false;
