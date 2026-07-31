@@ -3,10 +3,13 @@ import { getFirestore } from 'firebase-admin/firestore';
 
 if (!getApps().length) {
   try {
+    let rawKey = process.env.FIREBASE_PRIVATE_KEY || '';
+    rawKey = rawKey.replace(/^"|"$/g, '').replace(/\\n/g, '\n').trim();
+    
     const serviceAccount = {
       projectId: process.env.FIREBASE_PROJECT_ID || "promptshot-d0190",
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      privateKey: rawKey,
     };
     initializeApp({ credential: cert(serviceAccount) });
   } catch (error) {
