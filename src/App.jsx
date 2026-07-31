@@ -1990,11 +1990,26 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         const groupId = isEdit ? (finalForm.groupId || docId) : docId;
         finalForm.groupId = groupId;
         
-        if (isEdit && f._slots) {
-          f._slots.forEach(slotId => {
-            console.log('예약 수정 중 기존 슬롯 상태 cancelled 로 업데이트:', slotId);
-            myBatchUpdate(doc(db, "reservations", slotId), { status: 'cancelled' });
-          });
+        if (isEdit) {
+          if (f._slots) {
+            f._slots.forEach(slotId => {
+              const exists = rawReservations.some(r => r.id === slotId);
+              if (exists) {
+                console.log('예약 수정 중 기존 슬롯 상태 cancelled 로 업데이트:', slotId);
+                myBatchUpdate(doc(db, "reservations", slotId), { status: 'cancelled' });
+              } else {
+                console.log('예약 수정 중 기존 슬롯이 존재하지 않아 건너뜀:', slotId);
+              }
+            });
+          } else {
+            const exists = rawReservations.some(r => r.id === docId);
+            if (exists) {
+              console.log('예약 수정 중 구형 통문서 상태 cancelled 로 업데이트:', docId);
+              myBatchUpdate(doc(db, "reservations", docId), { status: 'cancelled' });
+            } else {
+              console.log('예약 수정 중 구형 통문서가 존재하지 않아 건너뜀:', docId);
+            }
+          }
         }
         
         let seatNum = null;
@@ -2041,8 +2056,11 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           console.log('밀어내기 대상:', pushed.id, 'owner:', pushed.owner, 'ownerId:', pushed.ownerId);
           if (pushed._slots) {
             pushed._slots.forEach(slotId => {
-              console.log('밀어내기 대상 슬롯 취소 중:', slotId);
-              myBatchUpdate(doc(db, "reservations", slotId), { status: 'cancelled' });
+              const exists = rawReservations.some(r => r.id === slotId);
+              if (exists) {
+                console.log('밀어내기 대상 슬롯 취소 중:', slotId);
+                myBatchUpdate(doc(db, "reservations", slotId), { status: 'cancelled' });
+              }
             });
             const pStartM = toMin(pushed.start);
             const pEndM = toMin(pushed.end);
@@ -2058,8 +2076,13 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               myBatchSet(doc(db, "reservations", slotId), slotData);
             }
           } else {
-            console.log('밀어내기 통문서(옛 포맷) 변경 중:', pushed.id);
-            myBatchUpdate(doc(db, "reservations", pushed.id), { start: pushed.start, end: pushed.end });
+            const exists = rawReservations.some(r => r.id === pushed.id);
+            if (exists) {
+              console.log('밀어내기 통문서(옛 포맷) 변경 중:', pushed.id);
+              myBatchUpdate(doc(db, "reservations", pushed.id), { start: pushed.start, end: pushed.end });
+            } else {
+              console.log('밀어내기 통문서가 존재하지 않아 건너뜀:', pushed.id);
+            }
           }
         }
         
