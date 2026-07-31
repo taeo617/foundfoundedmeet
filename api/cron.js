@@ -1,18 +1,20 @@
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, query, where } from 'firebase/firestore';
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
-const firebaseConfig = {
-  apiKey: "AIzaSyB-4Eu769Zen7p__ZTrepFDuZfTvyIMYww",
-  authDomain: "promptshot-d0190.firebaseapp.com",
-  projectId: "promptshot-d0190",
-  storageBucket: "promptshot-d0190.firebasestorage.app",
-  messagingSenderId: "784599297882",
-  appId: "1:784599297882:web:521015f79e9e1bb0f50d63",
-  measurementId: "G-SPHLBD59S1"
-};
+if (!getApps().length) {
+  try {
+    const serviceAccount = {
+      projectId: process.env.FIREBASE_PROJECT_ID || "promptshot-d0190",
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    };
+    initializeApp({ credential: cert(serviceAccount) });
+  } catch (error) {
+    console.error("Firebase Admin initialization error:", error);
+  }
+}
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const db = getFirestore();
 
 const pad = (n) => String(n).padStart(2, "0");
 const toMin = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
@@ -33,9 +35,8 @@ export default async function handler(req, res) {
     const nowMin = kstDate.getUTCHours() * 60 + kstDate.getUTCMinutes(); // Since we added kstOffset to the epoch time, getUTCHours() will give us KST hours.
 
     // Query today's reservations
-    const resRef = collection(db, 'reservations');
-    const q = query(resRef, where('date', '==', todayStr));
-    const snapshot = await getDocs(q);
+    const resRef = db.collection('reservations');
+    const snapshot = await resRef.where('date', '==', todayStr).get();
     
     const targetAttendees = new Set();
     const endingRooms = [];

@@ -1,31 +1,23 @@
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, query, where } from 'firebase/firestore';
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 import webpush from 'web-push';
 import { Expo } from 'expo-server-sdk';
 import { MEMBERS, FLOW_TEAM_KEYS } from './flowTeamKeys.js';
 
-const firebaseConfig = {
-  apiKey: "AIzaSyB-4Eu769Zen7p__ZTrepFDuZfTvyIMYww",
-  authDomain: "promptshot-d0190.firebaseapp.com",
-  projectId: "promptshot-d0190",
-  storageBucket: "promptshot-d0190.firebasestorage.app",
-  messagingSenderId: "784599297882",
-  appId: "1:784599297882:web:521015f79e9e1bb0f50d63",
-  measurementId: "G-SPHLBD59S1"
-};
+if (!getApps().length) {
+  try {
+    const serviceAccount = {
+      projectId: process.env.FIREBASE_PROJECT_ID || "promptshot-d0190",
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    };
+    initializeApp({ credential: cert(serviceAccount) });
+  } catch (error) {
+    console.error("Firebase Admin initialization error:", error);
+  }
+}
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-// Initialize Web Push
-webpush.setVapidDetails(
-  'mailto:example@yourdomain.org',
-  process.env.VITE_VAPID_PUBLIC_KEY || process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '',
-  process.env.VAPID_PRIVATE_KEY || ''
-);
-
-// Initialize Expo
+const db = getFirestore();
 const expo = new Expo();
 
 export default async function handler(req, res) {
@@ -34,14 +26,23 @@ export default async function handler(req, res) {
   }
 
   try {
+    try {
+      webpush.setVapidDetails(
+        'mailto:example@yourdomain.org',
+        process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || '',
+        process.env.VAPID_PRIVATE_KEY || ''
+      );
+    } catch(e) {
+      console.error("Vapid key init error:", e);
+    }
+
     const { title, body, url, attendees } = req.body;
 
-    // KST 시간 확인하여 알림 제한
     const now = new Date();
     const kstOffset = 9 * 60 * 60 * 1000;
     const kstDate = new Date(now.getTime() + kstOffset);
     const kstHour = kstDate.getUTCHours();
-    const kstDay = kstDate.getUTCDay(); // 0 is Sunday, 6 is Saturday
+    const kstDay = kstDate.getUTCDay();
 
     if (kstDay === 0 || kstDay === 6) {
       return res.status(200).json({ success: true, message: '주말에는 알림이 전송되지 않습니다.' });
@@ -61,8 +62,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, message: 'No attendees to notify.' });
     }
 
-    // 1. Get tokens from users collection
-    const usersRef = collection(db, 'users');
+    const usersRef = db.collection('users');
     const chunks = [];
     for (let i = 0; i < attendees.length; i += 10) {
       chunks.push(attendees.slice(i, i + 10));
@@ -72,11 +72,10 @@ export default async function handler(req, res) {
     let expoTokens = [];
 
     for (const chunk of chunks) {
-      const q = query(usersRef, where('id', 'in', chunk));
-      const snapshot = await getDocs(q);
+      const snapshot = await usersRef.where('id', 'in', chunk).get();
       snapshot.forEach((doc) => {
         const data = doc.data();
-        if (data.webPushSubscription) webTokens.push(data.webPushSubscription); // legacy support
+        if (data.webPushSubscription) webTokens.push(data.webPushSubscription);
         if (data.webPushSubscriptions && Array.isArray(data.webPushSubscriptions)) {
           webTokens.push(...data.webPushSubscriptions);
         }
