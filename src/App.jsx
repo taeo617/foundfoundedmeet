@@ -411,7 +411,7 @@ function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations, onSele
                           {r.repeat && <Repeat size={11} />}
                         </div>
                         <span className="text-[10px] font-semibold rounded px-2 py-0.5" style={{ background: "rgba(255,255,255,0.6)", color: p.text }}>
-                          {rm?.name || "회의실"}
+                          {rm?.name || (r.roomId === 'meeting-room' ? '큰 회의실' : '회의실')}
                         </span>
                       </div>
                       <div className="text-[12px] opacity-90 space-y-0.5 font-medium">
@@ -2207,7 +2207,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
   /* ----- timeline renderers ----- */
    const renderMobileDashboard = (isDesktopSplit = false) => {
     const selKey = keyOf(anchor);
-    let mobDayList = reservations.filter(r => r.date === selKey && (roomId === "all" || (roomId === "printer" ? (r.roomId === "bambu-1" || r.roomId === "bambu-2") : r.roomId === roomId))).sort((a, b) => toMin(a.start) - toMin(b.start));
+    let mobDayList = reservations.filter(r => r.date === selKey && (roomId === "all" || (roomId === "printer" ? (r.roomId === "bambu-1" || r.roomId === "bambu-2") : (r.roomId === roomId || (r.roomId === "meeting-room" && (roomId === "all" || roomId === "big")))))).sort((a, b) => toMin(a.start) - toMin(b.start));
     
     if (roomId === "printer" && document.body.classList.contains('onb-open')) {
       const mock1 = { id: 'mock-1', roomId: 'bambu-1', date: selKey, start: '10:00', end: '14:00', title: '[예시] 자정 넘김 출력', isMock: true, attendees: [] };
@@ -2746,7 +2746,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                                 </div>
                                 <div className="text-[11px] font-medium flex items-center gap-1 mt-0.5" style={{ color: C.faint }}>
                                   <Clock size={11} className="shrink-0" style={{ opacity: 0.7 }} />
-                                  <span>{r.roomId === 'bambu-1' ? '뱀부랩 1' : r.roomId === 'bambu-2' ? '뱀부랩 2' : (rm?.name || r.roomId)} · {r.start}~{r.end}</span>
+                                  <span>{r.roomId === 'bambu-1' ? '뱀부랩 1' : r.roomId === 'bambu-2' ? '뱀부랩 2' : (rm?.name || (r.roomId === 'meeting-room' ? '큰 회의실' : r.roomId))} · {r.start}~{r.end}</span>
                                 </div>
                                 
                                 {/* Attendees */}
@@ -4036,7 +4036,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                             {r.repeat && <Repeat size={11} />}
                           </div>
                           <span className="text-[10px] font-semibold rounded px-2 py-0.5" style={{ background: theme === "dark" ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.6)", color: p.text }}>
-                            {rm?.name || "회의실"}
+                            {rm?.name || (r.roomId === 'meeting-room' ? '큰 회의실' : '회의실')}
                           </span>
                         </div>
                         <div className="text-[12px] opacity-90 space-y-0.5 font-medium">
