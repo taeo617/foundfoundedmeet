@@ -1879,8 +1879,14 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     const endM = toMin(f.end);
     let pushedReservations = [];
 
-    // Check for room overlaps
-    const roomOverlaps = reservations.filter((r) => r.roomId === f.roomId && r.date === f.date && r.id !== f.id && !(endM <= toMin(r.start) || startM >= toMin(r.end)));
+    const roomOverlaps = reservations.filter((r) => {
+      if (r.roomId !== f.roomId || r.date !== f.date) return false;
+      if (r.id === f.id) return false; // Exclude exact same monolithic reservation
+      if (f.id && r.groupId === f.id) return false; // If editing a group (f.id is docId), exclude its slots
+      if (f.groupId && r.groupId === f.groupId) return false; // If editing a slot directly (f.groupId exists)
+      if (endM <= toMin(r.start) || startM >= toMin(r.end)) return false; // No time overlap
+      return true;
+    });
     
     if (policy.allowOverlap) {
       if (roomOverlaps.length >= cap) {
@@ -1934,7 +1940,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       const conflicts = [];
       reservations.forEach((r) => {
         const isRPrinter = r.resourceId === 'bambu-1' || r.resourceId === 'bambu-2' || r.roomId === 'bambu-1' || r.roomId === 'bambu-2';
-        if (r.id !== f.id && r.date === f.date && !isRPrinter) {
+        const isSameRes = r.id === f.id || (f.id && r.groupId === f.id) || (f.groupId && r.groupId === f.groupId);
+        if (!isSameRes && r.date === f.date && !isRPrinter) {
           if (!(endM <= toMin(r.start) || startM >= toMin(r.end))) {
             cleanedAttendees.forEach((attId) => {
               if (r.attendees && r.attendees.includes(attId)) {
