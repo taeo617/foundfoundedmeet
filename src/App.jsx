@@ -117,7 +117,8 @@ const defaultProfiles = {
   "정수": "/정수.png",
   "준구": "/준구.png",
   "규호": "/규호.png",
-  "여준": "/여준.png"
+  "여준": "/여준.png",
+  "민지": "/민지.png"
 };
 
 function Avatar({ name, label, size = 36, solid = false, onClick, className, style, dbProfiles }) {
