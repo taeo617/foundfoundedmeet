@@ -237,7 +237,7 @@ export default function MyPage({
           </div>
 
           <div className="p-3 rounded-xl border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 text-[11.5px] text-blue-700 dark:text-blue-300 leading-relaxed">
-            💡 앱을 닫아도 오는 백그라운드 푸시 알림은 준비 중입니다. 현재는 앱을 열어두면 브라우저 알림이 발송됩니다.
+            💡 Chrome, Edge, Safari 및 PWA(홈 화면 앱)에서 알림 권한을 허용하시면 브라우저 및 디바이스 알림을 실시간으로 받아보실 수 있습니다.
           </div>
         </section>
 

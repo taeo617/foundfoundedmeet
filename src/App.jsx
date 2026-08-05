@@ -68,6 +68,30 @@ async function subscribeToWebPush(userId) {
 }
 
 async function sendPushNotification(title, body, attendees) {
+  // 1. Instant local Notification popup for active browser / PWA
+  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+    try {
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.ready.then(reg => {
+          reg.showNotification(title, {
+            body,
+            icon: '/icon-192.png',
+            badge: '/icon-192.png',
+            data: { url: '/' },
+            vibrate: [100, 50, 100]
+          });
+        }).catch(() => {
+          new Notification(title, { body, icon: '/icon-192.png', badge: '/icon-192.png' });
+        });
+      } else {
+        new Notification(title, { body, icon: '/icon-192.png', badge: '/icon-192.png' });
+      }
+    } catch (e) {
+      console.log('Local notification popup error:', e);
+    }
+  }
+
+  // 2. Remote Server Push API trigger for all attendees & devices
   try {
     await fetch('/api/notify', {
       method: 'POST',
@@ -3248,6 +3272,10 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   const nowTime = Date.now();
                   localStorage.setItem("announcement_last_read", String(nowTime));
                   setLastReadTime(nowTime);
+                  const meId = getMeId();
+                  if (meId) {
+                    subscribeToWebPush(meId);
+                  }
                 }}
                 className="lift relative grid h-9 w-9 place-items-center rounded-lg border transition-all duration-200 active:scale-90 cursor-pointer"
                 style={{ borderColor: C.border, color: C.muted }}
