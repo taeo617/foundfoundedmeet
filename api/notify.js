@@ -4,23 +4,36 @@ import webpush from 'web-push';
 import { Expo } from 'expo-server-sdk';
 import { MEMBERS, FLOW_TEAM_KEYS } from './flowTeamKeys.js';
 
-if (!getApps().length) {
-  try {
-    let rawKey = process.env.FIREBASE_PRIVATE_KEY || '';
-    rawKey = rawKey.replace(/^"|"$/g, '').replace(/\\n/g, '\n').trim();
-    
-    const serviceAccount = {
-      projectId: process.env.FIREBASE_PROJECT_ID || "promptshot-d0190",
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: rawKey,
-    };
-    initializeApp({ credential: cert(serviceAccount) });
-  } catch (error) {
-    console.error("Firebase Admin initialization error:", error);
+function getDb() {
+  if (!getApps().length) {
+    try {
+      let rawKey = process.env.FIREBASE_PRIVATE_KEY || '';
+      rawKey = rawKey.replace(/^"|"$/g, '').replace(/\\n/g, '\n').trim();
+      const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+      
+      if (clientEmail && rawKey) {
+        const serviceAccount = {
+          projectId: process.env.FIREBASE_PROJECT_ID || "promptshot-d0190",
+          clientEmail: clientEmail,
+          privateKey: rawKey,
+        };
+        initializeApp({ credential: cert(serviceAccount) });
+      }
+    } catch (error) {
+      console.error("Firebase Admin initialization error:", error);
+    }
   }
+
+  if (getApps().length) {
+    try {
+      return getFirestore();
+    } catch(e) {
+      console.error("getFirestore error:", e);
+    }
+  }
+  return null;
 }
 
-const db = getFirestore();
 const expo = new Expo();
 
 export default async function handler(req, res) {
@@ -66,8 +79,12 @@ export default async function handler(req, res) {
       }
     }
 
-    if (!attendees || attendees.length === 0) {
-      return res.status(200).json({ success: true, message: 'No attendees to notify.' });
+    const db = getDb();
+    if (!db) {
+      return res.status(200).json({ 
+        success: false, 
+        message: 'Server DB Admin not initialized. Please set FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY in Vercel Environment Variables.' 
+      });
     }
 
     const usersRef = db.collection('users');
@@ -116,8 +133,14 @@ export default async function handler(req, res) {
     // 2. Send Web Push
     const uniqueWebTokens = [];
     const seenEndpoints = new Set();
-    for (const token of webTokens) {
-      if (token && token.endpoint && !seenEndpoints.has(token.endpoint)) {
+    for (let token of webTokens) {
+      if (!token) continue;
+      if (typeof token === 'string') {
+        try {
+          token = JSON.parse(token);
+        } catch(e) {}
+      }
+      if (token && typeof token === 'object' && token.endpoint && !seenEndpoints.has(token.endpoint)) {
         seenEndpoints.add(token.endpoint);
         uniqueWebTokens.push(token);
       }

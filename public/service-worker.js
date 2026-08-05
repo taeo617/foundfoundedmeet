@@ -8,10 +8,11 @@ self.addEventListener('activate', function(event) {
 
 self.addEventListener('push', function(event) {
   let title = 'foundfoundedmeet';
+  const iconUrl = new URL('/icon-192.png', self.location.origin).href;
   let options = {
     body: '새로운 알림이 도착했습니다.',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    icon: iconUrl,
+    badge: iconUrl,
     vibrate: [100, 50, 100],
     tag: 'ffm-push-' + Date.now(),
     renotify: true,
@@ -34,7 +35,9 @@ self.addEventListener('push', function(event) {
   }
 
   event.waitUntil(
-    self.registration.showNotification(title, options)
+    self.registration.showNotification(title, options).catch(err => {
+      console.error('showNotification error:', err);
+    })
   );
 });
 

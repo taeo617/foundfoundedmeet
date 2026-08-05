@@ -1,23 +1,29 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
-if (!getApps().length) {
-  try {
-    let rawKey = process.env.FIREBASE_PRIVATE_KEY || '';
-    rawKey = rawKey.replace(/^"|"$/g, '').replace(/\\n/g, '\n').trim();
-    
-    const serviceAccount = {
-      projectId: process.env.FIREBASE_PROJECT_ID || "promptshot-d0190",
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: rawKey,
-    };
-    initializeApp({ credential: cert(serviceAccount) });
-  } catch (error) {
-    console.error("Firebase Admin initialization error:", error);
+function getDb() {
+  if (!getApps().length) {
+    try {
+      let rawKey = process.env.FIREBASE_PRIVATE_KEY || '';
+      rawKey = rawKey.replace(/^"|"$/g, '').replace(/\\n/g, '\n').trim();
+      const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+      if (clientEmail && rawKey) {
+        const serviceAccount = {
+          projectId: process.env.FIREBASE_PROJECT_ID || "promptshot-d0190",
+          clientEmail: clientEmail,
+          privateKey: rawKey,
+        };
+        initializeApp({ credential: cert(serviceAccount) });
+      }
+    } catch (error) {
+      console.error("Firebase Admin initialization error:", error);
+    }
   }
+  if (getApps().length) {
+    try { return getFirestore(); } catch(e) {}
+  }
+  return null;
 }
-
-const db = getFirestore();
 
 const pad = (n) => String(n).padStart(2, "0");
 const toMin = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
@@ -36,6 +42,11 @@ export default async function handler(req, res) {
     
     const todayStr = keyOf(kstDate);
     const nowMin = kstDate.getUTCHours() * 60 + kstDate.getUTCMinutes(); // Since we added kstOffset to the epoch time, getUTCHours() will give us KST hours.
+
+    const db = getDb();
+    if (!db) {
+      return res.status(200).json({ success: false, message: 'Server DB Admin not initialized.' });
+    }
 
     // Query today's reservations
     const resRef = db.collection('reservations');
