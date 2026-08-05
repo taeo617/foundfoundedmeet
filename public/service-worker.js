@@ -13,6 +13,8 @@ self.addEventListener('push', function(event) {
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     vibrate: [100, 50, 100],
+    tag: 'ffm-push-' + Date.now(),
+    renotify: true,
     data: {
       url: '/'
     }
@@ -27,7 +29,6 @@ self.addEventListener('push', function(event) {
         options.data.url = data.url;
       }
     } catch (e) {
-      // Fallback if the payload is not valid JSON (e.g. raw text)
       options.body = event.data.text();
     }
   }

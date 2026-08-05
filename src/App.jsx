@@ -51,21 +51,35 @@ async function subscribeToWebPush(userId) {
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
       const targetKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
-      let existingSub = await registration.pushManager.getSubscription();
+      let subscription = await registration.pushManager.getSubscription();
       
-      // Unsubscribe stale subscription if applicationServerKey differs
-      if (existingSub) {
-        try {
-          await existingSub.unsubscribe();
-        } catch(unsubErr) {
-          console.warn('Failed to unsubscribe stale push subscription:', unsubErr);
+      if (subscription) {
+        const existingKey = subscription.options?.applicationServerKey;
+        let keyMatches = false;
+        if (existingKey) {
+          const keyArray = new Uint8Array(existingKey);
+          if (keyArray.length === targetKey.length && keyArray.every((val, i) => val === targetKey[i])) {
+            keyMatches = true;
+          }
+        }
+        
+        if (!keyMatches) {
+          console.log('Unsubscribing key-mismatched push subscription...');
+          try {
+            await subscription.unsubscribe();
+            subscription = null;
+          } catch(unsubErr) {
+            console.warn('Failed to unsubscribe stale push subscription:', unsubErr);
+          }
         }
       }
 
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: targetKey
-      });
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: targetKey
+        });
+      }
 
       // Save subscription to user document in Firestore
       if (isFirebaseConfigured && userId) {
@@ -75,7 +89,7 @@ async function subscribeToWebPush(userId) {
           webPushSubscription: subJson,
           webPushSubscriptions: arrayUnion(subJson) 
         }, { merge: true });
-        console.log("Successfully subscribed and updated web push for user:", userId);
+        console.log("Push subscription synchronized for user:", userId);
       }
     }
   } catch (err) {
