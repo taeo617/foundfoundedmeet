@@ -30,17 +30,13 @@ export default async function handler(req, res) {
 
   try {
     try {
-      const vapidPublic = process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || 'BPEVBSwDakUuwkdE60FOGy3YcdASPrlcC43xsnxkLhc_KNMrhEmYi0-x94IBEvb-d4SXWfouYdAdKwgDokH9BnA';
-      const vapidPrivate = process.env.VAPID_PRIVATE_KEY || '';
-      if (vapidPublic && vapidPrivate) {
-        webpush.setVapidDetails(
-          'mailto:example@yourdomain.org',
-          vapidPublic,
-          vapidPrivate
-        );
-      } else {
-        console.warn("VAPID private key is missing in environment variables.");
-      }
+      const vapidPublic = process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || 'BLqCKTDBeszY0bUR8cDBThOpHkATpM4tZY9qu6zOlnKpDxQoRkCMKvkBxsivA1h0xDqdfVy_I9Yvs7U-6CzA1j4';
+      const vapidPrivate = process.env.VAPID_PRIVATE_KEY || 'hj0hR-pyhTTRuWeULgxSXP2dj7dgFdXAME47KYtVDOk';
+      webpush.setVapidDetails(
+        'mailto:example@yourdomain.org',
+        vapidPublic,
+        vapidPrivate
+      );
     } catch(e) {
       console.error("Vapid key init error:", e);
     }

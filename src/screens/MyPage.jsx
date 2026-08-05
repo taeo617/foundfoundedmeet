@@ -236,8 +236,33 @@ export default function MyPage({
             </div>
           </div>
 
-          <div className="p-3 rounded-xl border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 text-[11.5px] text-blue-700 dark:text-blue-300 leading-relaxed">
-            💡 Chrome, Edge, Safari 및 PWA(홈 화면 앱)에서 알림 권한을 허용하시면 브라우저 및 디바이스 알림을 실시간으로 받아보실 수 있습니다.
+          <div className="p-3 rounded-xl border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 text-[11.5px] text-blue-700 dark:text-blue-300 leading-relaxed space-y-2">
+            <div>💡 Chrome, Edge, Safari 및 PWA(홈 화면 앱)에서 알림 권한을 허용하시면 브라우저 및 디바이스 알림을 실시간으로 받아보실 수 있습니다.</div>
+            <button
+              type="button"
+              onClick={async () => {
+                if (typeof window === 'undefined' || !('Notification' in window)) {
+                  alert("이 브라우저는 알림 기능을 지원하지 않습니다.");
+                  return;
+                }
+                try {
+                  const perm = await Notification.requestPermission();
+                  if (perm === 'granted') {
+                    new Notification("🔔 found/Founded 알림 테스트", {
+                      body: "브라우저 및 디바이스 알림이 성공적으로 설정되었습니다!",
+                      icon: "/icon-192.png"
+                    });
+                  } else if (perm === 'denied') {
+                    alert("브라우저 알림 권한이 차단되어 있습니다. 주소창 좌측 자물쇠 아이콘 ➔ '알림' 권한을 '허용'으로 변경해 주세요.");
+                  }
+                } catch (e) {
+                  console.error("Test notification error:", e);
+                }
+              }}
+              className="w-full py-2 px-3 bg-[#2383E2] hover:bg-blue-600 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+            >
+              🔔 브라우저 알림 권한 허용 & 테스트 팝업 보내기
+            </button>
           </div>
         </section>
 

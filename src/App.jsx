@@ -25,7 +25,7 @@ import {
 const nid = () => `r_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
 
 
-const VAPID_PUBLIC_KEY = "BPEVBSwDakUuwkdE60FOGy3YcdASPrlcC43xsnxkLhc_KNMrhEmYi0-x94IBEvb-d4SXWfouYdAdKwgDokH9BnA";
+const VAPID_PUBLIC_KEY = "BLqCKTDBeszY0bUR8cDBThOpHkATpM4tZY9qu6zOlnKpDxQoRkCMKvkBxsivA1h0xDqdfVy_I9Yvs7U-6CzA1j4";
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -50,16 +50,32 @@ async function subscribeToWebPush(userId) {
     
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
+      const targetKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+      let existingSub = await registration.pushManager.getSubscription();
+      
+      // Unsubscribe stale subscription if applicationServerKey differs
+      if (existingSub) {
+        try {
+          await existingSub.unsubscribe();
+        } catch(unsubErr) {
+          console.warn('Failed to unsubscribe stale push subscription:', unsubErr);
+        }
+      }
+
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        applicationServerKey: targetKey
       });
+
       // Save subscription to user document in Firestore
-      if (isFirebaseConfigured) {
+      if (isFirebaseConfigured && userId) {
+        const subJson = JSON.parse(JSON.stringify(subscription));
         await setDoc(doc(db, "users", userId), { 
           id: userId, 
-          webPushSubscriptions: arrayUnion(JSON.parse(JSON.stringify(subscription))) 
+          webPushSubscription: subJson,
+          webPushSubscriptions: arrayUnion(subJson) 
         }, { merge: true });
+        console.log("Successfully subscribed and updated web push for user:", userId);
       }
     }
   } catch (err) {
