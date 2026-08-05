@@ -39,7 +39,7 @@ export default async function handler(req, res) {
       console.error("Vapid key init error:", e);
     }
 
-    const { title, body, url, attendees } = req.body;
+    const { title, body, url, attendees, isRealtime } = req.body;
 
     const now = new Date();
     const kstOffset = 9 * 60 * 60 * 1000;
@@ -47,17 +47,20 @@ export default async function handler(req, res) {
     const kstHour = kstDate.getUTCHours();
     const kstDay = kstDate.getUTCDay();
 
-    if (kstDay === 0 || kstDay === 6) {
-      return res.status(200).json({ success: true, message: '주말에는 알림이 전송되지 않습니다.' });
-    }
-
-    if (kstDay === 1) {
-      if (kstHour < 12 || kstHour >= 20) {
-        return res.status(200).json({ success: true, message: '월요일 알림 전송 시간이 아닙니다. (낮 12시 ~ 오후 8시)' });
+    // Cron reminders apply time restrictions; real-time user actions (isRealtime: true) skip quiet hours.
+    if (!isRealtime) {
+      if (kstDay === 0 || kstDay === 6) {
+        return res.status(200).json({ success: true, message: '주말에는 정기 알림이 전송되지 않습니다.' });
       }
-    } else {
-      if (kstHour < 9 || kstHour >= 20) {
-        return res.status(200).json({ success: true, message: '알림 전송 시간이 아닙니다. (오전 9시 ~ 오후 8시)' });
+
+      if (kstDay === 1) {
+        if (kstHour < 12 || kstHour >= 20) {
+          return res.status(200).json({ success: true, message: '월요일 정기 알림 전송 시간이 아닙니다. (낮 12시 ~ 오후 8시)' });
+        }
+      } else {
+        if (kstHour < 9 || kstHour >= 20) {
+          return res.status(200).json({ success: true, message: '정기 알림 전송 시간이 아닙니다. (오전 9시 ~ 오후 8시)' });
+        }
       }
     }
 
@@ -66,24 +69,46 @@ export default async function handler(req, res) {
     }
 
     const usersRef = db.collection('users');
-    const chunks = [];
-    for (let i = 0; i < attendees.length; i += 10) {
-      chunks.push(attendees.slice(i, i + 10));
-    }
+    const uniqueAttendees = Array.from(new Set(attendees));
 
     let webTokens = [];
     let expoTokens = [];
 
-    for (const chunk of chunks) {
-      const snapshot = await usersRef.where('id', 'in', chunk).get();
-      snapshot.forEach((doc) => {
+    // Query by Document ID directly (e.g. 'm6')
+    const docSnaps = await Promise.all(uniqueAttendees.map(id => usersRef.doc(String(id)).get()));
+    const foundDocIds = new Set();
+
+    docSnaps.forEach((doc) => {
+      if (doc.exists) {
+        foundDocIds.add(doc.id);
         const data = doc.data();
         if (data.webPushSubscription) webTokens.push(data.webPushSubscription);
         if (data.webPushSubscriptions && Array.isArray(data.webPushSubscriptions)) {
           webTokens.push(...data.webPushSubscriptions);
         }
         if (data.expoPushToken) expoTokens.push(data.expoPushToken);
-      });
+      }
+    });
+
+    // Fallback: Query by field 'id' for any missed attendees
+    const missingAttendees = uniqueAttendees.filter(id => !foundDocIds.has(String(id)));
+    if (missingAttendees.length > 0) {
+      const chunks = [];
+      for (let i = 0; i < missingAttendees.length; i += 10) {
+        chunks.push(missingAttendees.slice(i, i + 10));
+      }
+
+      for (const chunk of chunks) {
+        const snapshot = await usersRef.where('id', 'in', chunk).get();
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data.webPushSubscription) webTokens.push(data.webPushSubscription);
+          if (data.webPushSubscriptions && Array.isArray(data.webPushSubscriptions)) {
+            webTokens.push(...data.webPushSubscriptions);
+          }
+          if (data.expoPushToken) expoTokens.push(data.expoPushToken);
+        });
+      }
     }
 
     // 2. Send Web Push

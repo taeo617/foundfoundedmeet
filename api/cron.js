@@ -51,10 +51,21 @@ export default async function handler(req, res) {
     const isMonday = kstDate.getUTCDay() === 1;
     const morningTime = isMonday ? 720 : 540;
 
+    const getRoomName = (id) => ({
+      'big': '큰 회의실',
+      'small': '작은 회의실',
+      'workroom': '워크룸',
+      'bambu-1': '뱀부랩 1',
+      'bambu-2': '뱀부랩 2'
+    }[id] || '회의실');
+
     snapshot.forEach((doc) => {
       const data = doc.data();
+      if (data.status === 'cancelled') return;
+
       const endMin = toMin(data.end);
-      
+      const startMin = toMin(data.start);
+
       // 당일 첫 알림 시간에 오늘 회의 참석자 모두 수집
       if (nowMin === morningTime) {
         if (data.attendees) {
@@ -62,19 +73,21 @@ export default async function handler(req, res) {
         }
       }
 
-      // If the meeting ends exactly 1 minute from now
-      // Since cron might run at xx:01 or xx:00, we check a 1-minute window
-      if (endMin - nowMin === 1) {
-        if (data.attendees) { data.attendees.forEach(att => targetAttendees.add(att)); } if (data.owner) { targetAttendees.add(data.owner); }
-        endingRooms.push(data.roomId === 'big' ? '큰 회의실' : '작은 회의실');
+      // If the meeting ends in 1 minute (allowing 0~1 min tolerance)
+      const endDelta = endMin - nowMin;
+      if (endDelta >= 0 && endDelta <= 1) {
+        if (data.attendees) { data.attendees.forEach(att => targetAttendees.add(att)); }
+        if (data.owner) { targetAttendees.add(data.owner); }
+        endingRooms.push(getRoomName(data.roomId));
       }
 
-      const startMin = toMin(data.start);
-      // If the meeting starts exactly 1 minute from now
-      if (startMin - nowMin === 1) {
-        if (data.attendees) { data.attendees.forEach(att => startingAttendees.add(att)); } if (data.owner) { startingAttendees.add(data.owner); }
-        const roomName = data.roomId === 'big' ? '큰 회의실' : '작은 회의실';
-        startingMeetings.push(`[${roomName}] ${data.title}`);
+      // If the meeting starts in 1 minute (allowing 0~1 min tolerance)
+      const startDelta = startMin - nowMin;
+      if (startDelta >= 0 && startDelta <= 1) {
+        if (data.attendees) { data.attendees.forEach(att => startingAttendees.add(att)); }
+        if (data.owner) { startingAttendees.add(data.owner); }
+        const roomName = getRoomName(data.roomId);
+        startingMeetings.push(`[${roomName}] ${data.title || '일정'}`);
       }
     });
 

@@ -39,19 +39,21 @@ self.addEventListener('push', function(event) {
 
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
+  const rawUrl = (event.notification.data && event.notification.data.url) || '/';
+  const targetFullUrl = new URL(rawUrl, self.location.origin).href;
+
   event.waitUntil(
-    clients.matchAll({ type: 'window' }).then(windowClients => {
-      const targetUrl = event.notification.data.url;
-      // Check if there is already a window/tab open with the target URL
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
       for (let i = 0; i < windowClients.length; i++) {
         let client = windowClients[i];
-        if (client.url === targetUrl && 'focus' in client) {
-          return client.focus();
+        if ('focus' in client) {
+          if (client.url === targetFullUrl || client.url.startsWith(self.location.origin)) {
+            return client.focus();
+          }
         }
       }
-      // If not, open a new window
       if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
+        return clients.openWindow(targetFullUrl);
       }
     })
   );

@@ -72,7 +72,7 @@ async function sendPushNotification(title, body, attendees) {
     await fetch('/api/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, body, url: '/', attendees })
+      body: JSON.stringify({ title, body, url: '/', attendees, isRealtime: true })
     });
   } catch (err) {
     console.error('Failed to send push notification:', err);
@@ -2131,6 +2131,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       
       // Push Notifications
       if (user !== "admin") {
+        const notifyTargetIds = Array.from(new Set([...(cleanedAttendees || []), getMeId()].filter(Boolean)));
+
         if (!isEdit) {
            let isEnded = false;
            if (f.date && f.end) {
@@ -2142,7 +2144,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
              }
            }
            if (!isEnded) {
-             sendPushNotification('📅 새 회의가 등록됐어요', `${nameWithNim(user)}이 예약했습니다. [${ROOMS.find(r=>r.id===f.roomId)?.name}] ${f.date} ${f.start}~${f.end}`, f.attendees);
+             sendPushNotification('📅 새 회의가 등록됐어요', `${nameWithNim(user)}이 예약했습니다. [${ROOMS.find(r=>r.id===f.roomId)?.name}] ${f.date} ${f.start}~${f.end}`, notifyTargetIds);
            }
         } else {
            const originalRes = reservations.find(r => r.id === f.id);
@@ -2156,14 +2158,15 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
              }
            }
            if (!isEnded) {
-              sendPushNotification('✏️ 회의 일정이 변경됐어요', `${nameWithNim(user)}이 일정을 변경했습니다. [${ROOMS.find(r=>r.id===f.roomId)?.name}] 확인해주세요.`, f.attendees);
+              sendPushNotification('✏️ 회의 일정이 변경됐어요', `${nameWithNim(user)}이 일정을 변경했습니다. [${ROOMS.find(r=>r.id===f.roomId)?.name}] 확인해주세요.`, notifyTargetIds);
            }
         }
         
         pushedReservations.forEach(pushed => {
            const roomName = ROOMS.find(r=>r.id===pushed.roomId)?.name || pushed.roomId;
            const msg = f.urgentComment ? `[${f.urgentComment}] 기존 일정은 ${pushed.start}로 밀렸습니다.` : `[${roomName}] 일정이 ${pushed.start}로 밀렸어요.`;
-           sendPushNotification('🚨 중요 회의로 일정이 밀렸어요', msg, pushed.attendees);
+           const pushedTargets = Array.from(new Set([...(pushed.attendees || []), pushed.ownerId || pushed.owner].filter(Boolean)));
+           sendPushNotification('🚨 중요 회의로 일정이 밀렸어요', msg, pushedTargets);
         });
       }
 
