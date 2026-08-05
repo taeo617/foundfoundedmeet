@@ -14,6 +14,8 @@ export const MEMBERS = [
   { id: "m13", name: "지민", team: "VD", role: "디자이너",         group: "staff" },
   { id: "m4",  name: "도영", team: "VD", role: "인턴",            group: "staff", inactive: true },
   { id: "m14", name: "정수", team: "ID", role: "인턴",            group: "staff" },
+  { id: "m16", name: "여준", team: "ID", role: "인턴",            group: "staff" },
+  { id: "m17", name: "민지", team: "ID", role: "인턴",            group: "staff" },
 ];
 
 export const FLOW_TEAM_KEYS = {
@@ -32,4 +34,6 @@ export const FLOW_TEAM_KEYS = {
   '지민': '',
   '도영': '',
   '정수': '',
+  '여준': '',
+  '민지': '',
 };

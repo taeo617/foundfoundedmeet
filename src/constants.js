@@ -48,6 +48,7 @@ export const MEMBERS = [
   { id: "m4",  name: "도영", team: "VD", role: "인턴",            group: "staff", inactive: true },
   { id: "m14", name: "정수", team: "ID", role: "인턴",            group: "staff" },
   { id: "m16", name: "여준", team: "ID", role: "인턴",            group: "staff" },
+  { id: "m17", name: "민지", team: "ID", role: "인턴",            group: "staff" },
   { id: "m_guest", name: "Guest", team: "게스트", role: "게스트", group: "guest" },
   { id: "m_client", name: "클라이언트", team: "외부", role: "클라이언트", group: "client" },
   { id: "m_room", name: "회의실", team: "공용", role: "회의실", group: "admin" },
