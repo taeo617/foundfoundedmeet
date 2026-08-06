@@ -98,26 +98,16 @@ async function subscribeToWebPush(userId) {
 }
 
 async function sendPushNotification(title, body, attendees) {
-  // 1. Instant local Notification popup for active browser / PWA
+  // 1. Instant local Notification popup (Same direct method as the working test button)
   if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
     try {
-      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.ready.then(reg => {
-          reg.showNotification(title, {
-            body,
-            icon: '/icon-192.png',
-            badge: '/icon-192.png',
-            data: { url: '/' },
-            vibrate: [100, 50, 100]
-          });
-        }).catch(() => {
-          new Notification(title, { body, icon: '/icon-192.png', badge: '/icon-192.png' });
-        });
-      } else {
-        new Notification(title, { body, icon: '/icon-192.png', badge: '/icon-192.png' });
-      }
+      new Notification(title, {
+        body,
+        icon: '/icon-192.png',
+        badge: '/icon-192.png'
+      });
     } catch (e) {
-      console.log('Local notification popup error:', e);
+      console.log('Local Notification popup error:', e);
     }
   }
 
@@ -2185,37 +2175,14 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       
       // Push Notifications
       if (user !== "admin") {
+        const targetRoomName = ROOMS.find(r => r.id === effectiveRoomId)?.name || ROOMS.find(r => r.id === f.roomId)?.name || '회의실';
         const notifyTargetIds = Array.from(new Set([...(cleanedAttendees || []), getMeId()].filter(Boolean)));
+        const notifTitle = isEdit ? '✏️ 회의 일정이 변경됐어요' : '📅 새 회의가 등록됐어요';
+        const actionVerb = isEdit ? '일정을 변경했습니다' : '예약했습니다';
+        const notifBody = `${nameWithNim(user)}이 ${actionVerb}. [${targetRoomName}] ${f.date} ${f.start}~${f.end}`;
 
-        if (!isEdit) {
-           let isEnded = false;
-           if (f.date && f.end) {
-             const [y, m, d] = f.date.split("-").map(Number);
-             const [h, min] = f.end.split(":").map(Number);
-             const endTime = new Date(y, m - 1, d, h, min);
-             if (endTime < new Date()) {
-               isEnded = true;
-             }
-           }
-           if (!isEnded) {
-             sendPushNotification('📅 새 회의가 등록됐어요', `${nameWithNim(user)}이 예약했습니다. [${ROOMS.find(r=>r.id===f.roomId)?.name}] ${f.date} ${f.start}~${f.end}`, notifyTargetIds);
-           }
-        } else {
-           const originalRes = reservations.find(r => r.id === f.id);
-           let isEnded = false;
-           if (originalRes && originalRes.date && originalRes.end) {
-             const [y, m, d] = originalRes.date.split("-").map(Number);
-             const [h, min] = originalRes.end.split(":").map(Number);
-             const endTime = new Date(y, m - 1, d, h, min);
-             if (endTime < new Date()) {
-               isEnded = true;
-             }
-           }
-           if (!isEnded) {
-              sendPushNotification('✏️ 회의 일정이 변경됐어요', `${nameWithNim(user)}이 일정을 변경했습니다. [${ROOMS.find(r=>r.id===f.roomId)?.name}] 확인해주세요.`, notifyTargetIds);
-           }
-        }
-        
+        sendPushNotification(notifTitle, notifBody, notifyTargetIds);
+
         pushedReservations.forEach(pushed => {
            const roomName = ROOMS.find(r=>r.id===pushed.roomId)?.name || pushed.roomId;
            const msg = f.urgentComment ? `[${f.urgentComment}] 기존 일정은 ${pushed.start}로 밀렸습니다.` : `[${roomName}] 일정이 ${pushed.start}로 밀렸어요.`;
