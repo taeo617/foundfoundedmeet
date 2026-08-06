@@ -20,11 +20,30 @@ export default function MyPage({
   onboardingRef,
   showToast,
   Avatar,
-  onOpenProfileMenu
+  onOpenProfileMenu,
+  handleLogout
 }) {
-  const me = (membersList || MEMBERS).find((m) => m.name === user) || MEMBERS[0];
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[var(--bg)] p-4 pt-12 text-[var(--text)]">
+        <div className="max-w-md mx-auto grid place-items-center rounded-2xl border bg-[var(--bg-secondary)] p-8 text-center" style={{ borderColor: C.border }}>
+          <Lock size={32} className="text-[var(--faint)]" />
+          <h2 className="mt-3 text-base font-bold">로그인이 필요합니다</h2>
+          <p className="mt-1 text-xs text-[var(--muted)]">로그인 후 마이페이지 및 시스템을 이용하실 수 있습니다.</p>
+          <button 
+            onClick={() => setSection("book")}
+            className="mt-5 w-full py-2.5 px-4 bg-[#2383E2] text-white rounded-xl text-xs font-semibold hover:bg-blue-600 transition-colors cursor-pointer"
+          >
+            홈으로 돌아가기
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const me = user ? (membersList || MEMBERS).find((m) => m.name === user) : null;
   const meId = me?.id;
-  const isAdmin = user === "admin" || me?.group === "admin" || me?.role === "디렉터";
+  const isAdmin = !!user && (user === "admin" || me?.group === "admin");
 
   // Settings states
   const [notifSettings, setNotifSettings] = useState({
@@ -123,7 +142,20 @@ export default function MyPage({
           </button>
           <h1 className="text-[17px] font-bold">마이페이지</h1>
         </div>
-        <button onClick={() => setUser(null)} className="lift flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold text-red-500" style={{ borderColor: C.border }}>
+        <button 
+          onClick={() => {
+            if (handleLogout) {
+              handleLogout();
+            } else {
+              setUser(null);
+              localStorage.removeItem("auth_token");
+              localStorage.removeItem("last_user");
+              setSection("book");
+            }
+          }} 
+          className="lift flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold text-red-500 cursor-pointer" 
+          style={{ borderColor: C.border }}
+        >
           <LogOut size={13} />
           <span>로그아웃</span>
         </button>

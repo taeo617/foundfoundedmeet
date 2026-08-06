@@ -81,15 +81,28 @@ async function subscribeToWebPush(userId) {
         });
       }
 
-      // Save subscription to user document in Firestore
+      // Save subscription to user document in Firestore with retry logic
       if (isFirebaseConfigured && userId) {
         const subJson = JSON.parse(JSON.stringify(subscription));
-        await setDoc(doc(db, "users", userId), { 
-          id: userId, 
-          webPushSubscription: subJson,
-          webPushSubscriptions: arrayUnion(subJson) 
-        }, { merge: true });
-        console.log("Push subscription synchronized for user:", userId);
+        const saveSubWithRetry = async (attempts = 3) => {
+          for (let attempt = 1; attempt <= attempts; attempt++) {
+            try {
+              await setDoc(doc(db, "users", userId), { 
+                id: userId, 
+                webPushSubscription: subJson,
+                webPushSubscriptions: arrayUnion(subJson) 
+              }, { merge: true });
+              console.log("Push subscription synchronized for user:", userId);
+              break;
+            } catch (err) {
+              console.warn(`Firestore push save attempt ${attempt} failed:`, err);
+              if (attempt < attempts) {
+                await new Promise(r => setTimeout(r, 600 * attempt));
+              }
+            }
+          }
+        };
+        saveSubWithRetry();
       }
     }
   } catch (err) {
@@ -848,13 +861,13 @@ export default function App() {
   });
 
   useEffect(() => {
-    if (user) {
+    if (user && isAuthenticated) {
       const meId = MEMBERS.find((m) => m.name === user)?.id;
       if (meId) {
         subscribeToWebPush(meId);
       }
     }
-  }, [user]);
+  }, [user, isAuthenticated]);
   const [now, setNow] = useState(() => new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 20000); return () => clearInterval(t); }, []);
 
@@ -3661,6 +3674,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             showToast={showToast}
             Avatar={(props) => <Avatar {...props} dbProfiles={dbProfiles} />}
             onOpenProfileMenu={() => setShowProfileMenu(true)}
+            handleLogout={handleLogout}
           />
         )}
 
@@ -3728,52 +3742,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           </section>
         )}
 
-        {section === "mypage" && (
-          !user ? (
-            <div className="grid place-items-center rounded-lg border bg-white py-16 text-center" style={{ borderColor: C.border }}>
-              <Lock size={30} style={{ color: C.faint }} /><p className="mt-3 text-sm font-semibold" style={{ color: C.muted }}>로그인하면 마이페이지를 볼 수 있어요</p>
-              <button onClick={() => requireAuth(() => setSection("mypage"), "로그인하면 마이페이지를 볼 수 있어요.")} className="lift mt-4 flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium" style={{ background: C.ink, color: "var(--bg)" }}><LogIn size={15} />로그인</button>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* 프로필 요약 카드 */}
-              <div className="rise rounded-lg border bg-white p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4" style={{ borderColor: C.border }}>
-                <div className="flex items-center gap-4">
-                  <div className="relative group cursor-pointer shrink-0" onClick={() => setShowProfileMenu(true)} title="프로필 설정">
-                    <Avatar name={user} size={54} solid />
-                    <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <span className="text-[10px] text-white font-bold">편집</span>
-                    </div>
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold flex items-center gap-2">
-                      {nameWithNim(user)} 마이페이지
-                      {MEMBERS.find(m => m.name === user) && (
-                        <TeamTag team={MEMBERS.find(m => m.name === user).team} />
-                      )}
-                    </h2>
-                    <p className="text-xs mt-1" style={{ color: C.faint }}>
-                      {MEMBERS.find(m => m.name === user) ? `${MEMBERS.find(m => m.name === user).role} · foundfounded 멤버` : "foundfounded 멤버"}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => setSection("mine")} className="lift rounded-lg border px-4 py-2.5 text-xs font-semibold" style={{ borderColor: C.border, color: C.muted }}>
-                    내 예약 내역
-                  </button>
-                  <button onClick={handleLogout} className="lift rounded-lg border px-4 py-2.5 text-xs font-semibold" style={{ borderColor: C.border, color: PASTEL.red.text }}>
-                    로그아웃
-                  </button>
-                </div>
-              </div>
 
-              {/* 회의실 사용 현황 대시보드 */}
-              <div className="pt-2">
-                <Dashboard month={dashMonth} setMonth={setDashMonth} roomF={dashRoom} setRoomF={setDashRoom} now={now} reservations={myDashRes} onSelectEvent={setDetail} />
-              </div>
-            </div>
-          )
-        )}
         {section === "dash" && (
           !user ? (
             <div className="grid place-items-center rounded-lg border bg-white py-16 text-center" style={{ borderColor: C.border }}>
