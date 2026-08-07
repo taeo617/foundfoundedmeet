@@ -100,7 +100,7 @@ export const UPDATE_NOTES = [
     ic: 'up',
     guide: 'printer',
     title: '3D 프린터 예약이 추가됐어요',
-    body: '뱀부랩 1·2를 예약해서 쓸 수 있습니다.',
+    body: '968 (LEFT) · 990 (RIGHT)를 예약해서 쓸 수 있습니다.',
     changes: [
       '출력물 이름과 기계를 골라 예약',
       '밤 11시에 걸어 아침에 찾는 자정 넘김 출력도 가능',

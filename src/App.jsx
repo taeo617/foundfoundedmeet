@@ -2635,8 +2635,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               subText = `가장 빨리 끝나는 건 ${ends[0]}입니다`;
             } else {
               const freeNames = [];
-              if (!b1Busy) freeNames.push("뱀부랩 1");
-              if (!b2Busy) freeNames.push("뱀부랩 2");
+              if (!b1Busy) freeNames.push("968 (LEFT)");
+              if (!b2Busy) freeNames.push("990 (RIGHT)");
               subText = `${freeNames.join(' · ')} 지금 비어있음`;
               if (busyCount > 0) {
                 const busyEnd = b1Busy ? b1Busy.end : b2Busy.end;
@@ -2647,7 +2647,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             const b1Mine = b1Busy && b1Busy.who === user ? b1Busy : null;
             const b2Mine = b2Busy && b2Busy.who === user ? b2Busy : null;
             const myLiveRes = b1Mine || b2Mine;
-            const myRoomName = b1Mine ? "뱀부랩 1" : "뱀부랩 2";
+            const myRoomName = b1Mine ? "968 (LEFT)" : "990 (RIGHT)";
 
             return (
               <div className="status-card mb-6 rounded-[14px] p-4 text-white relative overflow-hidden" style={{ background: isFull ? "var(--mob-busy-bg)" : "var(--mob-free-bg)", margin: "6px 0", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
@@ -2783,11 +2783,11 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 <div className="dg__head">
                   <b></b>
                   <b className={b1Busy ? 'hot' : ''}>
-                    뱀부랩 1
+                    968 (LEFT)
                     <small>{b1Busy ? `${b1Busy.end} 종료 예정` : '비어 있음'}</small>
                   </b>
                   <b className={b2Busy ? 'hot' : ''}>
-                    뱀부랩 2
+                    990 (RIGHT)
                     <small>{b2Busy ? `${b2Busy.end} 종료 예정` : '비어 있음'}</small>
                   </b>
                 </div>
@@ -2995,7 +2995,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                                 </div>
                                 <div className="text-[11px] font-medium flex items-center gap-1 mt-0.5" style={{ color: C.faint }}>
                                   <Clock size={11} className="shrink-0" style={{ opacity: 0.7 }} />
-                                  <span>{r.roomId === 'bambu-1' ? '뱀부랩 1' : r.roomId === 'bambu-2' ? '뱀부랩 2' : (rm?.name || (r.roomId === 'meeting-room' ? '큰 회의실' : r.roomId))} · {r.start}~{r.end}</span>
+                                  <span>{r.roomId === 'bambu-1' ? '968 (LEFT)' : r.roomId === 'bambu-2' ? '990 (RIGHT)' : (rm?.name || (r.roomId === 'meeting-room' ? '큰 회의실' : r.roomId))} · {r.start}~{r.end}</span>
                                 </div>
                                 
                                 {/* Attendees */}
@@ -3789,7 +3789,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 const titlePh = isPrinter ? "예: LG 웰컴키트 트레이" : isWorkroom ? "예: LG 웰컴키트 리서치" : "예: OOO 프로젝트_아이데이션 회의";
                 const dropdownLabel = isPrinter ? "기계" : "회의실";
                 const dropdownOptions = isPrinter 
-                  ? [["bambu-1", "뱀부랩 1"], ["bambu-2", "뱀부랩 2"]]
+                  ? [["bambu-1", "968 (LEFT)"], ["bambu-2", "990 (RIGHT)"]]
                   : ROOMS.filter(r => r.group === "meeting").map((r) => [r.id, `${r.name} · ${r.capacity}명`]);
 
                 return (
@@ -4732,7 +4732,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               <div className="my-4 rounded-lg p-3 space-y-1 text-xs" style={{ background: "var(--bg-secondary)", border: `1px solid ${C.border}` }}>
                 {isPrinter ? (
                   <>
-                    <div className="flex justify-between"><span>기계</span><span className="font-bold">{f.roomId === 'bambu-1' ? '뱀부랩 1' : '뱀부랩 2'}</span></div>
+                    <div className="flex justify-between"><span>기계</span><span className="font-bold">{f.roomId === 'bambu-1' ? '968 (LEFT)' : '990 (RIGHT)'}</span></div>
                     <div className="flex justify-between"><span>출력물</span><span className="font-bold">{f.title}</span></div>
                     <div className="flex justify-between"><span>시간</span><span className="font-bold">{f.date} · {f.start} ~ {toMin(f.end) <= toMin(f.start) ? '다음 날 ' : ''}{f.end}</span></div>
                     <div className="flex justify-between"><span>예약자</span><span className="font-bold">{user || ''}님</span></div>
@@ -4791,7 +4791,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       {reportModalSession && (() => {
         const s = reportModalSession;
         const isPr = s.resourceId === 'bambu-1' || s.resourceId === 'bambu-2';
-        const machineName = s.resourceId === 'bambu-1' ? '뱀부랩 1' : '뱀부랩 2';
+        const machineName = s.resourceId === 'bambu-1' ? '968 (LEFT)' : '990 (RIGHT)';
         const endNotices = isPr ? [
           { id: 1, title: "베드에서 출력물 조심스럽게 분리", sub: "베드가 식은 뒤 스크레이퍼를 사용하세요" },
           { id: 2, title: "주변 필라멘트 찌꺼기 청소", sub: "다음 사람을 위해 바닥과 베드를 깨끗이" },

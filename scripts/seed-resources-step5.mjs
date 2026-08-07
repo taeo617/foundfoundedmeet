@@ -7,7 +7,7 @@ const isApply = process.argv.includes('--apply');
 const PRINTERS = [
   {
     id: 'bambu-1',
-    name: '뱀부랩 1',
+    name: '968 (LEFT)',
     type: 'equipment',
     order: 3,
     active: true,
@@ -32,7 +32,7 @@ const PRINTERS = [
   },
   {
     id: 'bambu-2',
-    name: '뱀부랩 2',
+    name: '990 (RIGHT)',
     type: 'equipment',
     order: 4,
     active: true,

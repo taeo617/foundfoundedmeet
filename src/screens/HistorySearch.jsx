@@ -287,7 +287,7 @@ export default function HistorySearch({ user, sessions, reservations, ROOMS, MEM
             const colorClass = isPrinter ? "bg-gray-700" : isWorkroom ? "bg-blue-600" : "bg-green-600";
             
             const rm = ROOMS.find(x => x.id === item.resourceId);
-            const roomName = isPrinter ? (item.resourceId === "bambu-1" ? "뱀부랩 1" : "뱀부랩 2") : (rm?.name || (item.resourceId === "meeting-room" || item.roomId === "meeting-room" ? "큰 회의실" : item.resourceId));
+            const roomName = isPrinter ? (item.resourceId === "bambu-1" ? "968 (LEFT)" : "990 (RIGHT)") : (rm?.name || (item.resourceId === "meeting-room" || item.roomId === "meeting-room" ? "큰 회의실" : item.resourceId));
 
             let statusBg = "bg-gray-100 text-gray-600";
             if (item.status === "예약됨") statusBg = "bg-blue-100 text-blue-700";

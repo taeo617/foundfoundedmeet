@@ -66,8 +66,8 @@ export default async function handler(req, res) {
       'big': '큰 회의실',
       'small': '작은 회의실',
       'workroom': '워크룸',
-      'bambu-1': '뱀부랩 1',
-      'bambu-2': '뱀부랩 2'
+      'bambu-1': '968 (LEFT)',
+      'bambu-2': '990 (RIGHT)'
     }[id] || '회의실');
 
     snapshot.forEach((doc) => {
