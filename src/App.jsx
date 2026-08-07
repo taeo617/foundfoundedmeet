@@ -1962,7 +1962,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       if (r.date === f.date) {
         if (!(endM <= rStartM || startM >= rEndM)) return true;
       }
-      if (isNextDay && r.date === addDays(f.date, 1)) {
+      if (isNextDay && r.date === keyOf(addDays(f.date, 1))) {
         if (!(rawEndM <= rStartM || 0 >= rEndM)) return true;
       }
       return false;
@@ -2131,7 +2131,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           const slotStartDayMin = currentSlotStartMin % 1440;
           const slotEndDayMin = currentSlotEndMin > (dayOffset + 1) * 1440 ? 1440 : (currentSlotEndMin % 1440 || 1440);
 
-          const slotDate = dayOffset > 0 ? addDays(finalForm.date, dayOffset) : finalForm.date;
+          const slotDate = dayOffset > 0 ? keyOf(addDays(finalForm.date, dayOffset)) : finalForm.date;
           const slotDateStr = slotDate.replace(/-/g, '');
           const slotIndex = Math.floor(slotStartDayMin / policy.slotMinutes);
           
