@@ -1920,9 +1920,15 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     if (!f.title.trim()) e.title = "예약 목적(제목)을 입력해주세요.";
     if (!f.start || !f.end) e.time = "시간을 정확히 입력해주세요.";
     else if (isNaN(toMin(f.start)) || isNaN(toMin(f.end))) e.time = "시간 형식(예: 14:00)을 올바르게 입력해주세요.";
-    else if (toMin(f.end) <= toMin(f.start)) e.time = "종료 시간은 시작 시간보다 늦어야 해요.";
-    else if (toMin(f.start) < openFromMin || toMin(f.end) > openToMin) {
-      e.time = `운영 시간(${toHHMM(openFromMin)} ~ ${toHHMM(openToMin)}) 내로 설정해주세요.`;
+    else if (f.start === f.end) e.time = "시작 시간과 종료 시간이 같습니다.";
+    else if (openFromMin !== undefined && openToMin !== undefined && (openFromMin !== 0 || openToMin !== 1440)) {
+      const startM_check = toMin(f.start);
+      const rawEndM_check = toMin(f.end);
+      const isNextDay_check = rawEndM_check <= startM_check;
+      const endM_check = isNextDay_check ? rawEndM_check + 1440 : rawEndM_check;
+      if (startM_check < openFromMin || (!isNextDay_check && endM_check > openToMin) || (isNextDay_check && endM_check > openToMin + 1440)) {
+        e.time = `운영 시간(${toHHMM(openFromMin)} ~ ${toHHMM(openToMin)}) 내로 설정해주세요.`;
+      }
     } else {
       const d = new Date(f.date);
       if (!allowedDays.includes(d.getDay())) {
@@ -1935,18 +1941,31 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     if (Object.keys(e).length) return;
 
     const startM = toMin(f.start);
-    const endM = toMin(f.end);
+    const rawEndM = toMin(f.end);
+    const isNextDay = rawEndM <= startM && rawEndM !== startM;
+    const endM = isNextDay ? rawEndM + 1440 : rawEndM;
     let pushedReservations = [];
 
     const roomOverlaps = reservations.filter((r) => {
       const rEffRoomId = (r.roomId === 'meeting-room' || !r.roomId) ? 'big' : r.roomId;
       const fEffRoomId = (f.roomId === 'meeting-room' || !f.roomId) ? 'big' : f.roomId;
-      if (rEffRoomId !== fEffRoomId || r.date !== f.date) return false;
+      if (rEffRoomId !== fEffRoomId) return false;
       if (r.id === f.id) return false; // Exclude exact same monolithic reservation
       if (f.id && r.groupId === f.id) return false; // If editing a group (f.id is docId), exclude its slots
       if (f.groupId && r.groupId === f.groupId) return false; // If editing a slot directly (f.groupId exists)
-      if (endM <= toMin(r.start) || startM >= toMin(r.end)) return false; // No time overlap
-      return true;
+
+      const rStartM = toMin(r.start);
+      const rRawEndM = toMin(r.end);
+      const rIsNextDay = rRawEndM <= rStartM && rRawEndM !== rStartM;
+      const rEndM = rIsNextDay ? rRawEndM + 1440 : rRawEndM;
+
+      if (r.date === f.date) {
+        if (!(endM <= rStartM || startM >= rEndM)) return true;
+      }
+      if (isNextDay && r.date === addDays(f.date, 1)) {
+        if (!(rawEndM <= rStartM || 0 >= rEndM)) return true;
+      }
+      return false;
     });
     
     console.log('겹침검사:', {
@@ -2045,7 +2064,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         const policy = resInfo?.policy || { slotMinutes: 30, allowOverlap: false, capacity: 1 };
         
         const startM = toMin(finalForm.start);
-        const endM = toMin(finalForm.end);
+        const rawEndM = toMin(finalForm.end);
+        const isNextDay = rawEndM <= startM && rawEndM !== startM;
+        const endM = isNextDay ? rawEndM + 1440 : rawEndM;
         const slotsCount = Math.ceil((endM - startM) / policy.slotMinutes);
         const dateStr = finalForm.date.replace(/-/g, '');
         const batch = writeBatch(db);
@@ -2105,9 +2126,16 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         for (let i = 0; i < slotsCount; i++) {
           const currentSlotStartMin = startM + (i * policy.slotMinutes);
           const currentSlotEndMin = Math.min(currentSlotStartMin + policy.slotMinutes, endM);
-          const slotIndex = Math.floor(currentSlotStartMin / policy.slotMinutes);
+
+          const dayOffset = Math.floor(currentSlotStartMin / 1440);
+          const slotStartDayMin = currentSlotStartMin % 1440;
+          const slotEndDayMin = currentSlotEndMin > (dayOffset + 1) * 1440 ? 1440 : (currentSlotEndMin % 1440 || 1440);
+
+          const slotDate = dayOffset > 0 ? addDays(finalForm.date, dayOffset) : finalForm.date;
+          const slotDateStr = slotDate.replace(/-/g, '');
+          const slotIndex = Math.floor(slotStartDayMin / policy.slotMinutes);
           
-          let slotId = `${finalForm.roomId}_${dateStr}_${slotIndex}`;
+          let slotId = `${finalForm.roomId}_${slotDateStr}_${slotIndex}`;
           if (seatNum) {
             slotId += `_${seatNum}`;
           }
@@ -2115,8 +2143,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           const slotData = {
             ...finalForm,
             id: slotId,
-            start: toHHMM(currentSlotStartMin),
-            end: toHHMM(currentSlotEndMin)
+            date: slotDate,
+            start: toHHMM(slotStartDayMin),
+            end: toHHMM(slotEndDayMin)
           };
           delete slotData._slots;
           delete slotData._starts;
@@ -3986,8 +4015,10 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                         : isWorkroom
                         ? [{ label: "+30분", mins: 30 }, { label: "+1시간", mins: 60 }, { label: "+2시간", mins: 120 }]
                         : [{ label: "+5분", mins: 5 }, { label: "+10분", mins: 10 }, { label: "+15분", mins: 15 }];
-                      const isNextDay = isPrinter && toMin(form.end || form.start) <= toMin(form.start);
-                      const totalMins = isNextDay ? (toMin(form.end || form.start) + 1440 - toMin(form.start)) : 0;
+                      const isNextDay = form.end && form.start && toMin(form.end) <= toMin(form.start) && form.end !== form.start;
+                      const startMin = toMin(form.start);
+                      const rawEndMin = toMin(form.end || form.start);
+                      const totalMins = isNextDay ? (rawEndMin + 1440 - startMin) : Math.max(0, rawEndMin - startMin);
 
                       return (
                         <>
@@ -3999,9 +4030,11 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                                 onClick={() => {
                                   const startMin = toMin(form.start);
                                   const currentEndMin = toMin(form.end || form.start);
-                                  const baseMin = currentEndMin < startMin ? startMin : currentEndMin;
-                                  const newEndMin = Math.min(baseMin + btn.mins, DAY_END);
-                                  setForm({ ...form, end: toHHMM(newEndMin) });
+                                  let baseMin = currentEndMin <= startMin && currentEndMin !== startMin ? currentEndMin + 1440 : currentEndMin;
+                                  if (baseMin < startMin) baseMin = startMin;
+                                  let newEndMin = baseMin + btn.mins;
+                                  const newEndMinInDay = newEndMin % 1440;
+                                  setForm({ ...form, end: toHHMM(newEndMinInDay) });
                                   setErrs((x) => ({ ...x, time: undefined }));
                                 }}
                                 className="lift flex-1 rounded-[6px] border py-2 text-[12px] font-bold transition-all active:scale-95 shadow-sm"
