@@ -1212,9 +1212,16 @@ export default function App() {
             transaction.update(sfDocRef, { notified1m: true });
           });
           const roomName = ROOMS.find(rm => rm.id === r.roomId)?.name || r.roomId;
+          const isPrinter = r.resourceId === 'bambu-1' || r.resourceId === 'bambu-2' || r.roomId === 'bambu-1' || r.roomId === 'bambu-2';
           const isMeeting = !r.roomId || ['big', 'small', 'lounge', 'meeting-room'].includes(r.roomId);
-          const titlePrefix = isMeeting ? '회의' : '사용';
-          sendPushNotification(`⏱️ ${titlePrefix} 종료 1분 전입니다`, `[${roomName}] 이용 시간이 끝납니다.${nextInfo}`, Array.from(new Set([...(r.attendees || []), r.owner].filter(Boolean))));
+
+          let notifTitle = '⏱️ 사용 종료 1분 전입니다';
+          if (isPrinter) {
+            notifTitle = '⏱️ 3D 프린터 출력이 곧 완료됩니다!';
+          } else if (isMeeting) {
+            notifTitle = '⏱️ 회의 종료 1분 전입니다';
+          }
+          sendPushNotification(notifTitle, `[${roomName}] 이용 시간이 끝납니다.${nextInfo}`, Array.from(new Set([...(r.attendees || []), r.owner].filter(Boolean))));
         } catch(e) {}
       }
     });
@@ -2049,7 +2056,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       });
 
       if (conflicts.length > 0) {
-        alert(`선택하신 참석자 중 해당 시간에 이미 다른 회의가 예약되어 있는 멤버가 있습니다:\n\n${conflicts.join("\n")}\n\n시간을 변경하거나 참석자 조정을 해주세요.`);
+        alert(`선택하신 참석자 중 해당 시간에 이미 다른 공간 일정(회의실/워크룸)이 예약되어 있는 멤버가 있습니다:\n\n${conflicts.join("\n")}\n\n시간을 변경하거나 참석자 조정을 해주세요.`);
         return;
       }
     }
