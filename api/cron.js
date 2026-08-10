@@ -117,8 +117,8 @@ export default async function handler(req, res) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            title: '⏰ 회의 종료 1분 전이에요',
-            body: `${endingRooms.join(', ')} 회의가 곧 끝나요. 마무리 부탁드려요 :)`,
+            title: '⏰ 일정 종료 1분 전이에요',
+            body: `${endingRooms.join(', ')} 이용 시간이 곧 끝납니다. 마무리 부탁드려요 :)`,
             url: '/',
             attendees: Array.from(targetAttendees)
           })
@@ -132,8 +132,8 @@ export default async function handler(req, res) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            title: '🚀 회의 시작 1분 전이에요',
-            body: `${startingMeetings.join(', ')} 회의가 곧 시작됩니다. 준비해주세요!`,
+            title: '🚀 일정 시작 1분 전이에요',
+            body: `${startingMeetings.join(', ')} 일정이 곧 시작됩니다. 준비해주세요!`,
             url: '/',
             attendees: Array.from(startingAttendees)
           })
@@ -147,8 +147,8 @@ export default async function handler(req, res) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            title: '📅 오늘 예정된 회의가 있어요',
-            body: '오늘 회의 일정이 있습니다. 앱에서 캘린더를 확인해 보세요!',
+            title: '📅 오늘 예정된 일정이 있어요',
+            body: '오늘 예약 일정이 있습니다. 앱에서 캘린더를 확인해 보세요!',
             url: '/',
             attendees: Array.from(morningAttendees)
           })

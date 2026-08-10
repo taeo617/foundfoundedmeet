@@ -1212,7 +1212,9 @@ export default function App() {
             transaction.update(sfDocRef, { notified1m: true });
           });
           const roomName = ROOMS.find(rm => rm.id === r.roomId)?.name || r.roomId;
-          sendPushNotification('⏱️ 회의 종료 1분 전입니다', `[${roomName}] 이용 시간이 끝납니다.${nextInfo}`, Array.from(new Set([...(r.attendees || []), r.owner].filter(Boolean))));
+          const isMeeting = !r.roomId || ['big', 'small', 'lounge', 'meeting-room'].includes(r.roomId);
+          const titlePrefix = isMeeting ? '회의' : '사용';
+          sendPushNotification(`⏱️ ${titlePrefix} 종료 1분 전입니다`, `[${roomName}] 이용 시간이 끝납니다.${nextInfo}`, Array.from(new Set([...(r.attendees || []), r.owner].filter(Boolean))));
         } catch(e) {}
       }
     });
@@ -2499,7 +2501,12 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
   /* ----- timeline renderers ----- */
    const renderMobileDashboard = (isDesktopSplit = false) => {
     const selKey = keyOf(anchor);
-    let mobDayList = reservations.filter(r => r.date === selKey && (roomId === "all" || (roomId === "printer" ? (r.roomId === "bambu-1" || r.roomId === "bambu-2") : (r.roomId === roomId || (r.roomId === "meeting-room" && (roomId === "all" || roomId === "big")))))).sort((a, b) => toMin(a.start) - toMin(b.start));
+    const matchesTab = (r) => {
+      if (roomId === "all") return !r.roomId || ["big", "small", "lounge", "meeting-room"].includes(r.roomId);
+      if (roomId === "printer") return r.roomId === "bambu-1" || r.roomId === "bambu-2";
+      return r.roomId === roomId || (r.roomId === "meeting-room" && roomId === "big");
+    };
+    let mobDayList = reservations.filter(r => r.date === selKey && matchesTab(r)).sort((a, b) => toMin(a.start) - toMin(b.start));
     
     if (roomId === "printer" && document.body.classList.contains('onb-open')) {
       const mock1 = { id: 'mock-1', roomId: 'bambu-1', date: selKey, start: '10:00', end: '14:00', title: '[예시] 자정 넘김 출력', isMock: true, attendees: [] };
@@ -2534,7 +2541,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     }
     
     // Status Card calculations
-    const currentRoomRes = roomId === "all" ? [] : reservations.filter(r => r.roomId === roomId && r.date === todayKey);
+    const currentRoomRes = roomId === "all" ? [] : reservations.filter(r => r.date === todayKey && matchesTab(r));
     const mobCurrentMtg = roomId === "all" ? null : currentRoomRes.find(r => {
       const s = toMin(r.start);
       const e = toMin(r.end);
@@ -2580,7 +2587,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               </button>
             </div>
             <div className="text-xs mt-1" style={{ color: C.faint }}>
-              오늘 예약 {roomId === "all" ? reservations.filter(r => r.date === todayKey).length : currentRoomRes.length}건
+              오늘 예약 {roomId === "all" ? reservations.filter(r => r.date === todayKey && matchesTab(r)).length : currentRoomRes.length}건
             </div>
           </div>
         </div>
@@ -2598,7 +2605,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             const dk = keyOf(d);
             const isSel = dk === selKey;
             const isT = dk === todayKey;
-            const dRes = reservations.filter(r => r.date === dk && (roomId === "all" || r.roomId === roomId));
+            const dRes = reservations.filter(r => r.date === dk && matchesTab(r));
             const hasUrgent = dRes.some(r => r.isUrgent);
             const hasNormal = dRes.length > 0 && !hasUrgent;
             return (
