@@ -2223,17 +2223,17 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         
         let resourceTypeName = '회의실';
         if (resInfo.type === 'equipment' || targetRoomName.includes('프린터') || targetRoomName.includes('뱀부랩')) {
-          resourceTypeName = '프린터';
+          resourceTypeName = '3D 프린터';
         } else if (resIdToUse?.includes('workroom') || targetRoomName.includes('워크룸')) {
           resourceTypeName = '워크룸';
         }
 
         let notifyTargetIds = Array.from(new Set([...(cleanedAttendees || []), getMeId()].filter(Boolean)));
-        if (resourceTypeName === '프린터') {
+        if (resourceTypeName === '3D 프린터') {
           notifyTargetIds = MEMBERS.map(m => m.id).filter(id => !["m_guest", "m_client", "m_room"].includes(id));
         }
 
-        const notifTitle = isEdit ? `✏️ ${resourceTypeName} 일정이 변경됐어요` : `📅 새 ${resourceTypeName} 사용 예약이 완료되었습니다`;
+        const notifTitle = isEdit ? `✏️ ${resourceTypeName} 일정이 변경됐어요` : `📅 ${resourceTypeName} 사용 예약이 완료되었습니다`;
         const actionVerb = isEdit ? '일정을 변경했습니다' : '예약했습니다';
         const notifBody = `${nameWithNim(user)}이 ${actionVerb}. [${targetRoomName}] ${f.date} ${f.start}~${f.end}`;
 
