@@ -3055,9 +3055,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                                   <span>{r.roomId === 'bambu-1' ? '968 (LEFT)' : r.roomId === 'bambu-2' ? '990 (RIGHT)' : (rm?.name || (r.roomId === 'meeting-room' ? '큰 회의실' : r.roomId))} · {r.start}~{r.end}</span>
                                 </div>
                                 
-                                {/* Attendees */}
+                                {/* Attendees / Users */}
                                 <div className="mt-2 flex flex-wrap items-center gap-1.5 relative z-20">
-                                  <span className="text-[11px] font-semibold mr-0.5 flex items-center gap-1" style={{ color: C.faint }}><User size={11} className="shrink-0" style={{ opacity: 0.7 }} />참석자</span>
+                                  <span className="text-[11px] font-semibold mr-0.5 flex items-center gap-1" style={{ color: C.faint }}><User size={11} className="shrink-0" style={{ opacity: 0.7 }} />{r.roomId === 'bambu-1' || r.roomId === 'bambu-2' ? '사용자' : '참석자'}</span>
                                   {Array.from(new Set((r.attendees || []).map(id => M(id)?.name))).filter(Boolean).map(name => (
                                     <span key={name} className="inline-flex items-center rounded bg-black/5 dark:bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-gray-700 dark:text-gray-300">
                                       {name}
@@ -4443,11 +4443,16 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         <div className="ov fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4" style={{ background: "rgba(20,20,20,.5)" }} onClick={() => setDetail(null)}>
           <div className="sheet w-full rounded-t-lg bg-white p-6 sm:max-w-sm sm:rounded-lg" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 border-b pb-3 mb-3" style={{ borderColor: C.border }}><span className="h-3 w-3 rounded-full" style={{ background: detail.isUrgent ? pal('red').dot : pal('green').dot }} /><h3 className="text-[17px] font-semibold">{detail.title}</h3></div>
-            <div className="space-y-1">
-              <DetailRow icon={Clock} label="시간" value={`${detail.date} ${detail.start} ~ ${detail.end}`} />
-              <DetailRow icon={Users} label="참석자" value={detail.attendees.length ? detail.attendees.map(memLabel).join(", ") : "없음"} />
-              <DetailRow icon={User} label="등록자" value={`${nameWithNim(detail.owner)}`} />
-            </div>
+            {(() => {
+              const isPrinter = detail.resourceId === 'bambu-1' || detail.resourceId === 'bambu-2' || detail.roomId === 'bambu-1' || detail.roomId === 'bambu-2';
+              return (
+                <div className="space-y-1">
+                  <DetailRow icon={Clock} label="시간" value={`${detail.date} ${detail.start} ~ ${detail.end}`} />
+                  <DetailRow icon={Users} label={isPrinter ? "사용자" : "참석자"} value={detail.attendees.length ? detail.attendees.map(memLabel).join(", ") : "없음"} />
+                  <DetailRow icon={User} label="등록자" value={`${nameWithNim(detail.owner)}`} />
+                </div>
+              );
+            })()}
             
             {/* 💬 댓글 목록 */}
             <div className="mt-4 border-t pt-4" style={{ borderColor: C.border }}>
