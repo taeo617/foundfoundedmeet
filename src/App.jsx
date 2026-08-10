@@ -2217,9 +2217,23 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       
       // Push Notifications
       if (user !== "admin") {
-        const targetRoomName = ROOMS.find(r => r.id === effectiveRoomId)?.name || ROOMS.find(r => r.id === f.roomId)?.name || '회의실';
-        const notifyTargetIds = Array.from(new Set([...(cleanedAttendees || []), getMeId()].filter(Boolean)));
-        const notifTitle = isEdit ? '✏️ 회의 일정이 변경됐어요' : '📅 새 회의가 등록됐어요';
+        const resIdToUse = effectiveRoomId || f.resourceId || f.roomId;
+        const resInfo = resources.find(r => r.id === resIdToUse) || {};
+        const targetRoomName = resInfo.name || ROOMS.find(r => r.id === resIdToUse)?.name || '회의실';
+        
+        let resourceTypeName = '회의실';
+        if (resInfo.type === 'equipment' || targetRoomName.includes('프린터') || targetRoomName.includes('뱀부랩')) {
+          resourceTypeName = '프린터';
+        } else if (resIdToUse?.includes('workroom') || targetRoomName.includes('워크룸')) {
+          resourceTypeName = '워크룸';
+        }
+
+        let notifyTargetIds = Array.from(new Set([...(cleanedAttendees || []), getMeId()].filter(Boolean)));
+        if (resourceTypeName === '프린터') {
+          notifyTargetIds = MEMBERS.map(m => m.id).filter(id => !["m_guest", "m_client", "m_room"].includes(id));
+        }
+
+        const notifTitle = isEdit ? `✏️ ${resourceTypeName} 일정이 변경됐어요` : `📅 새 ${resourceTypeName} 사용 예약이 완료되었습니다`;
         const actionVerb = isEdit ? '일정을 변경했습니다' : '예약했습니다';
         const notifBody = `${nameWithNim(user)}이 ${actionVerb}. [${targetRoomName}] ${f.date} ${f.start}~${f.end}`;
 
