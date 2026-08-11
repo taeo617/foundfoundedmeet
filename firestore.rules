@@ -16,19 +16,7 @@ service cloud.firestore {
     }
 
     match /reservations/{resId} {
-      allow read: if isAuthenticated();
-      
-      // CREATE: Must not exist and authenticated
-      allow create: if isAuthenticated() && resource == null;
-
-      // UPDATE: Strictly restrict updates to the original creator's reservation (owner cannot be modified or hijacked)
-      allow update: if isAuthenticated() && (
-        request.resource.data.owner == resource.data.owner ||
-        resource.data.status == 'cancelled'
-      );
-
-      // DELETE: Deny all deletes (must update status to cancelled instead)
-      allow delete: if false;
+      allow read, write: if isAuthenticated();
     }
 
     match /sessions/{sessionId} {
