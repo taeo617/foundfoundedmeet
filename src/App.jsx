@@ -3681,7 +3681,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                       const inMonth = cell.getMonth() === anchor.getMonth(), cToday = sameDay(cell, today);
                       const list = (byDate[keyOf(cell)] || []).slice().sort((a, b) => toMin(a.start) - toMin(b.start));
                       return (
-                        <div key={i} onClick={() => { if (list.length > 0) { setDayEventsDate(cell); } else { tryCreate(roomId === "all" ? "big" : roomId, defStart(), keyOf(cell)); } }} className="cell border-b border-l p-1 sm:p-1.5 flex flex-col" style={{ borderColor: C.border, background: cToday ? C.yellowSoft : inMonth ? "var(--bg-input)" : "var(--bg-tertiary)", opacity: inMonth ? 1 : .5, minHeight: 0 }}>
+                        <div key={i} onClick={() => setDayEventsDate(cell)} className="cell border-b border-l p-1 sm:p-1.5 flex flex-col cursor-pointer" style={{ borderColor: C.border, background: cToday ? C.yellowSoft : inMonth ? "var(--bg-input)" : "var(--bg-tertiary)", opacity: inMonth ? 1 : .5, minHeight: 0 }}>
                           <div className="flex items-center justify-between">
                             <span className={cToday ? "grid h-5 w-5 place-items-center rounded-lg text-[11px] font-medium" : "text-[12px] font-medium"} style={cToday ? { background: C.ink, color: "var(--bg)" } : { color: cell.getDay() === 0 ? "#C0392B" : cell.getDay() === 6 ? "#2A5DC7" : C.text }}>{cell.getDate()}</span>
                             {list.length > 0 && <span className="hidden text-[10px] font-medium sm:inline" style={{ color: C.faint }}>{list.length}</span>}
@@ -4364,18 +4364,18 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         const list = (byDate[dateStr] || []).slice().sort((a, b) => toMin(a.start) - toMin(b.start));
         return (
           <div className="ov fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(20,20,20,.5)" }} onClick={() => setDayEventsDate(null)}>
-            <div className="sheet w-full max-w-md rounded-lg bg-white p-6 flex flex-col max-h-[85vh] sm:max-h-[75vh]" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between border-b pb-3 mb-4" style={{ borderColor: C.border }}>
+            <div className="sheet w-full max-w-md rounded-2xl bg-white p-6 flex flex-col max-h-[85vh] sm:max-h-[75vh] shadow-xl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between border-b pb-3 mb-4 shrink-0" style={{ borderColor: C.border }}>
                 <div className="flex items-center gap-2">
-                  <CalendarDays size={18} style={{ color: C.ink }} />
-                  <h3 className="text-[17px] font-semibold">{fmtK(dayEventsDate)} 예약 일정</h3>
+                  <CalendarDays size={20} style={{ color: C.ink }} />
+                  <h3 className="text-lg font-bold" style={{ color: C.text }}>{fmtK(dayEventsDate)} 예약 일정</h3>
                 </div>
-                <button onClick={() => setDayEventsDate(null)} className="grid h-8 w-8 place-items-center rounded-lg" style={{ color: C.faint }}><X size={18} /></button>
+                <button onClick={() => setDayEventsDate(null)} className="grid h-8 w-8 place-items-center rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors" style={{ color: C.faint }}><X size={18} /></button>
               </div>
               
-              <div className="sc overflow-y-auto pr-1 flex-1 space-y-2.5" style={{ maxHeight: "300px" }}>
+              <div className="sc overflow-y-auto pr-1 flex-1 space-y-3" style={{ maxHeight: "360px" }}>
                 {list.length === 0 ? (
-                  <div className="py-8 text-center text-sm font-semibold" style={{ color: C.muted }}>등록된 일정이 없습니다.</div>
+                  <div className="py-12 text-center text-sm font-medium" style={{ color: C.muted }}>등록된 일정이 없습니다.</div>
                 ) : (
                   list.map((r) => {
                     const p = r.isUrgent ? pal('red') : pal('green');
@@ -4384,22 +4384,22 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                       <div
                         key={r.id}
                         onClick={() => { setDayEventsDate(null); setDetail(r); }}
-                        className="blk rounded-lg border p-3.5 transition-all hover:scale-[1.01]"
+                        className="blk rounded-xl border p-4 transition-all hover:scale-[1.01] cursor-pointer flex flex-col gap-2"
                         style={{ background: p.bg, borderColor: p.line, color: p.text }}
                       >
-                        <div className="flex items-center justify-between mb-1.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.dot }} />
-                            <span className="text-[14px] font-semibold truncate max-w-[180px] sm:max-w-[220px]">{r.title}</span>
-                            {r.repeat && <Repeat size={11} />}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 truncate flex-1 min-w-0">
+                            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: p.dot }} />
+                            <span className="text-[15px] font-bold truncate">{r.title}</span>
+                            {r.repeat && <Repeat size={12} className="shrink-0" />}
                           </div>
-                          <span className="text-[10px] font-semibold rounded px-2 py-0.5" style={{ background: theme === "dark" ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.6)", color: p.text }}>
+                          <span className="shrink-0 text-xs font-semibold rounded-md px-2.5 py-1 shadow-xs" style={{ background: theme === "dark" ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.75)", color: p.text }}>
                             {rm?.name || (r.roomId === 'meeting-room' ? '큰 회의실' : '회의실')}
                           </span>
                         </div>
-                        <div className="text-[12px] opacity-90 space-y-0.5 font-medium">
-                          <div className="flex items-center gap-1"><Clock size={12} style={{ opacity: 0.7 }} /> {r.start} ~ {r.end}</div>
-                          <div className="flex items-center gap-1"><User size={12} style={{ opacity: 0.7 }} /> 등록자: {nameWithNim(r.owner)} · 참석자: {r.attendees.length}명</div>
+                        <div className="text-[13px] opacity-90 space-y-1 font-medium pl-4">
+                          <div className="flex items-center gap-1.5"><Clock size={13} style={{ opacity: 0.75 }} /> {r.start} ~ {r.end}</div>
+                          <div className="flex items-center gap-1.5"><User size={13} style={{ opacity: 0.75 }} /> 등록자: {nameWithNim(r.owner)} · 참석자: {r.attendees ? r.attendees.length : 0}명</div>
                         </div>
                       </div>
                     );
@@ -4407,15 +4407,15 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 )}
               </div>
               
-              <div className="mt-4 border-t pt-4 flex flex-col" style={{ borderColor: C.border }}>
+              <div className="mt-4 border-t pt-4 flex flex-col shrink-0" style={{ borderColor: C.border }}>
                 <button
                   onClick={() => {
                     const targetDate = dayEventsDate;
                     setDayEventsDate(null);
-                    tryCreate(roomId, defStart(), keyOf(targetDate));
+                    tryCreate(roomId === "all" ? "big" : roomId, defStart(), keyOf(targetDate));
                   }}
-                  className="lift flex w-full items-center justify-center gap-1.5 rounded-lg py-3.5 text-sm font-medium"
-                  style={{ background: C.ink, color: "var(--bg)", boxShadow: "0 1px 2px rgba(0,0,0,.05)" }}
+                  className="lift flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.99]"
+                  style={{ background: C.ink, color: "var(--bg)", boxShadow: "0 2px 4px rgba(0,0,0,.08)" }}
                 >
                   <Plus size={16} /> 회의실 예약하기
                 </button>
