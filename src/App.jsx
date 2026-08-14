@@ -253,7 +253,7 @@ function Avatar({ name, label, size = 36, solid = false, onClick, className, sty
 }
 
 /* ===================== login modal ===================== */
-function LoginModal({ message, onClose, onLogin }) {
+function LoginModal({ message, onClose, onLogin, membersList }) {
   const [name, setName] = useState(""); const [pw, setPw] = useState(""); const [err, setErr] = useState("");
   const submit = () => { 
     const trimmedName = name.trim();
@@ -266,9 +266,9 @@ function LoginModal({ message, onClose, onLogin }) {
       if (pw !== "1234") return setErr("비밀번호가 올바르지 않아요.");
       return onLogin("Guest");
     }
-    const member = MEMBERS.find((m) => m.name === trimmedName);
-    if (!member) return setErr("등록되지 않은 멤버 이름입니다. 등록된 이름으로 로그인해 주세요.");
-    if (member.inactive) return setErr("해당 계정은 정지되어 로그인할 수 없습니다.");
+    const member = (membersList || MEMBERS).find((m) => m.name === trimmedName);
+    if (!member || member.deleted) return setErr("등록되지 않은 멤버 이름입니다. 등록된 이름으로 로그인해 주세요.");
+    if (member.inactive || member.active === false) return setErr("해당 계정은 정지되어 로그인할 수 없습니다.");
     if (pw !== import.meta.env.VITE_MEMBER_PASSWORD) return setErr("비밀번호가 올바르지 않아요."); 
     onLogin(trimmedName); 
   };
@@ -697,8 +697,38 @@ function CustomDatePicker({ anchor, onClose, onSelect, theme }) {
 }
 
 /* ===================== Member Management ===================== */
-function MemberManagement({ onBack, suspendedIds, toggleSuspend }) {
-  const filtered = MEMBERS.filter(m => !["m_guest", "m_client", "m_room"].includes(m.id));
+function MemberManagement({ onBack, membersList, handleToggleMemberActive, handleAddMember, handleDeleteMember, Avatar }) {
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [deleteConfirmMember, setDeleteConfirmMember] = useState(null);
+
+  // Form state for new member
+  const [newName, setNewName] = useState("");
+  const [newTeam, setNewTeam] = useState("ID");
+  const [newRole, setNewRole] = useState("디자이너");
+  const [newGroup, setNewGroup] = useState("staff");
+  const [addErr, setAddErr] = useState("");
+
+  const submitAdd = () => {
+    const trimmed = newName.trim();
+    if (!trimmed) {
+      setAddErr("이름을 입력해주세요.");
+      return;
+    }
+    handleAddMember({
+      name: trimmed,
+      team: newTeam,
+      role: newRole,
+      group: newGroup
+    });
+    setNewName("");
+    setNewTeam("ID");
+    setNewRole("디자이너");
+    setNewGroup("staff");
+    setAddErr("");
+    setShowAddModal(false);
+  };
+
+  const filtered = (membersList || []).filter(m => !["m_guest", "m_client", "m_room"].includes(m.id) && !m.deleted);
 
   return (
     <div className="flex-1 w-full flex flex-col p-4 sm:p-8 overflow-y-auto" style={{ background: C.bg, color: C.text }}>
@@ -706,34 +736,49 @@ function MemberManagement({ onBack, suspendedIds, toggleSuspend }) {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
             <h1 className="text-2xl font-bold mb-2" style={{ color: C.text }}>사용자 및 승인 관리</h1>
-            <p className="text-[13px]" style={{ color: C.muted }}>회원가입 승인 대기 계정 관리 및 기존 임원/운영진의 프로필 상태를 확인합니다.</p>
+            <p className="text-[13px]" style={{ color: C.muted }}>회원가입 승인 대기 계정 관리 및 기존 임원/운영진의 프로필 상태를 관리합니다.</p>
           </div>
-          <button 
-            onClick={onBack}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg border text-sm font-semibold transition-all lift"
-            style={{ borderColor: C.border, background: C.paper, color: C.text }}
-          >
-            <ChevronLeft size={16} /> 돌아가기
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#2383E2] hover:bg-[#1b6fc2] transition-all lift cursor-pointer shadow-sm"
+            >
+              <UserPlus size={16} /> 새 멤버 추가
+            </button>
+            <button 
+              onClick={onBack}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg border text-sm font-semibold transition-all lift cursor-pointer"
+              style={{ borderColor: C.border, background: C.paper, color: C.text }}
+            >
+              <ChevronLeft size={16} /> 돌아가기
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 mb-4">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#00D859]"></span>
-          <h2 className="text-[15px] font-bold" style={{ color: C.text }}>멤버 계정</h2>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#00D859]"></span>
+            <h2 className="text-[15px] font-bold" style={{ color: C.text }}>멤버 계정 목록 ({filtered.length}명)</h2>
+          </div>
         </div>
 
         <div className="flex flex-col gap-2.5">
           {filtered.map(m => {
-            const isSuspended = suspendedIds.includes(m.id);
+            const isSuspended = m.active === false;
             return (
               <div key={m.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border transition-all" style={{ background: C.paper, borderColor: C.border }}>
                 <div className="flex items-center gap-4 mb-3 sm:mb-0">
                   <Avatar name={m.name} size={46} style={{ border: `2px solid ${C.border}` }} />
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[16px] font-bold tracking-tight" style={{ color: C.text }}>{m.name}</span>
+                      <span className="text-[16px] font-bold tracking-tight" style={{ color: C.text }}>{nameWithNim(m.name)}</span>
                       <span className="text-[13px] font-bold text-[#00A3FF]">{m.team}</span>
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded text-[#00D859]" style={{ background: "rgba(0,216,89,0.15)" }}>{m.role}</span>
+                      {m.isCustom && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                          추가됨
+                        </span>
+                      )}
                     </div>
                     <div className="text-[12px] font-medium" style={{ color: C.muted }}>
                       FOUND/FOUNDED
@@ -741,20 +786,27 @@ function MemberManagement({ onBack, suspendedIds, toggleSuspend }) {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto">
+                <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
                   {isSuspended && (
-                    <div className="text-[12px] font-medium text-[#FF3B3B]">
+                    <div className="text-[12px] font-medium text-[#FF3B3B] mr-1">
                       [정지됨]
                     </div>
                   )}
                   <button
-                    onClick={() => toggleSuspend(m.id)}
-                    className="px-4 py-1.5 rounded-lg text-[12px] font-bold transition-all border shrink-0 lift"
+                    onClick={() => handleToggleMemberActive(m.id, isSuspended ? false : true)}
+                    className="px-3.5 py-1.5 rounded-lg text-[12px] font-bold transition-all border shrink-0 lift cursor-pointer"
                     style={isSuspended 
                       ? { color: "#00D859", borderColor: "rgba(0,216,89,0.3)", background: "rgba(0,216,89,0.1)" } 
                       : { color: C.muted, borderColor: C.border, background: C.paper }}
                   >
                     {isSuspended ? "정지 해제" : "계정 정지"}
+                  </button>
+                  <button
+                    onClick={() => setDeleteConfirmMember(m)}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[12px] font-bold transition-all border shrink-0 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 lift cursor-pointer"
+                    style={{ borderColor: C.border }}
+                  >
+                    <Trash2 size={13} /> 삭제
                   </button>
                 </div>
               </div>
@@ -762,6 +814,148 @@ function MemberManagement({ onBack, suspendedIds, toggleSuspend }) {
           })}
         </div>
       </div>
+
+      {/* Add Member Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-2xl bg-[var(--bg)] border p-6 shadow-2xl space-y-4" style={{ borderColor: C.border }}>
+            <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: C.border }}>
+              <div className="flex items-center gap-2 font-bold text-base" style={{ color: C.text }}>
+                <UserPlus size={20} className="text-[#2383E2]" />
+                <span>새 멤버 추가</span>
+              </div>
+              <button onClick={() => setShowAddModal(false)} className="text-[var(--faint)] cursor-pointer">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold mb-1.5" style={{ color: C.muted }}>이름 <span className="text-red-500">*</span></label>
+                <input 
+                  type="text" 
+                  value={newName} 
+                  onChange={(e) => { setNewName(e.target.value); setAddErr(""); }} 
+                  placeholder="예: 길동 (성 제외)"
+                  className="inp w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none bg-[var(--bg-input)]"
+                  style={{ borderColor: addErr ? "#FF3B3B" : C.border, color: C.text }}
+                  autoFocus
+                />
+                {addErr && <p className="mt-1 text-xs text-red-500 font-semibold">{addErr}</p>}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold mb-1.5" style={{ color: C.muted }}>소속 / 팀 배지</label>
+                  <select 
+                    value={newTeam} 
+                    onChange={(e) => setNewTeam(e.target.value)}
+                    className="inp w-full rounded-lg border px-3 py-2.5 text-sm outline-none bg-[var(--bg-select)] cursor-pointer"
+                    style={{ borderColor: C.border, color: C.text }}
+                  >
+                    <option value="ID">ID</option>
+                    <option value="VD">VD</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold mb-1.5" style={{ color: C.muted }}>구분 / 그룹</label>
+                  <select 
+                    value={newGroup} 
+                    onChange={(e) => setNewGroup(e.target.value)}
+                    className="inp w-full rounded-lg border px-3 py-2.5 text-sm outline-none bg-[var(--bg-select)] cursor-pointer"
+                    style={{ borderColor: C.border, color: C.text }}
+                  >
+                    <option value="staff">임직원 (Staff)</option>
+                    <option value="director">임원 (Director)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold mb-1.5" style={{ color: C.muted }}>직함</label>
+                <select 
+                  value={newRole} 
+                  onChange={(e) => setNewRole(e.target.value)}
+                  className="inp w-full rounded-lg border px-3 py-2.5 text-sm outline-none bg-[var(--bg-select)] cursor-pointer"
+                  style={{ borderColor: C.border, color: C.text }}
+                >
+                  <option value="디렉터">디렉터</option>
+                  <option value="시니어 디자이너">시니어 디자이너</option>
+                  <option value="디자이너">디자이너</option>
+                  <option value="프리랜서 디자이너">프리랜서 디자이너</option>
+                  <option value="인턴">인턴</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t" style={{ borderColor: C.border }}>
+              <button 
+                onClick={() => setShowAddModal(false)}
+                className="lift rounded-xl border px-4 py-2.5 text-xs font-semibold cursor-pointer"
+                style={{ borderColor: C.border, color: C.muted }}
+              >
+                취소
+              </button>
+              <button 
+                onClick={submitAdd}
+                className="lift rounded-xl px-5 py-2.5 text-xs font-semibold bg-[#2383E2] text-white shadow-sm hover:bg-[#1b6fc2] cursor-pointer"
+              >
+                멤버 등록
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="w-full max-w-sm rounded-2xl bg-[var(--bg)] border p-5 shadow-2xl space-y-4" style={{ borderColor: C.border }}>
+            <div className="flex items-center justify-between pb-2 border-b" style={{ borderColor: C.border }}>
+              <div className="flex items-center gap-2 text-red-500 font-bold text-sm">
+                <AlertCircle size={18} />
+                <span>멤버 계정 삭제 안내</span>
+              </div>
+              <button onClick={() => setDeleteConfirmMember(null)} className="text-[var(--faint)] cursor-pointer">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-2 text-xs leading-relaxed" style={{ color: C.text }}>
+              <p className="font-bold text-sm">
+                "{nameWithNim(deleteConfirmMember.name)}" 멤버 계정을 삭제하시겠습니까?
+              </p>
+              <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 space-y-1">
+                <p className="font-semibold">⚠️ 과거 기록 안전 보존 (소프트 삭제)</p>
+                <ul className="list-disc pl-4 space-y-0.5 text-[11px]">
+                  <li>신규 회의실 예약 및 참석자 선택 목록에서 제거됩니다.</li>
+                  <li>해당 멤버 이름으로 더 이상 로그인할 수 없습니다.</li>
+                  <li><b>과거 예약 및 참석 내역의 이름은 깨지지 않고 정상 보존</b>됩니다.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button 
+                onClick={() => setDeleteConfirmMember(null)}
+                className="lift rounded-xl border px-3.5 py-2 text-xs font-semibold cursor-pointer"
+                style={{ borderColor: C.border, color: C.muted }}
+              >
+                취소
+              </button>
+              <button 
+                onClick={() => {
+                  handleDeleteMember(deleteConfirmMember.id);
+                  setDeleteConfirmMember(null);
+                }}
+                className="lift rounded-xl px-3.5 py-2 text-xs font-semibold bg-red-600 text-white shadow-sm hover:bg-red-700 cursor-pointer"
+              >
+                확인하고 삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -899,16 +1093,46 @@ export default function App() {
     return MEMBERS.filter(m => m.inactive).map(m => m.id);
   });
 
-  const [membersList, setMembersList] = useState(() => MEMBERS.map(m => ({ ...m, active: !suspendedIds.includes(m.id) })));
+  const [deletedIds, setDeletedIds] = useState(() => {
+    try {
+      const stored = localStorage.getItem("deleted_members");
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return [];
+  });
+
+  const [customMembers, setCustomMembers] = useState(() => {
+    try {
+      const stored = localStorage.getItem("custom_members");
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return [];
+  });
+
+  const [membersList, setMembersList] = useState(() => {
+    const combined = [...MEMBERS, ...customMembers.filter(cm => !MEMBERS.some(m => m.id === cm.id))];
+    return combined.map(m => ({
+      ...m,
+      active: !suspendedIds.includes(m.id) && !m.inactive,
+      deleted: deletedIds.includes(m.id) || m.deleted || false
+    }));
+  });
+
   const [dbProfiles, setDbProfiles] = useState({});
 
   useEffect(() => {
     if (!isFirebaseConfigured) {
       try {
-        const local = JSON.parse(localStorage.getItem("members_active_state") || "{}");
-        setMembersList(MEMBERS.map(m => ({
+        const localActive = JSON.parse(localStorage.getItem("members_active_state") || "{}");
+        const localDeleted = JSON.parse(localStorage.getItem("deleted_members") || "[]");
+        const localCustom = JSON.parse(localStorage.getItem("custom_members") || "[]");
+
+        const combined = [...MEMBERS, ...localCustom.filter(cm => !MEMBERS.some(m => m.id === cm.id))];
+
+        setMembersList(combined.map(m => ({
           ...m,
-          active: local[m.id] !== undefined ? local[m.id] : !suspendedIds.includes(m.id)
+          active: localActive[m.id] !== undefined ? localActive[m.id] : (!suspendedIds.includes(m.id) && !m.inactive),
+          deleted: localDeleted.includes(m.id) || m.deleted || false
         })));
       } catch (e) {}
       return;
@@ -916,29 +1140,51 @@ export default function App() {
     const unsub = onSnapshot(collection(db, "users"), (snapshot) => {
       const dbUsersMap = new Map();
       const pMap = {};
+      const customUsersFromDb = [];
+
       snapshot.docs.forEach(docSnap => {
-        dbUsersMap.set(docSnap.id, docSnap.data());
         const data = docSnap.data();
+        dbUsersMap.set(docSnap.id, data);
         if (data.profileImage) {
           pMap[docSnap.id] = data.profileImage;
         }
+        if (!MEMBERS.some(m => m.id === docSnap.id) && data.name) {
+          customUsersFromDb.push({
+            id: docSnap.id,
+            name: data.name,
+            team: data.team || "ID",
+            role: data.role || "디자이너",
+            group: data.group || "staff",
+            active: data.active !== false,
+            deleted: data.deleted || false,
+            isCustom: true
+          });
+        }
       });
       setDbProfiles(pMap);
-      setMembersList(MEMBERS.map(m => {
+
+      const combinedBase = [...MEMBERS, ...customUsersFromDb];
+      setMembersList(combinedBase.map(m => {
         const uData = dbUsersMap.get(m.id);
-        const isActive = uData?.active !== undefined ? uData.active : !suspendedIds.includes(m.id);
-        return { ...m, active: isActive };
+        const isActive = uData?.active !== undefined ? uData.active : (!suspendedIds.includes(m.id) && !m.inactive);
+        const isDeleted = uData?.deleted === true || deletedIds.includes(m.id) || m.deleted === true;
+        return {
+          ...m,
+          ...(uData ? { name: uData.name || m.name, team: uData.team || m.team, role: uData.role || m.role, group: uData.group || m.group } : {}),
+          active: isActive,
+          deleted: isDeleted
+        };
       }));
       window.dispatchEvent(new CustomEvent("profile_updated"));
     }, (err) => console.error("users snapshot error:", err));
     return () => unsub();
-  }, [suspendedIds]);
+  }, [suspendedIds, deletedIds]);
 
   useEffect(() => {
     if (user && membersList.length > 0) {
       const me = membersList.find((m) => m.name === user);
-      if (me && me.active === false) {
-        showToast("정지된 계정입니다. 관리자에게 문의하세요.");
+      if (me && (me.active === false || me.deleted)) {
+        showToast(me.deleted ? "삭제 처리된 계정입니다." : "정지된 계정입니다. 관리자에게 문의하세요.");
         setUser(null);
         localStorage.removeItem("auth_token");
         localStorage.removeItem("last_user");
@@ -953,8 +1199,111 @@ export default function App() {
     });
   }, [suspendedIds]);
 
-  const toggleSuspend = (id) => {
-    setSuspendedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  useEffect(() => {
+    localStorage.setItem("deleted_members", JSON.stringify(deletedIds));
+  }, [deletedIds]);
+
+  const handleToggleMemberActive = async (memberId, currentActive) => {
+    const newActive = currentActive === false ? true : false;
+
+    setMembersList(prev => prev.map(m => m.id === memberId ? { ...m, active: newActive } : m));
+
+    if (newActive) {
+      setSuspendedIds(prev => prev.filter(x => x !== memberId));
+    } else {
+      setSuspendedIds(prev => prev.includes(memberId) ? prev : [...prev, memberId]);
+    }
+
+    if (isFirebaseConfigured) {
+      try {
+        await setDoc(doc(db, "users", memberId), {
+          active: newActive,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (err) {
+        console.error("Failed to update active status:", err);
+      }
+    } else {
+      try {
+        const local = JSON.parse(localStorage.getItem("members_active_state") || "{}");
+        local[memberId] = newActive;
+        localStorage.setItem("members_active_state", JSON.stringify(local));
+      } catch (e) {}
+    }
+
+    const target = membersList.find(m => m.id === memberId);
+    showToast(newActive ? `${nameWithNim(target?.name || '멤버')} 계정 정지가 해제되었습니다.` : `${nameWithNim(target?.name || '멤버')} 계정이 정지되었습니다.`);
+  };
+
+  const handleAddMember = async (newMemberData) => {
+    const newId = `m_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const memberObj = {
+      id: newId,
+      name: newMemberData.name.trim(),
+      team: newMemberData.team || "ID",
+      role: newMemberData.role || "디자이너",
+      group: newMemberData.group || "staff",
+      active: true,
+      deleted: false,
+      isCustom: true
+    };
+
+    setCustomMembers(prev => [...prev, memberObj]);
+    try {
+      const stored = JSON.parse(localStorage.getItem("custom_members") || "[]");
+      localStorage.setItem("custom_members", JSON.stringify([...stored, memberObj]));
+    } catch (e) {}
+
+    setMembersList(prev => [...prev, memberObj]);
+
+    if (isFirebaseConfigured) {
+      try {
+        await setDoc(doc(db, "users", newId), {
+          ...memberObj,
+          createdAt: serverTimestamp()
+        });
+      } catch (err) {
+        console.error("Failed to add member to Firestore:", err);
+      }
+    }
+
+    showToast(`${nameWithNim(memberObj.name)} 계정이 추가되었습니다.`);
+  };
+
+  const handleDeleteMember = async (memberId) => {
+    const target = membersList.find(m => m.id === memberId);
+
+    setDeletedIds(prev => [...prev, memberId]);
+    setMembersList(prev => prev.map(m => m.id === memberId ? { ...m, deleted: true, active: false } : m));
+
+    if (isFirebaseConfigured) {
+      try {
+        await setDoc(doc(db, "users", memberId), {
+          deleted: true,
+          active: false,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (err) {
+        console.error("Failed to delete member in Firestore:", err);
+      }
+    }
+
+    showToast(`${nameWithNim(target?.name || '멤버')} 계정이 삭제 처리되었습니다.`);
+  };
+
+  const getOwnerName = (r) => {
+    if (!r) return "";
+    const rawName = r.who || r.owner || r.user || r.userId;
+    if (!rawName) {
+      if (r.attendees && r.attendees.length > 0) {
+        const firstAtt = r.attendees[0];
+        const m = (membersList || MEMBERS).find(x => x.id === firstAtt || x.name === firstAtt);
+        if (m) return m.name;
+      }
+      return "";
+    }
+    const m = (membersList || MEMBERS).find(x => x.id === rawName || x.name === rawName);
+    return m ? m.name : rawName;
   };
 
 
@@ -1356,6 +1705,40 @@ export default function App() {
   const [dz, setDz] = useState(false);
   const [isRoomDropdownOpen, setIsRoomDropdownOpen] = useState(false);
   const roomPickerRef = useRef(null);
+  const dgScrollRef = useRef(null);
+
+  useEffect(() => {
+    if ((roomId === 'printer' || roomId === 'workroom') && section === "book") {
+      const timer = setTimeout(() => {
+        const scrollEl = dgScrollRef.current;
+        if (!scrollEl) return;
+
+        const currentSelKey = keyOf(anchor);
+        const currentTodayKey = keyOf(new Date());
+        const isToday = currentSelKey === currentTodayKey;
+
+        if (isToday) {
+          const nowM = now.getHours() * 60 + now.getMinutes();
+          if (nowM >= 540) { // after 09:00
+            const nowTop = ((nowM - 540) / 60) * 78;
+            scrollEl.scrollTo({ top: Math.max(0, nowTop - 40), behavior: 'smooth' });
+          } else {
+            scrollEl.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        } else {
+          const dayRes = reservations.filter(r => r.date === currentSelKey && (r.roomId === roomId || (roomId === 'printer' && (r.roomId === 'bambu-1' || r.roomId === 'bambu-2'))));
+          if (dayRes.length > 0) {
+            const minStartM = Math.min(...dayRes.map(r => toMin(r.start)));
+            const startTop = Math.max(0, ((minStartM - 540) / 60) * 78);
+            scrollEl.scrollTo({ top: Math.max(0, startTop - 40), behavior: 'smooth' });
+          } else {
+            scrollEl.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        }
+      }, 120);
+      return () => clearTimeout(timer);
+    }
+  }, [roomId, anchor, section, now]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -2848,7 +3231,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     <small>{b2Busy ? `${b2Busy.end} 종료 예정` : '비어 있음'}</small>
                   </b>
                 </div>
-                <div className="dg__scroll">
+                <div className="dg__scroll" ref={dgScrollRef}>
                   <div className="dg__body">
                     <div className="dg__gut">
                       {Array.from({ length: 16 }).map((_, i) => (
@@ -2863,8 +3246,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                           const top = (sMin / 60) * 78;
                           const h = Math.max(((eMin - sMin) / 60) * 78, 26);
                           const isLive = isTodayAnchor && nowMin >= toMin(r.start) && nowMin < toMin(r.end);
-                          const isPast = isTodayAnchor && nowMin >= toMin(r.end);
-                          const isMine = r.who === user;
+                          const ownerName = getOwnerName(r);
+                          const isMine = r.who === user || r.owner === user || r.userId === user || ownerName === user;
                           let cls = 'blk--done';
                           if (!isPast && !isLive) cls = 'blk--plan';
                           else if (isLive) cls = 'blk--live';
@@ -2875,9 +3258,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                           
                           return (
                             <button key={r.id} className={`blk ${cls} ${h < 38 ? 's1' : h < 74 ? 's2' : ''}`} style={{ top: `${top}px`, height: `${h}px`, left: '3px', right: '3px' }} onClick={() => !r.isMock && onBlockClick(r)}>
-                              <b>{isLive && <span className="livedot"></span>}<span>{r.title || r.who}{isMine ? ' · 내 예약' : ''}</span></b>
+                              <b>{isLive && <span className="livedot"></span>}<span>{r.title || ownerName}{isMine ? ' · 내 예약' : ''}</span></b>
                               <small>{r.start} ~ {r.end}</small>
-                              <small>{r.who}님</small>
+                              <small>{ownerName ? `${ownerName}님` : ''}</small>
                               <span className="badge">{badge}</span>
                             </button>
                           );
@@ -2934,7 +3317,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     <small>{activeCount > 0 ? `지금 ${activeCount}명 이용 중` : '지금 아무도 없음'}</small>
                   </b>
                 </div>
-                <div className="dg__scroll">
+                <div className="dg__scroll" ref={dgScrollRef}>
                   <div className="dg__body">
                     <div className="dg__gut">
                       {Array.from({ length: 16 }).map((_, i) => (
@@ -2950,7 +3333,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                         const h = Math.max(((eMin - sMin) / 60) * 78, 26);
                         const isLive = isTodayAnchor && nowMin >= toMin(r.start) && nowMin < toMin(r.end);
                         const isPast = isTodayAnchor && nowMin >= toMin(r.end);
-                        const isMine = r.who === user;
+                        const ownerName = getOwnerName(r);
+                        const isMine = r.who === user || r.owner === user || r.userId === user || ownerName === user;
                         let cls = 'blk--done';
                         if (!isPast && !isLive) cls = 'blk--plan';
                         else if (isLive) cls = 'blk--live';
@@ -2963,9 +3347,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                         
                         return (
                           <button key={r.id} className={`blk ${cls} ${h < 38 ? 's1' : h < 74 ? 's2' : ''}`} style={{ top: `${top}px`, height: `${h}px`, left: `calc(${left}% + 3px)`, width: `calc(${w}% - 6px)` }} onClick={() => onBlockClick(r)}>
-                            <b>{isLive && <span className="livedot"></span>}<span>{r.title || r.who}{isMine ? ' · 내 예약' : ''}</span></b>
+                            <b>{isLive && <span className="livedot"></span>}<span>{r.title || ownerName}{isMine ? ' · 내 예약' : ''}</span></b>
                             <small>{r.start} ~ {r.end}</small>
-                            <small>{r.who}님</small>
+                            <small>{ownerName ? `${ownerName}님` : ''}</small>
                             <span className="badge">{badge}</span>
                           </button>
                         );
@@ -3813,7 +4197,14 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           )
         )}
         {section === "admin" && user === "admin" && (
-          <MemberManagement onBack={() => setSection("book")} suspendedIds={suspendedIds} toggleSuspend={toggleSuspend} />
+          <MemberManagement 
+            onBack={() => setSection("book")} 
+            membersList={membersList} 
+            handleToggleMemberActive={handleToggleMemberActive}
+            handleAddMember={handleAddMember}
+            handleDeleteMember={handleDeleteMember}
+            Avatar={(props) => <Avatar {...props} dbProfiles={dbProfiles} />}
+          />
         )}
         {section === "stats" && user === "admin" && (
           <AdminDashboard sessions={sessions} reservations={reservations} now={now} resources={ROOMS} />
@@ -4609,7 +5000,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       )}
 
       {/* ===== Login modal ===== */}
-      {authOpen && <LoginModal message={authMsg} onClose={() => { setAuthOpen(false); setAuthPending(null); }} onLogin={doLogin} />}
+      {authOpen && <LoginModal message={authMsg} onClose={() => { setAuthOpen(false); setAuthPending(null); }} onLogin={doLogin} membersList={membersList} />}
 
       {/* ===== Profile Image Edit Menu ===== */}
       {showProfileMenu && (

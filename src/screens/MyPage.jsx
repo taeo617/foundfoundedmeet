@@ -120,16 +120,29 @@ export default function MyPage({
     setSuspendConfirmMember(null);
   };
 
-  // Upcoming reservations for current user
-  const myUpcomingRes = (reservations || []).filter(r => {
-    const isMine = r.owner === user || (r.attendees || []).includes(meId);
-    return isMine && r.status === 'booked';
-  });
+  // Registered reservations count (created by current user)
+  const myRegisteredCount = (reservations || []).filter(r => {
+    const isMine = r.owner === user || (meId && (r.userId === meId || r.ownerId === meId));
+    return isMine && r.status !== 'cancelled';
+  }).length;
 
-  // No-show count (cancelled reservations)
-  const myNoShowCount = (reservations || []).filter(r => {
-    const isMine = r.owner === user || (r.attendees || []).includes(meId);
-    return isMine && r.status === 'cancelled';
+  // Attended meetings count (where user is owner or attendee)
+  const myAttendedCount = (reservations || []).filter(r => {
+    const isParticipant = r.owner === user || (r.attendees || []).includes(meId) || (r.attendees || []).includes(user);
+    if (!isParticipant || r.status === 'cancelled') return false;
+
+    const [y, m, d] = (r.date || '').split('-').map(Number);
+    if (!y || !m || !d) return false;
+    const rDate = new Date(y, m - 1, d);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+    const [startH, startM] = (r.start || '00:00').split(':').map(Number);
+    const startMin = (startH || 0) * 60 + (startM || 0);
+
+    const isPastOrCurrent = rDate < today || (rDate.getTime() === today.getTime() && nowMin >= startMin);
+    return isPastOrCurrent || (r.checkedIn || []).length > 0 || r.status === 'done';
   }).length;
 
   return (
@@ -196,17 +209,17 @@ export default function MyPage({
             <div className="rounded-xl border p-3.5 bg-[var(--bg)]" style={{ borderColor: C.border }}>
               <div className="flex items-center gap-2 text-xs font-semibold text-[var(--faint)] mb-1">
                 <Calendar size={14} />
-                <span>다가오는 예약</span>
+                <span>예약 등록한 횟수</span>
               </div>
-              <div className="text-xl font-bold">{myUpcomingRes.length}<span className="text-xs font-normal ml-1">건</span></div>
+              <div className="text-xl font-bold">{myRegisteredCount}<span className="text-xs font-normal ml-1">회</span></div>
             </div>
 
             <div className="rounded-xl border p-3.5 bg-[var(--bg)]" style={{ borderColor: C.border }}>
               <div className="flex items-center gap-2 text-xs font-semibold text-[var(--faint)] mb-1">
-                <AlertCircle size={14} className={myNoShowCount > 0 ? "text-red-500" : ""} />
-                <span>취소 / 노쇼 횟수</span>
+                <Users size={14} className="text-[#2383E2]" />
+                <span>참여한 회의 수</span>
               </div>
-              <div className="text-xl font-bold">{myNoShowCount}<span className="text-xs font-normal ml-1">회</span></div>
+              <div className="text-xl font-bold">{myAttendedCount}<span className="text-xs font-normal ml-1">회</span></div>
             </div>
           </div>
 
@@ -336,20 +349,29 @@ export default function MyPage({
         {/* 5. Admin Section */}
         {isAdmin && (
           <section className="rounded-2xl border p-5 space-y-4 bg-amber-500/5 border-amber-500/30">
-            <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
-              <Shield size={18} />
-              <h3 className="text-[15px] font-bold">관리자 구역</h3>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                <Shield size={18} />
+                <h3 className="text-[15px] font-bold">관리자 구역</h3>
+              </div>
+              <button 
+                onClick={() => setSection("admin")}
+                className="lift flex items-center gap-1 text-xs font-bold text-[#2383E2] hover:underline cursor-pointer"
+              >
+                <span>멤버 계정 관리 (추가/삭제)</span>
+                <ChevronRight size={14} />
+              </button>
             </div>
 
             {/* Member Management */}
             <div className="space-y-2">
-              <h4 className="text-xs font-bold text-[var(--muted)]">멤버 관리 (정지 / 비활성화)</h4>
+              <h4 className="text-xs font-bold text-[var(--muted)]">멤버 빠른 관리 (정지 / 비활성화)</h4>
               <p className="text-[11px] text-[var(--faint)]">
-                * 멤버 삭제 시 과거 예약 기록이 깨질 수 있으므로 삭제 대신 계정 정지(비활성화)로 처리됩니다.
+                * 멤버 삭제 및 새 멤버 추가는 상단 [멤버 계정 관리] 페이지에서 진행할 수 있습니다.
               </p>
 
               <div className="rounded-xl border divide-y overflow-hidden bg-[var(--bg)] max-h-80 overflow-y-auto" style={{ borderColor: C.border }}>
-                {(membersList || MEMBERS).map((m) => {
+                {(membersList || MEMBERS).filter(m => !["m_guest", "m_client", "m_room"].includes(m.id) && !m.deleted).map((m) => {
                   const isSuspended = m.active === false;
                   return (
                     <div key={m.id} className="flex items-center justify-between p-3 text-xs">
@@ -360,6 +382,11 @@ export default function MyPage({
                           {isSuspended && (
                             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300">
                               정지됨
+                            </span>
+                          )}
+                          {m.isCustom && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                              추가됨
                             </span>
                           )}
                         </div>
@@ -382,7 +409,7 @@ export default function MyPage({
                           style={{ borderColor: C.border }}
                         >
                           <Trash2 size={12} />
-                          <span>삭제 (정지)</span>
+                          <span>계정 정지</span>
                         </button>
                       )}
                     </div>
