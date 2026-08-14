@@ -1,5 +1,6 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { MEMBERS } from './flowTeamKeys.js';
 
 function getDb() {
   if (!getApps().length) {
@@ -68,7 +69,17 @@ export default async function handler(req, res) {
       'workroom': '워크룸',
       'bambu-1': '968 (LEFT)',
       'bambu-2': '990 (RIGHT)'
-    }[id] || '회의실');
+    }[id] || '공간');
+
+    const addIdentifiers = (targetSet, val) => {
+      if (!val) return;
+      targetSet.add(String(val));
+      const m = MEMBERS.find(x => x.id === val || x.name === val);
+      if (m) {
+        targetSet.add(String(m.id));
+        targetSet.add(String(m.name));
+      }
+    };
 
     snapshot.forEach((doc) => {
       const data = doc.data();
@@ -79,25 +90,30 @@ export default async function handler(req, res) {
 
       // 당일 첫 알림 시간에 오늘 회의 참석자 모두 수집
       if (nowMin === morningTime) {
-        if (data.attendees) {
-          data.attendees.forEach(att => morningAttendees.add(att));
-        }
+        if (data.attendees) { data.attendees.forEach(att => addIdentifiers(morningAttendees, att)); }
+        addIdentifiers(morningAttendees, data.owner);
+        addIdentifiers(morningAttendees, data.who);
+        addIdentifiers(morningAttendees, data.userId);
       }
 
       // If the meeting ends in 1 minute (allowing 0~1 min tolerance)
       const endDelta = endMin - nowMin;
       if (endDelta >= 0 && endDelta <= 1) {
-        if (data.attendees) { data.attendees.forEach(att => targetAttendees.add(att)); }
-        if (data.owner) { targetAttendees.add(data.owner); }
-        endingRooms.push(getRoomName(data.roomId));
+        if (data.attendees) { data.attendees.forEach(att => addIdentifiers(targetAttendees, att)); }
+        addIdentifiers(targetAttendees, data.owner);
+        addIdentifiers(targetAttendees, data.who);
+        addIdentifiers(targetAttendees, data.userId);
+        endingRooms.push(getRoomName(data.roomId || data.resourceId));
       }
 
       // If the meeting starts in 1 minute (allowing 0~1 min tolerance)
       const startDelta = startMin - nowMin;
       if (startDelta >= 0 && startDelta <= 1) {
-        if (data.attendees) { data.attendees.forEach(att => startingAttendees.add(att)); }
-        if (data.owner) { startingAttendees.add(data.owner); }
-        const roomName = getRoomName(data.roomId);
+        if (data.attendees) { data.attendees.forEach(att => addIdentifiers(startingAttendees, att)); }
+        addIdentifiers(startingAttendees, data.owner);
+        addIdentifiers(startingAttendees, data.who);
+        addIdentifiers(startingAttendees, data.userId);
+        const roomName = getRoomName(data.roomId || data.resourceId);
         startingMeetings.push(`[${roomName}] ${data.title || '일정'}`);
       }
     });

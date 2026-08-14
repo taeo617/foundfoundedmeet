@@ -88,12 +88,22 @@ export default async function handler(req, res) {
     }
 
     const usersRef = db.collection('users');
-    const uniqueAttendees = Array.from(new Set(attendees));
+    const resolvedAttendees = new Set();
+    (attendees || []).forEach(att => {
+      if (!att) return;
+      resolvedAttendees.add(String(att));
+      const member = MEMBERS.find(m => m.id === att || m.name === att);
+      if (member) {
+        resolvedAttendees.add(String(member.id));
+        resolvedAttendees.add(String(member.name));
+      }
+    });
+    const uniqueAttendees = Array.from(resolvedAttendees);
 
     let webTokens = [];
     let expoTokens = [];
 
-    // Query by Document ID directly (e.g. 'm6')
+    // Query by Document ID directly (e.g. 'm16')
     const docSnaps = await Promise.all(uniqueAttendees.map(id => usersRef.doc(String(id)).get()));
     const foundDocIds = new Set();
 
@@ -109,7 +119,7 @@ export default async function handler(req, res) {
       }
     });
 
-    // Fallback: Query by field 'id' for any missed attendees
+    // Fallback: Query by field 'id' or 'name' for any missed attendees
     const missingAttendees = uniqueAttendees.filter(id => !foundDocIds.has(String(id)));
     if (missingAttendees.length > 0) {
       const chunks = [];
@@ -118,15 +128,23 @@ export default async function handler(req, res) {
       }
 
       for (const chunk of chunks) {
-        const snapshot = await usersRef.where('id', 'in', chunk).get();
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          if (data.webPushSubscription) webTokens.push(data.webPushSubscription);
-          if (data.webPushSubscriptions && Array.isArray(data.webPushSubscriptions)) {
-            webTokens.push(...data.webPushSubscriptions);
-          }
-          if (data.expoPushToken) expoTokens.push(data.expoPushToken);
-        });
+        const [byFieldSnap, byNameSnap] = await Promise.all([
+          usersRef.where('id', 'in', chunk).get(),
+          usersRef.where('name', 'in', chunk).get()
+        ]);
+        
+        const handleSnap = (snapshot) => {
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data.webPushSubscription) webTokens.push(data.webPushSubscription);
+            if (data.webPushSubscriptions && Array.isArray(data.webPushSubscriptions)) {
+              webTokens.push(...data.webPushSubscriptions);
+            }
+            if (data.expoPushToken) expoTokens.push(data.expoPushToken);
+          });
+        };
+        handleSnap(byFieldSnap);
+        handleSnap(byNameSnap);
       }
     }
 
