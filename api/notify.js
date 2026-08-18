@@ -54,7 +54,15 @@ export default async function handler(req, res) {
       console.error("Vapid key init error:", e);
     }
 
-    const { title, body, url, attendees, isRealtime } = req.body;
+    let bodyObj = req.body;
+    if (typeof bodyObj === 'string') {
+      try {
+        bodyObj = JSON.parse(bodyObj);
+      } catch(e) {}
+    }
+    bodyObj = bodyObj || {};
+
+    const { title, body, url, attendees, isRealtime } = bodyObj;
 
     const now = new Date();
     const kstOffset = 9 * 60 * 60 * 1000;
@@ -91,33 +99,39 @@ export default async function handler(req, res) {
     const resolvedAttendees = new Set();
     (attendees || []).forEach(att => {
       if (!att) return;
-      resolvedAttendees.add(String(att));
+      resolvedAttendees.add(String(att).trim());
       const member = MEMBERS.find(m => m.id === att || m.name === att);
       if (member) {
-        resolvedAttendees.add(String(member.id));
-        resolvedAttendees.add(String(member.name));
+        resolvedAttendees.add(String(member.id).trim());
+        resolvedAttendees.add(String(member.name).trim());
       }
     });
-    const uniqueAttendees = Array.from(resolvedAttendees);
+    const uniqueAttendees = Array.from(resolvedAttendees).filter(Boolean);
 
     let webTokens = [];
     let expoTokens = [];
 
     // Query by Document ID directly (e.g. 'm16')
-    const docSnaps = await Promise.all(uniqueAttendees.map(id => usersRef.doc(String(id)).get()));
     const foundDocIds = new Set();
-
-    docSnaps.forEach((doc) => {
-      if (doc.exists) {
-        foundDocIds.add(doc.id);
-        const data = doc.data();
-        if (data.webPushSubscription) webTokens.push(data.webPushSubscription);
-        if (data.webPushSubscriptions && Array.isArray(data.webPushSubscriptions)) {
-          webTokens.push(...data.webPushSubscriptions);
-        }
-        if (data.expoPushToken) expoTokens.push(data.expoPushToken);
+    if (uniqueAttendees.length > 0) {
+      try {
+        const docSnaps = await Promise.all(uniqueAttendees.map(id => usersRef.doc(String(id)).get()));
+        docSnaps.forEach((doc) => {
+          if (doc.exists) {
+            foundDocIds.add(doc.id);
+            const data = doc.data();
+            if (data.webPushSubscription) webTokens.push(data.webPushSubscription);
+            if (data.webPushSubscriptions && Array.isArray(data.webPushSubscriptions)) {
+              webTokens.push(...data.webPushSubscriptions);
+            }
+            if (data.expoPushToken) expoTokens.push(data.expoPushToken);
+          }
+        });
+      } catch (dbErr) {
+        console.error("Firestore doc query error:", dbErr);
+        return res.status(200).json({ success: false, error: dbErr.message || String(dbErr) });
       }
-    });
+    }
 
     // Fallback: Query by field 'id' or 'name' for any missed attendees
     const missingAttendees = uniqueAttendees.filter(id => !foundDocIds.has(String(id)));
@@ -128,23 +142,28 @@ export default async function handler(req, res) {
       }
 
       for (const chunk of chunks) {
-        const [byFieldSnap, byNameSnap] = await Promise.all([
-          usersRef.where('id', 'in', chunk).get(),
-          usersRef.where('name', 'in', chunk).get()
-        ]);
-        
-        const handleSnap = (snapshot) => {
-          snapshot.forEach((doc) => {
-            const data = doc.data();
-            if (data.webPushSubscription) webTokens.push(data.webPushSubscription);
-            if (data.webPushSubscriptions && Array.isArray(data.webPushSubscriptions)) {
-              webTokens.push(...data.webPushSubscriptions);
-            }
-            if (data.expoPushToken) expoTokens.push(data.expoPushToken);
-          });
-        };
-        handleSnap(byFieldSnap);
-        handleSnap(byNameSnap);
+        if (!chunk || chunk.length === 0) continue;
+        try {
+          const [byFieldSnap, byNameSnap] = await Promise.all([
+            usersRef.where('id', 'in', chunk).get(),
+            usersRef.where('name', 'in', chunk).get()
+          ]);
+          
+          const handleSnap = (snapshot) => {
+            snapshot.forEach((doc) => {
+              const data = doc.data();
+              if (data.webPushSubscription) webTokens.push(data.webPushSubscription);
+              if (data.webPushSubscriptions && Array.isArray(data.webPushSubscriptions)) {
+                webTokens.push(...data.webPushSubscriptions);
+              }
+              if (data.expoPushToken) expoTokens.push(data.expoPushToken);
+            });
+          };
+          handleSnap(byFieldSnap);
+          handleSnap(byNameSnap);
+        } catch (queryErr) {
+          console.error("Firestore fallback query error:", queryErr);
+        }
       }
     }
 
