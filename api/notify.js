@@ -210,7 +210,7 @@ export default async function handler(req, res) {
     if (flowApiKey && flowBotId) {
       const flowMessage = `${title} | ${body}`;
       
-      const empKeys = attendees.map(id => {
+      const empKeys = (attendees || []).map(id => {
         const member = MEMBERS.find(m => m.id === id);
         return member ? FLOW_TEAM_KEYS[member.name] : null;
       }).filter(Boolean);
@@ -236,6 +236,9 @@ export default async function handler(req, res) {
     res.status(200).json({ success: true, sentWeb: webTokens.length, sentExpo: expoTokens.length, sentFlow: flowPromises.length });
   } catch (error) {
     console.error('Push notification error:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({ 
+      error: 'Internal Server Error', 
+      details: error?.message || String(error) 
+    });
   }
 }
