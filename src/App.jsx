@@ -4758,7 +4758,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         const list = (byDate[dateStr] || []).slice().sort((a, b) => toMin(a.start) - toMin(b.start));
         return (
           <div className="ov fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(20,20,20,.5)" }} onClick={() => setDayEventsDate(null)}>
-            <div className="sheet w-full max-w-md rounded-2xl p-6 flex flex-col max-h-[85vh] sm:max-h-[75vh] shadow-xl overflow-hidden border" style={{ background: theme === "dark" ? "#1a1a1a" : "#ffffff", borderColor: C.border }} onClick={(e) => e.stopPropagation()}>
+            <div className="sheet w-full max-w-md rounded-2xl bg-white dark:bg-[#1a1a1a] p-6 shadow-xl border overflow-hidden" style={{ borderColor: C.border }} onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between border-b pb-3 mb-4 shrink-0" style={{ borderColor: C.border }}>
                 <div className="flex items-center gap-2">
                   <CalendarDays size={20} style={{ color: C.ink }} />
@@ -4767,7 +4767,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 <button onClick={() => setDayEventsDate(null)} className="grid h-8 w-8 place-items-center rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors" style={{ color: C.faint }}><X size={18} /></button>
               </div>
               
-              <div className="sc overflow-y-auto pr-1 flex-1 min-h-0 space-y-3">
+              <div className="sc overflow-y-auto pr-1 space-y-3 max-h-[60vh]">
                 {list.length === 0 ? (
                   <div className="py-12 text-center text-sm font-medium" style={{ color: C.muted }}>등록된 일정이 없습니다.</div>
                 ) : (
