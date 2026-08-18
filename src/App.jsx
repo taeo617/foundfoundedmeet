@@ -470,7 +470,7 @@ function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations, onSele
                     <div
                       key={r.id}
                       onClick={() => { setSelectedDate(null); if (onSelectEvent) onSelectEvent(r); }}
-                      className="blk rounded-lg border p-3.5 transition-all hover:scale-[1.01] cursor-pointer"
+                      className="rounded-lg border p-3.5 transition-all hover:scale-[1.01] hover:brightness-[0.97] cursor-pointer relative"
                       style={{ background: p.bg, borderColor: p.line, color: p.text }}
                     >
                       <div className="flex items-center justify-between mb-1.5">
@@ -4778,7 +4778,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                       <div
                         key={r.id}
                         onClick={() => { setDayEventsDate(null); setDetail(r); }}
-                        className="blk rounded-xl border p-4 transition-all hover:scale-[1.01] cursor-pointer flex flex-col gap-2"
+                        className="rounded-xl border p-4 transition-all hover:scale-[1.01] hover:brightness-[0.97] cursor-pointer flex flex-col gap-2 relative"
                         style={{ background: p.bg, borderColor: p.line, color: p.text }}
                       >
                         <div className="flex items-center justify-between gap-2">
