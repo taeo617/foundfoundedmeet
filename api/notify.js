@@ -167,10 +167,6 @@ export default async function handler(req, res) {
     const webPushPromises = uniqueWebTokens.map(sub => {
       const payload = JSON.stringify({ title, body, url });
       return webpush.sendNotification(sub, payload, {
-        headers: {
-          'Urgency': 'high',
-          'TTL': '86400'
-        },
         urgency: 'high',
         TTL: 86400
       }).catch(err => {
