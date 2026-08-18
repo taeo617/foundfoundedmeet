@@ -13,8 +13,8 @@ function getDb() {
       
       if (clientEmail && rawKey) {
         const serviceAccount = {
-          projectId: process.env.FIREBASE_PROJECT_ID || "promptshot-d0190",
-          clientEmail: clientEmail,
+          projectId: (process.env.FIREBASE_PROJECT_ID || "promptshot-d0190").trim(),
+          clientEmail: (process.env.FIREBASE_CLIENT_EMAIL || "").trim(),
           privateKey: rawKey,
         };
         initializeApp({ credential: cert(serviceAccount) });
