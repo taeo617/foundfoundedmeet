@@ -3584,28 +3584,30 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         </div>
 
         {/* Bottom Fixed FAB for Mobile/Desktop */}
-        <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+74px)] md:bottom-[calc(env(safe-area-inset-bottom)+16px)] left-4 right-4 z-30 flex flex-col items-center ${isDesktopSplit ? "md:sticky md:bottom-0 md:mt-auto md:pt-4 md:pb-0 md:bg-[var(--bg)] md:left-auto md:right-auto md:w-full" : ""}`}>
-          <button className="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 text-[14px] font-bold shadow-lg transition-transform active:scale-95" style={{ background: "var(--ink)", color: "var(--bg)" }} onClick={() => {
-            let targetId = roomId;
-            if (roomId === "all") targetId = ROOMS.find(r => r.group === "meeting")?.id || "big";
-            else if (roomId === "printer") targetId = ROOMS.find(r => r.group === "printer")?.id || "bambu-1";
-            tryCreate(targetId, defStart(), selKey);
-          }}>
-            <Plus size={18} /> 예약하기
-          </button>
-          {(() => {
-            let targetId = roomId;
-            if (roomId === "all") targetId = ROOMS.find(r => r.group === "meeting")?.id || "big";
-            else if (roomId === "printer") targetId = ROOMS.find(r => r.group === "printer")?.id || "bambu-1";
-            const group = ROOMS.find(r => r.id === targetId)?.group;
-            const policyId = group === 'meeting' ? 'meeting-room' : targetId;
-            const policy = resources.find(r => r.id === policyId)?.policy;
-            if (policy?.requiresReport) {
-              return <div className="text-[12.5px] mt-2 text-center" style={{ color: C.faint }}>종료하면 결과를 물어봅니다</div>;
-            }
-            return null;
-          })()}
-        </div>
+        {view !== "calendar" && (
+          <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+74px)] md:bottom-[calc(env(safe-area-inset-bottom)+16px)] left-4 right-4 z-30 flex flex-col items-center ${isDesktopSplit ? "md:sticky md:bottom-0 md:mt-auto md:pt-4 md:pb-0 md:bg-[var(--bg)] md:left-auto md:right-auto md:w-full" : ""}`}>
+            <button className="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 text-[14px] font-bold shadow-lg transition-transform active:scale-95" style={{ background: "var(--ink)", color: "var(--bg)" }} onClick={() => {
+              let targetId = roomId;
+              if (roomId === "all") targetId = ROOMS.find(r => r.group === "meeting")?.id || "big";
+              else if (roomId === "printer") targetId = ROOMS.find(r => r.group === "printer")?.id || "bambu-1";
+              tryCreate(targetId, defStart(), selKey);
+            }}>
+              <Plus size={18} /> 예약하기
+            </button>
+            {(() => {
+              let targetId = roomId;
+              if (roomId === "all") targetId = ROOMS.find(r => r.group === "meeting")?.id || "big";
+              else if (roomId === "printer") targetId = ROOMS.find(r => r.group === "printer")?.id || "bambu-1";
+              const group = ROOMS.find(r => r.id === targetId)?.group;
+              const policyId = group === 'meeting' ? 'meeting-room' : targetId;
+              const policy = resources.find(r => r.id === policyId)?.policy;
+              if (policy?.requiresReport) {
+                return <div className="text-[12.5px] mt-2 text-center" style={{ color: C.faint }}>종료하면 결과를 물어봅니다</div>;
+              }
+              return null;
+            })()}
+          </div>
+        )}
       </div>
     );
   };
@@ -4799,19 +4801,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 )}
               </div>
               
-              <div className="mt-4 border-t pt-4 flex flex-col shrink-0" style={{ borderColor: C.border }}>
-                <button
-                  onClick={() => {
-                    const targetDate = dayEventsDate;
-                    setDayEventsDate(null);
-                    tryCreate(roomId === "all" ? "big" : roomId, defStart(), keyOf(targetDate));
-                  }}
-                  className="lift flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.99]"
-                  style={{ background: C.ink, color: "var(--bg)", boxShadow: "0 2px 4px rgba(0,0,0,.08)" }}
-                >
-                  <Plus size={16} /> 회의실 예약하기
-                </button>
-              </div>
+
             </div>
           </div>
         );
