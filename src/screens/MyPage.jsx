@@ -3,7 +3,7 @@ import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db, isFirebaseConfigured } from "../firebase";
 import { C, MEMBERS, M, nameWithNim } from "../constants";
 import { 
-  User, Bell, Shield, Moon, Sun, HelpCircle, LogOut, ChevronRight, 
+  User, Users, Bell, Shield, Moon, Sun, HelpCircle, LogOut, ChevronRight, 
   AlertCircle, CheckCircle2, Clock, Calendar, Lock, Trash2, RotateCcw, X, Plus
 } from "lucide-react";
 
