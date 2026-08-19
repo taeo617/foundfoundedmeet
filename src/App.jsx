@@ -25,7 +25,7 @@ import {
 const nid = () => `r_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
 
 
-const VAPID_PUBLIC_KEY = "BLqCKTDBeszY0bUR8cDBThOpHkATpM4tZY9qu6zOlnKpDxQoRkCMKvkBxsivA1h0xDqdfVy_I9Yvs7U-6CzA1j4";
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "BLqCKTDBeszY0bUR8cDBThOpHkATpM4tZY9qu6zOlnKpDxQoRkCMKvkBxsivA1h0xDqdfVy_I9Yvs7U-6CzA1j4";
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -41,7 +41,7 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 async function subscribeToWebPush(userId) {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) return false;
   try {
     await navigator.serviceWorker.register('/service-worker.js');
     
@@ -102,11 +102,14 @@ async function subscribeToWebPush(userId) {
             }
           }
         };
-        saveSubWithRetry();
+        await saveSubWithRetry();
       }
+      return true;
     }
+    return false;
   } catch (err) {
     console.error('Web Push subscription error:', err);
+    return false;
   }
 }
 
@@ -1089,12 +1092,12 @@ export default function App() {
 
   useEffect(() => {
     if (user && isAuthenticated) {
-      const meId = MEMBERS.find((m) => m.name === user)?.id;
+      const meId = (membersList || MEMBERS).find((m) => m.name === user)?.id || user;
       if (meId) {
         subscribeToWebPush(meId);
       }
     }
-  }, [user, isAuthenticated]);
+  }, [user, isAuthenticated, membersList]);
   const [now, setNow] = useState(() => new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 20000); return () => clearInterval(t); }, []);
 
@@ -4152,6 +4155,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             Avatar={(props) => <Avatar {...props} dbProfiles={dbProfiles} />}
             onOpenProfileMenu={() => setShowProfileMenu(true)}
             handleLogout={handleLogout}
+            onSubscribePush={subscribeToWebPush}
+            onSendPushNotification={sendPushNotification}
           />
         )}
 

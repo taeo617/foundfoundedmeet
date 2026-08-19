@@ -21,7 +21,9 @@ export default function MyPage({
   showToast,
   Avatar,
   onOpenProfileMenu,
-  handleLogout
+  handleLogout,
+  onSubscribePush,
+  onSendPushNotification
 }) {
   if (!user) {
     return (
@@ -293,12 +295,32 @@ export default function MyPage({
                 try {
                   const perm = await Notification.requestPermission();
                   if (perm === 'granted') {
-                    new Notification("🔔 found/Founded 알림 테스트", {
-                      body: "브라우저 및 디바이스 알림이 성공적으로 설정되었습니다!",
-                      icon: "/icon-192.png"
-                    });
+                    const meId = (membersList || MEMBERS).find((m) => m.name === user)?.id || user;
+                    let pushSynced = false;
+                    if (onSubscribePush && meId) {
+                      pushSynced = await onSubscribePush(meId);
+                    }
+                    
+                    if (onSendPushNotification && meId) {
+                      await onSendPushNotification(
+                        "🔔 found/Founded 알림 테스트",
+                        "모바일/브라우저 알림 설정이 완료되었습니다! 예약 알림을 실시간으로 수신할 수 있습니다.",
+                        [meId]
+                      );
+                    } else {
+                      new Notification("🔔 found/Founded 알림 테스트", {
+                        body: "브라우저 및 디바이스 알림이 성공적으로 설정되었습니다!",
+                        icon: "/icon-192.png"
+                      });
+                    }
+
+                    if (showToast) {
+                      showToast(pushSynced ? "알림 권한 허용 및 디바이스 푸시가 동기화되었습니다!" : "알림 권한이 허용되었습니다!");
+                    } else {
+                      alert("알림 권한이 허용되었습니다!");
+                    }
                   } else if (perm === 'denied') {
-                    alert("브라우저 알림 권한이 차단되어 있습니다. 주소창 좌측 자물쇠 아이콘 ➔ '알림' 권한을 '허용'으로 변경해 주세요.");
+                    alert("브라우저 알림 권한이 차단되어 있습니다. 브라우저/디바이스 설정에서 '알림' 권한을 '허용'으로 변경해 주세요.");
                   }
                 } catch (e) {
                   console.error("Test notification error:", e);

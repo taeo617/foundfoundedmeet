@@ -191,7 +191,7 @@ export default async function handler(req, res) {
           }
         });
       } catch (err) {
-        console.error('Web push error:', err);
+        console.error('Web push error:', err?.statusCode || '', err?.body || err?.message || err);
         return null;
       }
     });
