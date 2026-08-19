@@ -77,6 +77,28 @@ export default async function handler(req, res) {
         hasVapidPrivate: !!process.env.VAPID_PRIVATE_KEY,
         vapidPublicEnv: (process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || '').slice(0, 12) || null,
       };
+      // Credential shape + live token test (no secret values are returned).
+      try {
+        let rawKey = process.env.FIREBASE_PRIVATE_KEY || '';
+        rawKey = rawKey.replace(/^"|"$/g, '').replace(/\\n/g, '\n').trim();
+        payload.diag.privateKey = {
+          length: rawKey.length,
+          startsWithPem: rawKey.startsWith('-----BEGIN PRIVATE KEY-----'),
+          endsWithPem: rawKey.endsWith('-----END PRIVATE KEY-----'),
+          newlineCount: (rawKey.match(/\n/g) || []).length,
+          hasLiteralBackslashN: rawKey.includes('\\n'),
+        };
+        payload.diag.clientEmailDomain = String(process.env.FIREBASE_CLIENT_EMAIL || '').split('@')[1] || null;
+      } catch (e) {}
+
+      try {
+        const app = getApps()[0];
+        const token = await app.options.credential.getAccessToken();
+        payload.diag.tokenTest = { ok: !!token?.access_token, expiresIn: token?.expires_in ?? null };
+      } catch (e) {
+        payload.diag.tokenTest = { ok: false, error: String(e?.message || e).slice(0, 300) };
+      }
+
       if (db) {
         try {
           const snap = await db.collection('users').limit(50).get();
