@@ -111,25 +111,58 @@ async function subscribeToWebPush(userId) {
 }
 
 async function sendPushNotification(title, body, attendees) {
-  // 1. Instant local Notification popup (Same direct method as the working test button)
+  // 1. Service Worker & Local Notification popup (Works on Mobile iOS/Android PWA & Desktop)
   if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-    try {
-      new Notification(title, {
-        body,
-        icon: '/icon-192.png',
-        badge: '/icon-192.png'
-      });
-    } catch (e) {
-      console.log('Local Notification popup error:', e);
+    if ('serviceWorker' in navigator) {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        if (reg && reg.showNotification) {
+          await reg.showNotification(title, {
+            body,
+            icon: '/icon-192.png',
+            badge: '/icon-192.png',
+            vibrate: [100, 50, 100],
+            data: { url: '/' },
+            tag: 'ffm-notif-' + Date.now(),
+            renotify: true
+          });
+        }
+      } catch (e) {
+        console.log('ServiceWorker showNotification error:', e);
+      }
+    } else {
+      try {
+        new Notification(title, { body, icon: '/icon-192.png', badge: '/icon-192.png' });
+      } catch (e) {
+        console.log('Local Notification popup error:', e);
+      }
     }
   }
 
   // 2. Remote Server Push API trigger for all attendees & devices
   try {
+    let currentSub = null;
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        if (reg) {
+          const sub = await reg.pushManager.getSubscription();
+          if (sub) currentSub = JSON.parse(JSON.stringify(sub));
+        }
+      } catch(subErr) {}
+    }
+
     await fetch('/api/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, body, url: '/', attendees, isRealtime: true })
+      body: JSON.stringify({ 
+        title, 
+        body, 
+        url: '/', 
+        attendees, 
+        isRealtime: true,
+        directSubscription: currentSub
+      })
     });
   } catch (err) {
     console.error('Failed to send push notification:', err);

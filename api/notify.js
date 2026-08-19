@@ -62,7 +62,7 @@ export default async function handler(req, res) {
     }
     bodyObj = bodyObj || {};
 
-    const { title, body, url, attendees, isRealtime } = bodyObj;
+    const { title, body, url, attendees, isRealtime, directSubscription } = bodyObj;
 
     const now = new Date();
     const kstOffset = 9 * 60 * 60 * 1000;
@@ -87,49 +87,47 @@ export default async function handler(req, res) {
       }
     }
 
-    const db = getDb();
-    if (!db) {
-      return res.status(200).json({ 
-        success: false, 
-        message: 'Server DB Admin not initialized. Please set FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY in Vercel Environment Variables.' 
-      });
-    }
-
-    const usersRef = db.collection('users');
-    const resolvedAttendees = new Set();
-    (attendees || []).forEach(att => {
-      if (!att) return;
-      resolvedAttendees.add(String(att).trim());
-      const member = MEMBERS.find(m => m.id === att || m.name === att);
-      if (member) {
-        resolvedAttendees.add(String(member.id).trim());
-        resolvedAttendees.add(String(member.name).trim());
-      }
-    });
-    const uniqueAttendees = Array.from(resolvedAttendees).filter(Boolean);
-
     let webTokens = [];
     let expoTokens = [];
 
-    // Query by Document ID directly (e.g. 'm16')
-    const foundDocIds = new Set();
-    if (uniqueAttendees.length > 0) {
-      try {
-        const docSnaps = await Promise.all(uniqueAttendees.map(id => usersRef.doc(String(id)).get()));
-        docSnaps.forEach((doc) => {
-          if (doc.exists) {
-            foundDocIds.add(doc.id);
-            const data = doc.data();
-            if (data.webPushSubscription) webTokens.push(data.webPushSubscription);
-            if (data.webPushSubscriptions && Array.isArray(data.webPushSubscriptions)) {
-              webTokens.push(...data.webPushSubscriptions);
+    if (directSubscription) {
+      webTokens.push(directSubscription);
+    }
+
+    const db = getDb();
+    if (db) {
+      const usersRef = db.collection('users');
+      const resolvedAttendees = new Set();
+      (attendees || []).forEach(att => {
+        if (!att) return;
+        resolvedAttendees.add(String(att).trim());
+        const member = MEMBERS.find(m => m.id === att || m.name === att);
+        if (member) {
+          resolvedAttendees.add(String(member.id).trim());
+          resolvedAttendees.add(String(member.name).trim());
+        }
+      });
+      const uniqueAttendees = Array.from(resolvedAttendees).filter(Boolean);
+
+      // Query by Document ID directly (e.g. 'm16')
+      const foundDocIds = new Set();
+      if (uniqueAttendees.length > 0) {
+        try {
+          const docSnaps = await Promise.all(uniqueAttendees.map(id => usersRef.doc(String(id)).get()));
+          docSnaps.forEach((doc) => {
+            if (doc.exists) {
+              foundDocIds.add(doc.id);
+              const data = doc.data();
+              if (data.webPushSubscription) webTokens.push(data.webPushSubscription);
+              if (data.webPushSubscriptions && Array.isArray(data.webPushSubscriptions)) {
+                webTokens.push(...data.webPushSubscriptions);
+              }
+              if (data.expoPushToken) expoTokens.push(data.expoPushToken);
             }
-            if (data.expoPushToken) expoTokens.push(data.expoPushToken);
-          }
-        });
-      } catch (dbErr) {
-        console.error("Firestore doc query error:", dbErr);
-        return res.status(200).json({ success: false, error: dbErr.message || String(dbErr) });
+          });
+        } catch (dbErr) {
+          console.error("Firestore doc query error:", dbErr);
+        }
       }
     }
 
