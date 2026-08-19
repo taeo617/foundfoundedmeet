@@ -50,19 +50,7 @@ async function subscribeToWebPush(userId) {
     
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
-      // Always subscribe with the key the SERVER holds the private half of.
-      // A build-time env key that drifts from VAPID_PRIVATE_KEY makes every push fail with 403.
-      let activeKey = VAPID_PUBLIC_KEY;
-      try {
-        const keyRes = await fetch('/api/notify');
-        if (keyRes.ok) {
-          const keyJson = await keyRes.json();
-          if (keyJson && keyJson.publicKey) activeKey = keyJson.publicKey;
-        }
-      } catch (keyErr) {
-        console.warn('Server VAPID key fetch failed, falling back to build-time key:', keyErr);
-      }
-      const targetKey = urlBase64ToUint8Array(activeKey);
+      const targetKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
       let subscription = await registration.pushManager.getSubscription();
       
       if (subscription) {
