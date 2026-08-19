@@ -61,9 +61,24 @@ function getVapidKeys() {
 const expo = new Expo();
 
 export default async function handler(req, res) {
+  const q = req.query || {};
+
+  // GET ?send=m6[,m7] fires a real test push at those users. Debug helper - the POST
+  // route below is the one the app uses. Safe to delete once push is confirmed working.
+  let bodyOverride = null;
+  if (req.method === 'GET' && q.send) {
+    bodyOverride = {
+      title: q.title || '🔔 푸시 점검 테스트',
+      body: q.msg || '이 알림이 보이면 서버 푸시가 정상 동작합니다.',
+      url: '/',
+      attendees: String(q.send).split(',').map(v => v.trim()).filter(Boolean),
+      isRealtime: true,
+    };
+  }
+
   // GET is the source of truth for the client: it always subscribes with a key
   // this server actually holds the private half of.
-  if (req.method === 'GET') {
+  if (req.method === 'GET' && !bodyOverride) {
     const payload = { publicKey: getVapidKeys().publicKey };
 
     // ?diag=1 reports config health only (booleans + counts, no secrets).
@@ -120,7 +135,7 @@ export default async function handler(req, res) {
     return res.status(200).json(payload);
   }
 
-  if (req.method !== 'POST') {
+  if (req.method !== 'POST' && !bodyOverride) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
@@ -132,7 +147,7 @@ export default async function handler(req, res) {
       console.error("Vapid key init error:", e);
     }
 
-    let bodyObj = req.body;
+    let bodyObj = bodyOverride || req.body;
     if (typeof bodyObj === 'string') {
       try {
         bodyObj = JSON.parse(bodyObj);
@@ -140,7 +155,7 @@ export default async function handler(req, res) {
     }
     bodyObj = bodyObj || {};
 
-    const { title, body, url, attendees, isRealtime, directSubscription } = bodyObj;
+    const { title, body, url, attendees, isRealtime, directSubscription, excludeEndpoint, subscriptions } = bodyObj;
 
     const now = new Date();
     const kstOffset = 9 * 60 * 60 * 1000;
@@ -170,6 +185,11 @@ export default async function handler(req, res) {
 
     if (directSubscription) {
       webTokens.push(directSubscription);
+    }
+    // Subscriptions the signed-in client already resolved from Firestore. This keeps
+    // push working even if the server's Firebase Admin credentials are unavailable.
+    if (Array.isArray(subscriptions)) {
+      webTokens.push(...subscriptions);
     }
 
     const db = getDb();
@@ -255,7 +275,10 @@ export default async function handler(req, res) {
           token = JSON.parse(token);
         } catch (e) {}
       }
-      if (token && typeof token === 'object' && token.endpoint && !seenEndpoints.has(token.endpoint)) {
+      if (!token || typeof token !== 'object' || !token.endpoint) continue;
+      // The sending device already displayed this notification itself.
+      if (excludeEndpoint && token.endpoint === excludeEndpoint) continue;
+      if (!seenEndpoints.has(token.endpoint)) {
         seenEndpoints.add(token.endpoint);
         uniqueWebTokens.push(token);
       }
@@ -393,6 +416,7 @@ export default async function handler(req, res) {
       attendeesTried: uniqueAttendees,
       matchedUsers: foundDocIds.size,
       sentWeb: uniqueWebTokens.length,
+      excludedSelf: !!excludeEndpoint,
       sentExpo: expoTokens.length,
       sentFlow: flowPromises.length,
       purged: deadEndpoints.length,

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, forwardRef } from "react";
-import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, runTransaction, writeBatch, deleteField } from "firebase/firestore";
+import { collection, onSnapshot, doc, getDoc, setDoc, deleteDoc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, runTransaction, writeBatch, deleteField } from "firebase/firestore";
 import { db, auth, isFirebaseConfigured } from "./firebase";
 import HistorySearch from "./screens/HistorySearch";
 import AdminDashboard from "./screens/AdminDashboard";
@@ -138,6 +138,53 @@ async function subscribeToWebPush(userId) {
   }
 }
 
+// The server needs Firebase Admin credentials to look up who to notify. When those
+// are missing or rejected the server finds nobody and no push is ever sent.
+// The signed-in client CAN read Firestore, so it resolves the recipients here and
+// hands the subscriptions to the API directly.
+async function collectAttendeeSubscriptions(attendees, excludeEndpoint) {
+  if (!isFirebaseConfigured || !db || !Array.isArray(attendees) || attendees.length === 0) return [];
+
+  const ids = new Set();
+  attendees.forEach((a) => {
+    if (!a) return;
+    const raw = String(a).trim();
+    if (!raw) return;
+    ids.add(raw);
+    const m = MEMBERS.find((x) => x.id === raw || x.name === raw);
+    if (m) ids.add(String(m.id));
+  });
+
+  const out = [];
+  const seen = new Set();
+  const take = (sub) => {
+    if (!sub) return;
+    let parsed = sub;
+    if (typeof parsed === 'string') {
+      try { parsed = JSON.parse(parsed); } catch (e) { return; }
+    }
+    if (!parsed || !parsed.endpoint) return;
+    if (excludeEndpoint && parsed.endpoint === excludeEndpoint) return;
+    if (seen.has(parsed.endpoint)) return;
+    seen.add(parsed.endpoint);
+    out.push(parsed);
+  };
+
+  await Promise.all(Array.from(ids).map(async (id) => {
+    try {
+      const snap = await getDoc(doc(db, "users", id));
+      if (!snap.exists()) return;
+      const data = snap.data() || {};
+      take(data.webPushSubscription);
+      if (Array.isArray(data.webPushSubscriptions)) data.webPushSubscriptions.forEach(take);
+    } catch (e) {
+      console.warn('[push] subscription lookup failed for', id, e);
+    }
+  }));
+
+  return out;
+}
+
 async function sendPushNotification(title, body, attendees) {
   // 1. Service Worker & Local Notification popup (Works on Mobile iOS/Android PWA & Desktop)
   if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
@@ -180,7 +227,13 @@ async function sendPushNotification(title, body, attendees) {
       } catch(subErr) {}
     }
 
-    await fetch('/api/notify', {
+    // This device already showed the notification locally (step 1 above), so its own
+    // endpoint is excluded - otherwise the notification arrives twice.
+    const excludeEndpoint = currentSub?.endpoint || null;
+    const subscriptions = await collectAttendeeSubscriptions(attendees, excludeEndpoint);
+    console.log('[push] resolved', subscriptions.length, 'target device(s) for', attendees);
+
+    const res = await fetch('/api/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
@@ -189,9 +242,13 @@ async function sendPushNotification(title, body, attendees) {
         url: '/', 
         attendees, 
         isRealtime: true,
-        directSubscription: currentSub
+        excludeEndpoint,
+        subscriptions
       })
     });
+    try {
+      console.log('[push] api result:', await res.json());
+    } catch (e) {}
   } catch (err) {
     console.error('Failed to send push notification:', err);
   }
