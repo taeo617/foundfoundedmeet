@@ -183,16 +183,19 @@ export default async function handler(req, res) {
       }
     }
 
-    const webPushPromises = uniqueWebTokens.map(sub => {
-      const payload = JSON.stringify({ title, body, url });
-      return webpush.sendNotification(sub, payload, {
-        TTL: 86400,
-        headers: {
-          'Urgency': 'high'
-        }
-      }).catch(err => {
+    const webPushPromises = uniqueWebTokens.map(async sub => {
+      try {
+        const payload = JSON.stringify({ title, body, url });
+        return await webpush.sendNotification(sub, payload, {
+          TTL: 86400,
+          headers: {
+            'Urgency': 'high'
+          }
+        });
+      } catch (err) {
         console.error('Web push error:', err);
-      });
+        return null;
+      }
     });
 
     // 3. Send Expo Push
@@ -214,11 +217,14 @@ export default async function handler(req, res) {
     let expoPushPromises = [];
     let expoChunks = expo.chunkPushNotifications(messages);
     for (let chunk of expoChunks) {
-      expoPushPromises.push(
-        expo.sendPushNotificationsAsync(chunk).catch(err => {
+      expoPushPromises.push((async () => {
+        try {
+          return await expo.sendPushNotificationsAsync(chunk);
+        } catch (err) {
           console.error('Expo push error:', err);
-        })
-      );
+          return null;
+        }
+      })());
     }
 
     // 4. Send Flow.team Notifications
@@ -234,30 +240,37 @@ export default async function handler(req, res) {
         return member ? FLOW_TEAM_KEYS[member.name] : null;
       }).filter(Boolean);
 
-      flowPromises = empKeys.map(empKey => {
-        return fetch('https://api.flow.team/v1/bot/notifications', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${flowApiKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            botId: flowBotId,
-            empKey: empKey,
-            message: flowMessage
-          })
-        }).catch(err => console.error('Flow push error:', err));
+      flowPromises = empKeys.map(async empKey => {
+        try {
+          return await fetch('https://api.flow.team/v1/bot/notifications', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${flowApiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              botId: flowBotId,
+              empKey: empKey,
+              message: flowMessage
+            })
+          });
+        } catch (err) {
+          console.error('Flow push error:', err);
+          return null;
+        }
       });
     }
 
     await Promise.all([...webPushPromises, ...expoPushPromises, ...flowPromises]);
 
-    res.status(200).json({ success: true, sentWeb: webTokens.length, sentExpo: expoTokens.length, sentFlow: flowPromises.length });
+    res.status(200).json({ success: true, sentWeb: uniqueWebTokens.length, sentExpo: expoTokens.length, sentFlow: flowPromises.length });
   } catch (error) {
     console.error('Push notification error:', error);
-    res.status(500).json({ 
-      error: 'Internal Server Error', 
+    res.status(200).json({ 
+      success: false,
+      error: 'Push Notification Error', 
       details: error?.message || String(error) 
     });
   }
 }
+
