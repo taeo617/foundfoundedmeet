@@ -228,8 +228,17 @@ export default async function handler(req, res) {
           statusCode: statusCode || 0,
           error: String(err?.body || err?.message || err).slice(0, 200)
         });
-        // 404/410 = the browser threw this subscription away. Purge it.
-        if (statusCode === 404 || statusCode === 410) deadEndpoints.push(sub.endpoint);
+        // 404/410 = the browser threw this subscription away.
+        // 403 with a VAPID/JWT complaint = subscribed under a different key pair.
+        // Either way the record is useless; purge it so the client re-subscribes cleanly.
+        const errText = String(err?.body || err?.message || '');
+        if (
+          statusCode === 404 ||
+          statusCode === 410 ||
+          (statusCode === 403 && /vapid|hash|jwt|unauthor/i.test(errText))
+        ) {
+          deadEndpoints.push(sub.endpoint);
+        }
         return null;
       }
     });

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, forwardRef } from "react";
-import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, arrayUnion, serverTimestamp, runTransaction, writeBatch, deleteField } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, runTransaction, writeBatch, deleteField } from "firebase/firestore";
 import { db, auth, isFirebaseConfigured } from "./firebase";
 import HistorySearch from "./screens/HistorySearch";
 import AdminDashboard from "./screens/AdminDashboard";
@@ -63,6 +63,7 @@ async function subscribeToWebPush(userId) {
         console.warn('Server VAPID key fetch failed, falling back to build-time key:', keyErr);
       }
       const targetKey = urlBase64ToUint8Array(activeKey);
+      let staleSubJson = null;
       let subscription = await registration.pushManager.getSubscription();
       
       if (subscription) {
@@ -77,6 +78,9 @@ async function subscribeToWebPush(userId) {
         
         if (!keyMatches) {
           console.log('Unsubscribing key-mismatched push subscription...');
+          try {
+            staleSubJson = JSON.parse(JSON.stringify(subscription));
+          } catch (e) {}
           try {
             await subscription.unsubscribe();
             subscription = null;
@@ -99,6 +103,15 @@ async function subscribeToWebPush(userId) {
         const saveSubWithRetry = async (attempts = 3) => {
           for (let attempt = 1; attempt <= attempts; attempt++) {
             try {
+              if (staleSubJson) {
+                try {
+                  await setDoc(doc(db, "users", userId), {
+                    webPushSubscriptions: arrayRemove(staleSubJson)
+                  }, { merge: true });
+                } catch (rmErr) {
+                  console.warn('Failed to remove stale push subscription:', rmErr);
+                }
+              }
               await setDoc(doc(db, "users", userId), { 
                 id: userId, 
                 webPushSubscription: subJson,
@@ -1102,14 +1115,6 @@ export default function App() {
     return null;
   });
 
-  useEffect(() => {
-    if (user && isAuthenticated) {
-      const meId = (membersList || MEMBERS).find((m) => m.name === user)?.id || user;
-      if (meId) {
-        subscribeToWebPush(meId);
-      }
-    }
-  }, [user, isAuthenticated, membersList]);
   const [now, setNow] = useState(() => new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 20000); return () => clearInterval(t); }, []);
 
@@ -1239,6 +1244,17 @@ export default function App() {
       }
     }
   }, [user, membersList]);
+
+  // NOTE: must sit AFTER the membersList declaration - the dependency array is
+  // evaluated during render, so referencing it earlier throws a TDZ ReferenceError.
+  useEffect(() => {
+    if (user && isAuthenticated) {
+      const meId = (membersList || MEMBERS).find((m) => m.name === user)?.id || user;
+      if (meId) {
+        subscribeToWebPush(meId);
+      }
+    }
+  }, [user, isAuthenticated, membersList]);
 
   useEffect(() => {
     localStorage.setItem("suspended_members", JSON.stringify(suspendedIds));
