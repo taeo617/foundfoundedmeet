@@ -64,7 +64,38 @@ export default async function handler(req, res) {
   // GET is the source of truth for the client: it always subscribes with a key
   // this server actually holds the private half of.
   if (req.method === 'GET') {
-    return res.status(200).json({ publicKey: getVapidKeys().publicKey });
+    const payload = { publicKey: getVapidKeys().publicKey };
+
+    // ?diag=1 reports config health only (booleans + counts, no secrets).
+    if (req.query && (req.query.diag === '1' || req.query.diag === 'true')) {
+      const db = getDb();
+      payload.diag = {
+        dbReady: !!db,
+        projectId: (process.env.FIREBASE_PROJECT_ID || 'promptshot-d0190').trim(),
+        hasClientEmail: !!process.env.FIREBASE_CLIENT_EMAIL,
+        hasPrivateKey: !!process.env.FIREBASE_PRIVATE_KEY,
+        hasVapidPrivate: !!process.env.VAPID_PRIVATE_KEY,
+        vapidPublicEnv: (process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || '').slice(0, 12) || null,
+      };
+      if (db) {
+        try {
+          const snap = await db.collection('users').limit(50).get();
+          payload.diag.userDocCount = snap.size;
+          payload.diag.userDocIds = snap.docs.map(d => d.id);
+          payload.diag.docsWithPush = snap.docs.filter(d => {
+            const v = d.data() || {};
+            return !!v.webPushSubscription || (Array.isArray(v.webPushSubscriptions) && v.webPushSubscriptions.length > 0);
+          }).map(d => {
+            const v = d.data() || {};
+            return { id: d.id, count: (Array.isArray(v.webPushSubscriptions) ? v.webPushSubscriptions.length : 0) + (v.webPushSubscription ? 1 : 0) };
+          });
+        } catch (e) {
+          payload.diag.readError = String(e?.message || e).slice(0, 200);
+        }
+      }
+    }
+
+    return res.status(200).json(payload);
   }
 
   if (req.method !== 'POST') {
@@ -336,6 +367,8 @@ export default async function handler(req, res) {
 
     res.status(200).json({
       success: true,
+      dbReady: !!usersRef,
+      attendeesTried: uniqueAttendees,
       matchedUsers: foundDocIds.size,
       sentWeb: uniqueWebTokens.length,
       sentExpo: expoTokens.length,

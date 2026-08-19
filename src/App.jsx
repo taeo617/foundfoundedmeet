@@ -1190,6 +1190,9 @@ export default function App() {
       } catch (e) {}
       return;
     }
+    // Must wait for anonymous auth, otherwise the listener dies instantly with
+    // "Missing or insufficient permissions" and never retries.
+    if (!isAuthenticated) return;
     const unsub = onSnapshot(collection(db, "users"), (snapshot) => {
       const dbUsersMap = new Map();
       const pMap = {};
@@ -1231,7 +1234,7 @@ export default function App() {
       window.dispatchEvent(new CustomEvent("profile_updated"));
     }, (err) => console.error("users snapshot error:", err));
     return () => unsub();
-  }, [suspendedIds, deletedIds]);
+  }, [suspendedIds, deletedIds, isAuthenticated]);
 
   useEffect(() => {
     if (user && membersList.length > 0) {
