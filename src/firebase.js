@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 // TODO: Replace this with your actual Firebase project configuration
@@ -26,7 +26,21 @@ let auth = null;
 if (isFirebaseConfigured) {
   try {
     const app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
+
+    // Persist the Firestore cache in IndexedDB. Without this every page load
+    // re-reads every document in each listened collection, which is what burns
+    // through the daily read quota. With it, repeat loads are served from disk and
+    // only documents that actually changed are fetched.
+    try {
+      db = initializeFirestore(app, {
+        localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+      });
+    } catch (cacheErr) {
+      // Private browsing / unsupported storage - fall back to the in-memory cache.
+      console.warn("Persistent Firestore cache unavailable, using memory cache:", cacheErr);
+      db = getFirestore(app);
+    }
+
     auth = getAuth(app);
   } catch (err) {
     console.error("Firebase initialization failed:", err);

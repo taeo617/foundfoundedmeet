@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, forwardRef } from "react";
-import { collection, onSnapshot, doc, getDoc, setDoc, deleteDoc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, runTransaction, writeBatch, deleteField } from "firebase/firestore";
+import { collection, query, where, Timestamp, onSnapshot, doc, getDoc, setDoc, addDoc, deleteDoc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, runTransaction, writeBatch, deleteField } from "firebase/firestore";
 import { db, auth, isFirebaseConfigured } from "./firebase";
 import HistorySearch from "./screens/HistorySearch";
 import AdminDashboard from "./screens/AdminDashboard";
@@ -22,6 +22,23 @@ import {
 import {
   pad, toMin, toHHMM, WEEK, keyOf, fmtK, addDays, dayOnly, sameDay, TIMES, getClosestTime
 } from "./utils/time";
+// Both collections are append-only logs that grow forever. Listening to them whole
+// means every page load re-reads the entire history, which is what exhausts the daily
+// Firestore read quota. Only the recent window is ever rendered - AdminDashboard looks
+// back 3 months, everything else looks at today.
+const RESERVATION_WINDOW_DAYS = 180;
+const SESSION_WINDOW_DAYS = 120;
+const windowStartDate = (days) => {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+const windowStartKey = (days) => {
+  const d = windowStartDate(days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 const nid = () => `r_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
 
 
@@ -1196,10 +1213,20 @@ export default function App() {
   const [sessions, setSessions] = useState([]);
   useEffect(() => {
     if (!isFirebaseConfigured || !isAuthenticated) return;
-    const unsub = onSnapshot(collection(db, "sessions"), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setSessions(data);
-    }, (err) => console.error("sessions snapshot error:", err));
+    const unsub = onSnapshot(
+      query(collection(db, "sessions"), where("checkInAt", ">=", Timestamp.fromDate(windowStartDate(SESSION_WINDOW_DAYS)))),
+      (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // A just-created session has a pending serverTimestamp, so it does not match
+        // the range filter yet. Keep any optimistic row until the server value lands.
+        setSessions(prev => {
+          const ids = new Set(data.map(d => d.id));
+          const pending = prev.filter(p => p._optimistic && !ids.has(p.id) && !data.some(d => d.reservationId === p.reservationId));
+          return [...data, ...pending];
+        });
+      },
+      (err) => console.error("sessions snapshot error:", err)
+    );
     return () => unsub();
   }, [isAuthenticated]);
 
@@ -1654,10 +1681,14 @@ export default function App() {
   
   useEffect(() => {
     if (!isFirebaseConfigured || !isAuthenticated) return;
-    const unsub = onSnapshot(collection(db, "reservations"), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setReservations(data);
-    }, (err) => console.error("reservations snapshot error:", err));
+    const unsub = onSnapshot(
+      query(collection(db, "reservations"), where("date", ">=", windowStartKey(RESERVATION_WINDOW_DAYS))),
+      (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setReservations(data);
+      },
+      (err) => console.error("reservations snapshot error:", err)
+    );
     return () => unsub();
   }, [isAuthenticated]);
 
@@ -2339,13 +2370,24 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     }
     
     if (isFirebaseConfigured) {
-      await addDoc(collection(db, "sessions"), {
+      const created = await addDoc(collection(db, "sessions"), {
         resourceId: res.resourceId || 'meeting-room',
         userId: user,
         reservationId: res.id,
         checkInAt: serverTimestamp(),
         source: 'button'
       });
+      // Show it immediately - the range-filtered listener cannot match it until the
+      // server timestamp resolves.
+      setSessions(prev => prev.some(p => p.id === created.id) ? prev : [...prev, {
+        id: created.id,
+        resourceId: res.resourceId || 'meeting-room',
+        userId: user,
+        reservationId: res.id,
+        checkInAt: null,
+        source: 'button',
+        _optimistic: true
+      }]);
       showToast("사용을 시작했습니다.");
       setDetail(null);
     }
