@@ -74,6 +74,13 @@ async function subscribeToWebPush(userId) {
           if (keyArray.length === targetKey.length && keyArray.every((val, i) => val === targetKey[i])) {
             keyMatches = true;
           }
+        } else {
+          // iOS Safari does not expose applicationServerKey. Without this fallback we
+          // would unsubscribe and resubscribe on every single load, piling up dead
+          // endpoints in Firestore. Compare against the key we recorded at subscribe time.
+          try {
+            if (localStorage.getItem('push_vapid_key') === activeKey) keyMatches = true;
+          } catch (e) {}
         }
         
         if (!keyMatches) {
@@ -96,6 +103,7 @@ async function subscribeToWebPush(userId) {
           applicationServerKey: targetKey
         });
       }
+      try { localStorage.setItem('push_vapid_key', activeKey); } catch (e) {}
 
       // Save subscription to user document in Firestore with retry logic
       if (isFirebaseConfigured && userId) {

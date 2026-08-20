@@ -307,11 +307,12 @@ export default async function handler(req, res) {
         // 404/410 = the browser threw this subscription away.
         // 403 with a VAPID/JWT complaint = subscribed under a different key pair.
         // Either way the record is useless; purge it so the client re-subscribes cleanly.
+        // Apple answers a key mismatch with 400 VapidPkHashMismatch, FCM with 403.
         const errText = String(err?.body || err?.message || '');
         if (
           statusCode === 404 ||
           statusCode === 410 ||
-          (statusCode === 403 && /vapid|hash|jwt|unauthor/i.test(errText))
+          ((statusCode === 400 || statusCode === 403) && /vapid|hash|jwt|unauthor/i.test(errText))
         ) {
           deadEndpoints.push(sub.endpoint);
         }
