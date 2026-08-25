@@ -387,26 +387,37 @@ export default async function handler(req, res) {
 
     // 5. Purge dead subscriptions so they stop polluting future sends
     if (usersRef && deadEndpoints.length > 0) {
-      await Promise.all(deadEndpoints.map(async endpoint => {
+      // Group by document FIRST. Purging each endpoint with its own read-modify-write
+      // makes concurrent writes to the same user clobber each other - with 20+ dead
+      // endpoints on one document only the last one actually survives.
+      const byDoc = new Map();
+      deadEndpoints.forEach(endpoint => {
         const owner = ownerByEndpoint.get(endpoint);
         if (!owner) return;
+        if (!byDoc.has(owner.docId)) byDoc.set(owner.docId, new Set());
+        byDoc.get(owner.docId).add(endpoint);
+      });
+
+      await Promise.all(Array.from(byDoc.entries()).map(async ([docId, endpoints]) => {
         try {
-          const snap = await usersRef.doc(owner.docId).get();
+          const snap = await usersRef.doc(docId).get();
           const data = snap.data() || {};
           const update = {};
           if (Array.isArray(data.webPushSubscriptions)) {
             update.webPushSubscriptions = data.webPushSubscriptions.filter(s => {
               let p = s;
               if (typeof p === 'string') { try { p = JSON.parse(p); } catch (e) { return true; } }
-              return p?.endpoint !== endpoint;
+              return !(p && p.endpoint && endpoints.has(p.endpoint));
             });
           }
           let single = data.webPushSubscription;
           if (typeof single === 'string') { try { single = JSON.parse(single); } catch (e) {} }
-          if (single?.endpoint === endpoint) update.webPushSubscription = FieldValue.delete();
-          if (Object.keys(update).length) await usersRef.doc(owner.docId).set(update, { merge: true });
+          if (single && single.endpoint && endpoints.has(single.endpoint)) {
+            update.webPushSubscription = FieldValue.delete();
+          }
+          if (Object.keys(update).length) await usersRef.doc(docId).set(update, { merge: true });
         } catch (e) {
-          console.error('Failed to purge dead subscription:', e);
+          console.error('Failed to purge dead subscriptions for', docId, e);
         }
       }));
     }

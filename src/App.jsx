@@ -871,7 +871,7 @@ function MemberManagement({ onBack, membersList, handleToggleMemberActive, handl
     setShowAddModal(false);
   };
 
-  const filtered = (membersList || []).filter(m => !["m_guest", "m_client", "m_room"].includes(m.id) && !m.deleted);
+  const filtered = (membersList || []).filter(m => !["m_guest", "m_client", "m_room"].includes(m.id) && !m.deleted && !m.inactive);
 
   return (
     <div className="flex-1 w-full flex flex-col p-4 sm:p-8 overflow-y-auto" style={{ background: C.bg, color: C.text }}>

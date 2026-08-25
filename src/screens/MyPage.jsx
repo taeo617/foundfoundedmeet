@@ -393,7 +393,7 @@ export default function MyPage({
               </p>
 
               <div className="rounded-xl border divide-y overflow-hidden bg-[var(--bg)] max-h-80 overflow-y-auto" style={{ borderColor: C.border }}>
-                {(membersList || MEMBERS).filter(m => !["m_guest", "m_client", "m_room"].includes(m.id) && !m.deleted).map((m) => {
+                {(membersList || MEMBERS).filter(m => !["m_guest", "m_client", "m_room"].includes(m.id) && !m.deleted && !m.inactive).map((m) => {
                   const isSuspended = m.active === false;
                   return (
                     <div key={m.id} className="flex items-center justify-between p-3 text-xs">
