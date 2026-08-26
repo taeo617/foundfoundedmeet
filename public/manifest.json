@@ -1,11 +1,11 @@
 {
   "name": "foundfoundedmeet",
-  "short_name": "회의실예약",
+  "short_name": "파파 예약",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#1a1a1a",
-  "description": "foundfounded 내부 회의실 예약 서비스",
+  "description": "foundfounded 내부 파파 예약 서비스",
   "icons": [
     {
       "src": "/icon-192.png",
