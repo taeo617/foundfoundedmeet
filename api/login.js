@@ -1,5 +1,4 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import crypto from 'crypto';
 import { MEMBERS } from './flowTeamKeys.js';
@@ -84,6 +83,20 @@ async function recordFailure(ref) {
 }
 
 export default async function handler(req, res) {
+  try {
+    return await login(req, res);
+  } catch (e) {
+    console.error('login handler crashed:', e);
+    return res.status(500).json({
+      error: 'unhandled',
+      message: '로그인 처리 중 서버 오류가 발생했습니다.',
+      detail: String(e && e.message ? e.message : e).slice(0, 300),
+      where: String((e && e.stack) || '').split('\n')[1]?.trim().slice(0, 200) || null,
+    });
+  }
+}
+
+async function login(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
@@ -186,6 +199,7 @@ export default async function handler(req, res) {
 
   try {
     if (gate.ref) await gate.ref.delete().catch(() => {});
+    const { getAuth } = await import('firebase-admin/auth');
     const token = await getAuth().createCustomToken(uid, { name: displayName, role });
     return res.status(200).json({ token, name: displayName, role, uid });
   } catch (e) {
