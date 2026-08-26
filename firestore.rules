@@ -1,30 +1,59 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // helper: 로그인 여부 확인
-    function isAuthenticated() {
-      return request.auth != null;
+
+    // A real login is a Firebase custom token minted by /api/login after that
+    // endpoint verified the PIN server-side. The token carries `name` and `role`
+    // claims that the client cannot forge. Anonymous or unauthenticated visitors
+    // carry no `name` claim, so every rule below denies them.
+    function signedIn() {
+      return request.auth != null
+        && request.auth.token.name is string
+        && request.auth.token.name.size() > 0;
     }
 
+    function isAdmin() {
+      return signedIn() && request.auth.token.role == 'admin';
+    }
+
+    // Profiles, push subscriptions, guide progress.
     match /users/{userId} {
-      allow read, write: if isAuthenticated();
+      allow read: if signedIn();
+      // You may only write your own document. Suspending or deleting a member is
+      // an admin action.
+      allow write: if isAdmin() || (signedIn() && request.auth.uid == userId);
     }
 
-    match /resources/{resourceId} {
-      allow read, write: if isAuthenticated();
-    }
-
+    // Bookings. Any signed-in member books, edits and cancels; the app decides
+    // whose booking is whose, but nobody outside the team gets to look.
     match /reservations/{resId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if signedIn();
     }
 
+    // Check-in / check-out records.
     match /sessions/{sessionId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if signedIn();
     }
 
     match /announcements/{annId} {
-      allow read, write: if isAuthenticated();
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /resources/{resourceId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // Login attempt counters. Written by the server only - the Admin SDK bypasses
+    // these rules, so no client may read them or reset its own lockout.
+    match /_authThrottle/{doc} {
+      allow read, write: if false;
+    }
+
+    // Anything not named above is closed.
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

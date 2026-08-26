@@ -5,7 +5,7 @@ import HistorySearch from "./screens/HistorySearch";
 import AdminDashboard from "./screens/AdminDashboard";
 import OnboardingGuide from "./screens/OnboardingGuide";
 import MyPage from "./screens/MyPage";
-import { signInAnonymously } from "firebase/auth";
+import { signInWithCustomToken, signOut } from "firebase/auth";
 import {
   Calendar, CalendarDays, Clock, Users, Monitor, Video, Plus, X, Check,
   CheckCircle2, Repeat, AlertCircle, ChevronLeft, ChevronRight, ChevronDown, Trash2, Play, Square,
@@ -398,22 +398,25 @@ function Avatar({ name, label, size = 36, solid = false, onClick, className, sty
 /* ===================== login modal ===================== */
 function LoginModal({ message, onClose, onLogin, membersList }) {
   const [name, setName] = useState(""); const [pw, setPw] = useState(""); const [err, setErr] = useState("");
-  const submit = () => { 
+  const [busy, setBusy] = useState(false);
+  // The password is never checked here. onLogin posts it to /api/login, which holds
+  // the PIN server-side and answers with a signed Firebase token.
+  const submit = async () => {
+    if (busy) return;
     const trimmedName = name.trim();
-    if (!trimmedName) return setErr("이름을 입력해주세요."); 
-    if (trimmedName.toLowerCase() === "admin") {
-      if (pw !== import.meta.env.VITE_ADMIN_PASSWORD) return setErr("비밀번호가 올바르지 않아요.");
-      return onLogin("admin");
-    }
-    if (trimmedName.toLowerCase() === "guest") {
-      if (pw !== "1234") return setErr("비밀번호가 올바르지 않아요.");
-      return onLogin("Guest");
-    }
-    const member = (membersList || MEMBERS).find((m) => m.name === trimmedName);
-    if (!member || member.deleted) return setErr("등록되지 않은 멤버 이름입니다. 등록된 이름으로 로그인해 주세요.");
-    if (member.inactive || member.active === false) return setErr("해당 계정은 정지되어 로그인할 수 없습니다.");
-    if (pw !== import.meta.env.VITE_MEMBER_PASSWORD) return setErr("비밀번호가 올바르지 않아요."); 
-    onLogin(trimmedName); 
+    if (!trimmedName) return setErr("이름을 입력해주세요.");
+    if (!pw) return setErr("비밀번호를 입력해주세요.");
+
+    const known = trimmedName.toLowerCase() === "admin"
+      || trimmedName.toLowerCase() === "guest"
+      || (membersList || MEMBERS).some((m) => m.name === trimmedName);
+    if (!known) return setErr("등록되지 않은 멤버 이름입니다. 등록된 이름으로 로그인해 주세요.");
+
+    setBusy(true);
+    setErr("");
+    const failure = await onLogin(trimmedName, pw);
+    setBusy(false);
+    if (failure) setErr(failure);
   };
   return (
     <div className="ov fixed inset-0 z-[70] flex items-end justify-center p-0 sm:items-center sm:p-4" style={{ background: "rgba(20,20,20,.5)" }} onClick={onClose}>
@@ -430,7 +433,7 @@ function LoginModal({ message, onClose, onLogin, membersList }) {
           <input type="password" className="inp w-full bg-transparent py-2.5 text-sm outline-none" value={pw} onChange={(e) => { setPw(e.target.value); setErr(""); }} onKeyDown={(e) => e.key === "Enter" && submit()} placeholder="비밀번호" />
         </div>
         {err && <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold" style={{ color: PASTEL.red.text }}><AlertCircle size={13} />{err}</div>}
-        <button onClick={submit} className="lift mt-5 flex w-full items-center justify-center gap-1.5 rounded-lg py-3 text-sm font-medium" style={{ background: C.ink, color: "var(--bg)", boxShadow: "0 1px 2px rgba(0,0,0,.05)" }}><LogIn size={16} /> 로그인</button>
+        <button onClick={submit} disabled={busy} className="lift mt-5 flex w-full items-center justify-center gap-1.5 rounded-lg py-3 text-sm font-medium" style={{ background: C.ink, color: "var(--bg)", boxShadow: "0 1px 2px rgba(0,0,0,.05)", opacity: busy ? 0.6 : 1 }}><LogIn size={16} /> {busy ? "확인 중..." : "로그인"}</button>
       </div>
     </div>
   );
@@ -871,7 +874,7 @@ function MemberManagement({ onBack, membersList, handleToggleMemberActive, handl
     setShowAddModal(false);
   };
 
-  const filtered = (membersList || []).filter(m => !["m_guest", "m_client", "m_room"].includes(m.id) && !m.deleted && !m.inactive);
+  const filtered = (membersList || []).filter(m => !["m_guest", "m_client", "m_room"].includes(m.id) && !m.deleted);
 
   return (
     <div className="flex-1 w-full flex flex-col p-4 sm:p-8 overflow-y-auto" style={{ background: C.bg, color: C.text }}>
@@ -1156,46 +1159,52 @@ export default function App() {
   const [onboardingStep, setOnboardingStep] = useState(null);
   const guideRef = useRef(null);
 
-  useEffect(() => {
-    if (!isFirebaseConfigured || !auth) return;
-    signInAnonymously(auth).catch((error) => {
-      console.error("Anonymous auth failed:", error);
-    });
+  // Identity comes from a Firebase custom token minted by /api/login after the
+  // server checked the PIN. There is no anonymous session any more: a visitor who
+  // has not logged in has no Firebase identity, so the security rules give them
+  // nothing. `authReady` marks the point where Firebase has finished restoring a
+  // persisted session, so the login sheet does not flash on every load.
+  const [user, setUser] = useState(null);
+  const [userRole, setUserRole] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
 
-    const unsub = auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        try {
-          // Force Firebase to resolve the ID Token first
-          await user.getIdToken(true);
-          // Add a 150ms delay to guarantee token propagation to the Firestore SDK before setting isAuthenticated to true
-          setTimeout(() => {
-            setIsAuthenticated(true);
-            console.log("Logged in anonymously as:", user.uid);
-          }, 150);
-        } catch (e) {
-          console.error("Token propagation failed:", e);
-        }
-      } else {
+  useEffect(() => {
+    if (!isFirebaseConfigured || !auth) { setAuthReady(true); return; }
+
+    const unsub = auth.onAuthStateChanged(async (fbUser) => {
+      if (!fbUser) {
         setIsAuthenticated(false);
+        setUser(null);
+        setUserRole(null);
+        setAuthReady(true);
+        return;
+      }
+      try {
+        const result = await fbUser.getIdTokenResult(true);
+        const claimName = result?.claims?.name;
+        if (!claimName) {
+          // A session without our claims (a leftover anonymous one, say) is not a
+          // login - drop it rather than treating it as one.
+          await signOut(auth).catch(() => {});
+          setIsAuthenticated(false);
+          setUser(null);
+          setUserRole(null);
+        } else {
+          setUser(claimName);
+          setUserRole(result.claims.role || 'member');
+          setIsAuthenticated(true);
+        }
+      } catch (e) {
+        console.error("Auth token resolution failed:", e);
+        setIsAuthenticated(false);
+        setUser(null);
+        setUserRole(null);
+      } finally {
+        setAuthReady(true);
       }
     });
     return () => unsub();
   }, []);
-  const [user, setUser] = useState(() => {
-    try {
-      const tokenStr = localStorage.getItem("auth_token");
-      if (tokenStr) {
-        const token = JSON.parse(decodeURIComponent(escape(atob(tokenStr))));
-        if (token.exp && token.exp > Date.now()) {
-          return token.name;
-        } else {
-          localStorage.removeItem("auth_token");
-          localStorage.removeItem("last_user");
-        }
-      }
-    } catch(e) {}
-    return null;
-  });
 
   const [now, setNow] = useState(() => new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 20000); return () => clearInterval(t); }, []);
@@ -1333,6 +1342,7 @@ export default function App() {
       const me = membersList.find((m) => m.name === user);
       if (me && (me.active === false || me.deleted)) {
         showToast(me.deleted ? "삭제 처리된 계정입니다." : "정지된 계정입니다. 관리자에게 문의하세요.");
+        if (auth) signOut(auth).catch(() => {});
         setUser(null);
         localStorage.removeItem("auth_token");
         localStorage.removeItem("last_user");
@@ -1963,11 +1973,11 @@ export default function App() {
   const [authPending, setAuthPending] = useState(null);
 
   useEffect(() => {
-    if (!user && !showSplash) {
+    if (authReady && !user && !showSplash) {
       setAuthMsg("서비스를 이용하려면 로그인이 필요합니다.");
       setAuthOpen(true);
     }
-  }, [user, showSplash]);
+  }, [authReady, user, showSplash]);
   
   // PWA & iOS install banner
   const [showIosBanner, setShowIosBanner] = useState(false);
@@ -2302,19 +2312,41 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
   function showToast(m) { setToast(m); setTimeout(() => setToast(null), 2600); }
 
   function requireAuth(fn, msg) { if (user) return fn(); setAuthMsg(msg || "계속하려면 로그인이 필요해요."); setAuthPending(() => fn); setAuthOpen(true); }
-      function doLogin(name) { 
-    setReservations((p) => p.map((r) => (r.owner === "나" ? { ...r, owner: name } : r))); 
-    setUser(name); 
-    localStorage.setItem("last_user", name);
-    const token = { name: name, exp: Date.now() + 30 * 24 * 60 * 60 * 1000 };
-    localStorage.setItem("auth_token", btoa(unescape(encodeURIComponent(JSON.stringify(token)))));
-    setAuthOpen(false); 
-    const meId = MEMBERS.find((m) => m.name === name)?.id;
-    if (meId) {
-      subscribeToWebPush(meId);
+  // Returns null on success, or a message to show in the login sheet.
+  async function doLogin(name, pin) {
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, pin })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.token) {
+        return data.message || "로그인에 실패했습니다. 잠시 후 다시 시도해주세요.";
+      }
+
+      // onAuthStateChanged sets `user` from the token's verified claims - the client
+      // does not get to decide who it is.
+      await signInWithCustomToken(auth, data.token);
+
+      setReservations((p) => p.map((r) => (r.owner === "나" ? { ...r, owner: data.name } : r)));
+      localStorage.setItem("last_user", data.name);
+      setAuthOpen(false);
+
+      const meId = MEMBERS.find((m) => m.name === data.name)?.id;
+      if (meId) subscribeToWebPush(meId);
+      return null;
+    } catch (e) {
+      console.error("Login failed:", e);
+      return "로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
     }
   }
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      if (auth) await signOut(auth);
+    } catch (e) {
+      console.error("Sign out failed:", e);
+    }
     setUser(null);
     localStorage.removeItem("auth_token");
     localStorage.removeItem("last_user");
