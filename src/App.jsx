@@ -22,6 +22,7 @@ import {
 import {
   pad, toMin, toHHMM, WEEK, keyOf, fmtK, addDays, dayOnly, sameDay, TIMES, getClosestTime
 } from "./utils/time";
+import { sendWindow } from "./utils/sendWindow";
 // Both collections are append-only logs that grow forever. Listening to them whole
 // means every page load re-reads the entire history, which is what exhausts the daily
 // Firestore read quota. Only the recent window is ever rendered - AdminDashboard looks
@@ -211,6 +212,14 @@ async function collectAttendeeSubscriptions(attendees, excludeEndpoint) {
 }
 
 async function sendPushNotification(title, body, attendees) {
+  // Outside the send window nothing goes out - not to attendees, and not to the
+  // sender's own screen either. The in-app toast still confirms the action.
+  const win = sendWindow();
+  if (!win.open) {
+    console.log('[push] 발송 시간이 아니라 건너뜁니다:', win.message);
+    return;
+  }
+
   // 1. Service Worker & Local Notification popup (Works on Mobile iOS/Android PWA & Desktop)
   if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
     if ('serviceWorker' in navigator) {
@@ -1702,52 +1711,9 @@ export default function App() {
     return () => unsub();
   }, [isAuthenticated]);
 
-  // Trigger ending notifications
-  useEffect(() => {
-    if (!isFirebaseConfigured || reservations.length === 0 || !user) return;
-    const todayKey = keyOf(new Date());
-    const nowM = now.getHours() * 60 + now.getMinutes();
-
-    reservations.forEach(async (r) => {
-      if (r.date !== todayKey || !r.start || !r.end) return;
-      const endM = toMin(r.end);
-      const startM = toMin(r.start);
-      if (nowM < startM || nowM >= endM) return; // Only process active meetings
-
-      const left = endM - nowM;
-      
-      const nextMeeting = reservations
-        .filter(nr => nr.roomId === r.roomId && nr.date === todayKey && nr.id !== r.id && toMin(nr.start) >= endM)
-        .sort((a, b) => toMin(a.start) - toMin(b.start))[0];
-      
-      let nextInfo = "";
-      if (nextMeeting && (toMin(nextMeeting.start) - endM <= 30)) {
-        nextInfo = ` (다음 예약: ${nextMeeting.start} ${nextMeeting.title})`;
-      }
-      
-      if (left === 1 && !r.notified1m) {
-        try {
-          await runTransaction(db, async (transaction) => {
-            const sfDocRef = doc(db, "reservations", r.id);
-            const sfDoc = await transaction.get(sfDocRef);
-            if (!sfDoc.exists() || sfDoc.data().notified1m) throw "Already notified";
-            transaction.update(sfDocRef, { notified1m: true });
-          });
-          const roomName = ROOMS.find(rm => rm.id === r.roomId)?.name || r.roomId;
-          const isPrinter = r.resourceId === 'bambu-1' || r.resourceId === 'bambu-2' || r.roomId === 'bambu-1' || r.roomId === 'bambu-2';
-          const isMeeting = !r.roomId || ['big', 'small', 'lounge', 'meeting-room'].includes(r.roomId);
-
-          let notifTitle = '⏱️ 사용 종료 1분 전입니다';
-          if (isPrinter) {
-            notifTitle = '⏱️ 3D 프린터 출력이 곧 완료됩니다!';
-          } else if (isMeeting) {
-            notifTitle = '⏱️ 회의 종료 1분 전입니다';
-          }
-          sendPushNotification(notifTitle, `[${roomName}] 이용 시간이 끝납니다.${nextInfo}`, Array.from(new Set([...(r.attendees || []), r.owner].filter(Boolean))));
-        } catch(e) {}
-      }
-    });
-  }, [now, reservations, user]);
+  // 종료 알림은 서버 리마인더(/api/cron)가 5분 전에 보냅니다. 예전에는 이 자리에서
+  // 브라우저 타이머가 1분 전 알림을 만들었는데, 참석자 중 누군가 앱을 켜두고 있어야만
+  // 동작했고 이제는 서버 알림과 겹치기만 해서 제거했습니다.
 
   useEffect(() => {
     if (!isFirebaseConfigured) return;
@@ -2112,11 +2078,8 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       
       showToast("댓글을 등록했습니다.");
       
-      const notifyIds = new Set(target.attendees || []);
-      const ownerId = MEMBERS.find(m => m.name === target.owner)?.id;
-      if (ownerId) notifyIds.add(ownerId);
-      
-      sendPushNotification('💬 새 댓글이 달렸어요', `${user}: ${text.trim()}`, [...Array.from(notifyIds), 'm_room']);
+      // 댓글 알림은 발송하지 않습니다. 댓글 한 건마다 참석자 전원에게 푸시가 가면
+      // 알림 피로가 빠르게 쌓여, 정작 중요한 알림까지 꺼버리게 됩니다.
     } catch (err) {
       console.error(err);
       showToast("댓글 등록 중 오류가 발생했습니다.");

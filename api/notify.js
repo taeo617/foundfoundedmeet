@@ -4,6 +4,7 @@ import webpush from 'web-push';
 import { Expo } from 'expo-server-sdk';
 import crypto from 'crypto';
 import { MEMBERS, FLOW_TEAM_KEYS } from './flowTeamKeys.js';
+import { sendWindow } from './sendWindow.js';
 
 function getDb() {
   if (!getApps().length) {
@@ -72,7 +73,6 @@ export default async function handler(req, res) {
       body: q.msg || '이 알림이 보이면 서버 푸시가 정상 동작합니다.',
       url: '/',
       attendees: String(q.send).split(',').map(v => v.trim()).filter(Boolean),
-      isRealtime: true,
     };
   }
 
@@ -155,29 +155,17 @@ export default async function handler(req, res) {
     }
     bodyObj = bodyObj || {};
 
-    const { title, body, url, attendees, isRealtime, directSubscription, excludeEndpoint, subscriptions } = bodyObj;
+    const { title, body, url, attendees, directSubscription, excludeEndpoint, subscriptions } = bodyObj;
 
-    const now = new Date();
-    const kstOffset = 9 * 60 * 60 * 1000;
-    const kstDate = new Date(now.getTime() + kstOffset);
-    const kstHour = kstDate.getUTCHours();
-    const kstDay = kstDate.getUTCDay();
-
-    // Cron reminders apply time restrictions; real-time user actions (isRealtime: true) skip quiet hours.
-    if (!isRealtime) {
-      if (kstDay === 0 || kstDay === 6) {
-        return res.status(200).json({ success: true, message: '주말에는 정기 알림이 전송되지 않습니다.' });
-      }
-
-      if (kstDay === 1) {
-        if (kstHour < 12 || kstHour >= 20) {
-          return res.status(200).json({ success: true, message: '월요일 정기 알림 전송 시간이 아닙니다. (낮 12시 ~ 오후 8시)' });
-        }
-      } else {
-        if (kstHour < 9 || kstHour >= 20) {
-          return res.status(200).json({ success: true, message: '정기 알림 전송 시간이 아닙니다. (오전 9시 ~ 오후 8시)' });
-        }
-      }
+    // Every notification obeys the send window - reminders and user actions alike.
+    // Anything raised outside it is dropped, never queued.
+    const win = sendWindow();
+    if (!win.open) {
+      return res.status(200).json({
+        success: true,
+        skipped: win.reason,
+        message: win.message,
+      });
     }
 
     let webTokens = [];
