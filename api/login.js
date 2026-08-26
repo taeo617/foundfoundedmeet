@@ -44,6 +44,56 @@ function pinMatches(input, expected) {
   return crypto.timingSafeEqual(a, b);
 }
 
+
+const CUSTOM_TOKEN_AUDIENCE =
+  'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit';
+
+function base64url(value) {
+  return Buffer.from(value)
+    .toString('base64')
+    .replace(/=+$/, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+}
+
+function servicePrivateKey() {
+  return (process.env.FIREBASE_PRIVATE_KEY || '')
+    .replace(/^"|"$/g, '')
+    .replace(/\\n/g, '\n')
+    .trim();
+}
+
+function createCustomToken(uid, claims) {
+  const clientEmail = (process.env.FIREBASE_CLIENT_EMAIL || '').trim();
+  const privateKey = servicePrivateKey();
+  if (!clientEmail || !privateKey) throw new Error('Service account credentials are missing.');
+
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const payload = {
+    iss: clientEmail,
+    sub: clientEmail,
+    aud: CUSTOM_TOKEN_AUDIENCE,
+    iat: now,
+    exp: now + 3600, // Firebase caps custom tokens at one hour.
+    uid: String(uid),
+    claims: claims || {},
+  };
+
+  const signingInput = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(payload))}`;
+  const signer = crypto.createSign('RSA-SHA256');
+  signer.update(signingInput);
+  signer.end();
+  const signature = signer
+    .sign(privateKey)
+    .toString('base64')
+    .replace(/=+$/, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+
+  return `${signingInput}.${signature}`;
+}
+
 const MAX_FAILURES = 8;
 const WINDOW_MS = 10 * 60 * 1000;
 
@@ -199,8 +249,7 @@ async function login(req, res) {
 
   try {
     if (gate.ref) await gate.ref.delete().catch(() => {});
-    const { getAuth } = await import('firebase-admin/auth');
-    const token = await getAuth().createCustomToken(uid, { name: displayName, role });
+    const token = createCustomToken(uid, { name: displayName, role });
     return res.status(200).json({ token, name: displayName, role, uid });
   } catch (e) {
     console.error('createCustomToken failed:', e);
