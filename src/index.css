@@ -616,6 +616,18 @@ body.onb-open .ov { z-index: 320 !important; }
   vertical-align: middle !important;
   margin-right: 4px !important;
 }
+/* 공지 배지. 가이드용 파란 .newtag 와 구분되도록 검정(다크모드에서는 반전)입니다. */
+.anntag {
+  display: inline-block !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  background: var(--text) !important;
+  color: var(--bg) !important;
+  padding: 1px 7px !important;
+  border-radius: 99px !important;
+  vertical-align: middle !important;
+  margin-right: 4px !important;
+}
 .ngo {
   margin-top: 8px !important;
   font-size: 11.5px !important;

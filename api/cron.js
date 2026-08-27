@@ -256,10 +256,11 @@ export default async function handler(req, res) {
       const cutoff = Date.now() - ANNOUNCE_DELAY_MS;
       annSnap.forEach((doc) => {
         const data = doc.data() || {};
+        const title = String(data.title || '').trim();
         const text = String(data.text || '').trim();
-        if (!text) return;
+        if (!title && !text) return;
         if (typeof data.createdAt !== 'number' || data.createdAt > cutoff) return;
-        pendingAnnouncements.push({ ref: doc.ref, text });
+        pendingAnnouncements.push({ ref: doc.ref, title, text });
       });
     } catch (e) {
       console.error('announcement query error:', e);
@@ -324,9 +325,15 @@ export default async function handler(req, res) {
         .catch((e) => console.error('announcement flag write error:', e));
 
       pendingAnnouncements.forEach((a) => {
+        // 불릿 표시용 "- " 는 알림 본문에서는 가운뎃점으로 바꿔 읽기 편하게 둡니다.
+        const body = (a.text || a.title)
+          .split('\n')
+          .map((line) => line.trim().replace(/^[-•*]\s+/, '· '))
+          .filter(Boolean)
+          .join(' ');
         jobs.push(post({
-          title: '📢 공지사항이 업데이트됐어요',
-          body: a.text.length > 120 ? `${a.text.slice(0, 120)}...` : a.text,
+          title: a.title ? `📢 ${a.title}` : '📢 공지사항이 업데이트됐어요',
+          body: body.length > 120 ? `${body.slice(0, 120)}...` : body,
           attendees: BROADCAST_TARGETS,
         }));
       });

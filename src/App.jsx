@@ -41,6 +41,24 @@ const windowStartKey = (days) => {
 
 const nid = () => `r_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
 
+// 공지 본문을 문단과 불릿으로 나눕니다. "- " 로 시작하는 줄만 불릿이 되고,
+// 나머지는 문단 그대로 둡니다. 연속된 같은 종류는 하나로 묶습니다.
+function annBlocks(text) {
+  const blocks = [];
+  String(text || '').split('\n').forEach((raw) => {
+    const line = raw.trim();
+    if (!line) return;
+    const isBullet = /^[-•*]\s+/.test(line);
+    const content = isBullet ? line.replace(/^[-•*]\s+/, '') : line;
+    if (!content) return;
+    const last = blocks[blocks.length - 1];
+    const type = isBullet ? 'list' : 'para';
+    if (last && last.type === type) last.items.push(content);
+    else blocks.push({ type, items: [content] });
+  });
+  return blocks;
+}
+
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "BLqCKTDBeszY0bUR8cDBThOpHkATpM4tZY9qu6zOlnKpDxQoRkCMKvkBxsivA1h0xDqdfVy_I9Yvs7U-6CzA1j4";
 
@@ -3005,12 +3023,13 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     }, "참석을 확인하려면 로그인이 필요해요.");
   };
 
-  const saveAnnouncement = async (text, id = null) => {
-    if (!text.trim()) return;
+  const saveAnnouncement = async (title, text, id = null) => {
+    if (!title.trim() && !text.trim()) return;
     const docId = id || nid();
     const prevAnn = id ? announcements.find(a => a.id === id) : null;
     const finalAnn = {
       id: docId,
+      title: title.trim(),
       text: text.trim(),
       createdAt: id ? (prevAnn?.createdAt || Date.now()) : Date.now(),
       // 등록하고 5분이 지나도 공지가 남아 있으면 서버(/api/cron)가 전원에게 알립니다.
@@ -3933,7 +3952,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                       </div>
                       {user === "admin" && !editingAnnouncement && (
                         <button 
-                          onClick={() => setEditingAnnouncement({ id: null, text: "" })}
+                          onClick={() => setEditingAnnouncement({ id: null, title: "", text: "" })}
                           className="text-[10px] font-bold text-[#2383E2] hover:underline cursor-pointer"
                         >
                           글쓰기
@@ -3944,16 +3963,23 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     {editingAnnouncement && (
                       <div className="pb-2 border-b space-y-2 mb-2" style={{ borderColor: C.border }}>
                         <h4 className="text-[10px] font-bold" style={{ color: C.muted }}>{editingAnnouncement.id ? "공지사항 수정" : "새 공지사항 등록"}</h4>
+                        <input
+                          value={editingAnnouncement.title}
+                          onChange={(e) => setEditingAnnouncement({ ...editingAnnouncement, title: e.target.value })}
+                          placeholder="제목"
+                          className="inp w-full rounded border p-2 text-[12px] font-bold outline-none bg-white"
+                          style={{ borderColor: C.border, color: C.text }}
+                        />
                         <textarea 
                           value={editingAnnouncement.text}
                           onChange={(e) => setEditingAnnouncement({ ...editingAnnouncement, text: e.target.value })}
-                          placeholder="공지사항 내용을 입력하세요..."
-                          className="inp w-full rounded border p-2 text-[11px] outline-none bg-white min-h-[50px] resize-none"
+                          placeholder={"설명을 입력하세요.\n- 로 줄을 시작하면 불릿으로 표시됩니다"}
+                          className="inp w-full rounded border p-2 text-[11px] outline-none bg-white min-h-[64px] resize-none"
                           style={{ borderColor: C.border, color: C.text }}
                         />
                         <div className="flex justify-end gap-1.5 text-[10px]">
                           <button onClick={() => setEditingAnnouncement(null)} className="lift rounded px-2 py-1 border font-semibold" style={{ borderColor: C.border, color: C.muted }}>취소</button>
-                          <button onClick={() => saveAnnouncement(editingAnnouncement.text, editingAnnouncement.id)} className="lift rounded px-2 py-1 text-white font-semibold" style={{ background: "#2383E2" }}>저장</button>
+                          <button onClick={() => saveAnnouncement(editingAnnouncement.title, editingAnnouncement.text, editingAnnouncement.id)} className="lift rounded px-2 py-1 text-white font-semibold" style={{ background: "#2383E2" }}>저장</button>
                         </div>
                       </div>
                     )}
@@ -3969,14 +3995,24 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                           minute: "2-digit"
                         });
                         return (
-                          <div key={a.id} className="p-2.5 rounded-lg border flex flex-col justify-between" style={{ borderColor: C.border, background: "var(--bg-secondary)" }}>
+                          <div key={a.id} className="p-3 rounded-xl border flex flex-col justify-between" style={{ borderColor: C.border, background: "var(--bg-secondary)" }}>
                             <div className="flex justify-between items-start gap-3">
-                              <div className="flex-1 text-[11px] font-medium leading-relaxed whitespace-pre-wrap break-all" style={{ color: C.text }}>
-                                {a.text}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 font-bold text-[13px] mb-1" style={{ color: C.text }}>
+                                  <span className="anntag">공지</span>
+                                  {a.title && <span className="break-all">{a.title}</span>}
+                                </div>
+                                {annBlocks(a.text).map((b, bi) => b.type === "list" ? (
+                                  <ul key={bi} className="chglist">
+                                    {b.items.map((it, ii) => <li key={ii}>{it}</li>)}
+                                  </ul>
+                                ) : (
+                                  <p key={bi} className="text-[12px] font-medium leading-normal mb-1 whitespace-pre-wrap break-all" style={{ color: C.muted }}>{b.items.join("\n")}</p>
+                                ))}
                               </div>
                               {user === "admin" && (
                                 <div className="flex gap-1 shrink-0 text-[9px] font-bold">
-                                  <button onClick={() => setEditingAnnouncement({ id: a.id, text: a.text })} className="text-blue-500 hover:underline cursor-pointer">수정</button>
+                                  <button onClick={() => setEditingAnnouncement({ id: a.id, title: a.title || "", text: a.text })} className="text-blue-500 hover:underline cursor-pointer">수정</button>
                                   <span className="opacity-20">|</span>
                                   <button onClick={() => deleteAnnouncement(a.id)} className="text-red-500 hover:underline cursor-pointer">삭제</button>
                                 </div>
@@ -4087,7 +4123,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                       </div>
                       {user === "admin" && !editingAnnouncement && (
                         <button 
-                          onClick={() => setEditingAnnouncement({ id: null, text: "" })}
+                          onClick={() => setEditingAnnouncement({ id: null, title: "", text: "" })}
                           className="text-[10px] font-bold text-[#2383E2] hover:underline cursor-pointer"
                         >
                           글쓰기
@@ -4098,16 +4134,23 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     {editingAnnouncement && (
                       <div className="pb-2 border-b space-y-2 mb-2 text-left" style={{ borderColor: C.border }}>
                         <h4 className="text-[10px] font-bold" style={{ color: C.muted }}>{editingAnnouncement.id ? "공지사항 수정" : "새 공지사항 등록"}</h4>
+                        <input
+                          value={editingAnnouncement.title}
+                          onChange={(e) => setEditingAnnouncement({ ...editingAnnouncement, title: e.target.value })}
+                          placeholder="제목"
+                          className="inp w-full rounded border p-2 text-[12px] font-bold outline-none bg-white"
+                          style={{ borderColor: C.border, color: C.text }}
+                        />
                         <textarea 
                           value={editingAnnouncement.text}
                           onChange={(e) => setEditingAnnouncement({ ...editingAnnouncement, text: e.target.value })}
-                          placeholder="공지사항 내용을 입력하세요..."
-                          className="inp w-full rounded border p-2 text-[11px] outline-none bg-white min-h-[50px] resize-none"
+                          placeholder={"설명을 입력하세요.\n- 로 줄을 시작하면 불릿으로 표시됩니다"}
+                          className="inp w-full rounded border p-2 text-[11px] outline-none bg-white min-h-[64px] resize-none"
                           style={{ borderColor: C.border, color: C.text }}
                         />
                         <div className="flex justify-end gap-1.5 text-[10px]">
                           <button onClick={() => setEditingAnnouncement(null)} className="lift rounded px-2 py-1 border font-semibold" style={{ borderColor: C.border, color: C.muted }}>취소</button>
-                          <button onClick={() => saveAnnouncement(editingAnnouncement.text, editingAnnouncement.id)} className="lift rounded px-2 py-1 text-white font-semibold" style={{ background: "#2383E2" }}>저장</button>
+                          <button onClick={() => saveAnnouncement(editingAnnouncement.title, editingAnnouncement.text, editingAnnouncement.id)} className="lift rounded px-2 py-1 text-white font-semibold" style={{ background: "#2383E2" }}>저장</button>
                         </div>
                       </div>
                     )}
@@ -4123,14 +4166,24 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                           minute: "2-digit"
                         });
                         return (
-                          <div key={a.id} className="p-2.5 rounded-lg border flex flex-col justify-between" style={{ borderColor: C.border, background: "var(--bg-secondary)" }}>
+                          <div key={a.id} className="p-3 rounded-xl border flex flex-col justify-between" style={{ borderColor: C.border, background: "var(--bg-secondary)" }}>
                             <div className="flex justify-between items-start gap-3">
-                              <div className="flex-1 text-[11px] font-medium leading-relaxed whitespace-pre-wrap break-all" style={{ color: C.text }}>
-                                {a.text}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 font-bold text-[13px] mb-1" style={{ color: C.text }}>
+                                  <span className="anntag">공지</span>
+                                  {a.title && <span className="break-all">{a.title}</span>}
+                                </div>
+                                {annBlocks(a.text).map((b, bi) => b.type === "list" ? (
+                                  <ul key={bi} className="chglist">
+                                    {b.items.map((it, ii) => <li key={ii}>{it}</li>)}
+                                  </ul>
+                                ) : (
+                                  <p key={bi} className="text-[12px] font-medium leading-normal mb-1 whitespace-pre-wrap break-all" style={{ color: C.muted }}>{b.items.join("\n")}</p>
+                                ))}
                               </div>
                               {user === "admin" && (
                                 <div className="flex gap-1 shrink-0 text-[9px] font-bold">
-                                  <button onClick={() => setEditingAnnouncement({ id: a.id, text: a.text })} className="text-blue-500 hover:underline cursor-pointer">수정</button>
+                                  <button onClick={() => setEditingAnnouncement({ id: a.id, title: a.title || "", text: a.text })} className="text-blue-500 hover:underline cursor-pointer">수정</button>
                                   <span className="opacity-20">|</span>
                                   <button onClick={() => deleteAnnouncement(a.id)} className="text-red-500 hover:underline cursor-pointer">삭제</button>
                                 </div>
