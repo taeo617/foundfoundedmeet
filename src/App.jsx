@@ -3009,10 +3009,15 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
   const saveAnnouncement = async (text, id = null) => {
     if (!text.trim()) return;
     const docId = id || nid();
+    const prevAnn = id ? announcements.find(a => a.id === id) : null;
     const finalAnn = {
       id: docId,
       text: text.trim(),
-      createdAt: id ? (announcements.find(a => a.id === id)?.createdAt || Date.now()) : Date.now()
+      createdAt: id ? (prevAnn?.createdAt || Date.now()) : Date.now(),
+      // 등록하고 5분이 지나도 공지가 남아 있으면 서버(/api/cron)가 전원에게 알립니다.
+      // 오타를 고치거나 5분 안에 지우면 알림이 나가지 않습니다. 수정은 기존 상태를
+      // 그대로 두므로, 이미 발송된 공지를 고쳐도 다시 알리지 않습니다.
+      notified: id ? (prevAnn?.notified ?? true) : false
     };
     
     if (isFirebaseConfigured) {
@@ -3955,6 +3960,34 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     )}
                     {/* Content List */}
                     <div className="sc overflow-y-auto flex-1 space-y-3 pr-1 text-left no-scrollbar">
+                      {/* Admin Announcements */}
+                      {announcements.map((a) => {
+                        const dateStr = new Date(a.createdAt).toLocaleString("ko-KR", {
+                          year: "numeric",
+                          month: "2-digit",
+                          day: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit"
+                        });
+                        return (
+                          <div key={a.id} className="p-2.5 rounded-lg border flex flex-col justify-between" style={{ borderColor: C.border, background: "var(--bg-secondary)" }}>
+                            <div className="flex justify-between items-start gap-3">
+                              <div className="flex-1 text-[11px] font-medium leading-relaxed whitespace-pre-wrap break-all" style={{ color: C.text }}>
+                                {a.text}
+                              </div>
+                              {user === "admin" && (
+                                <div className="flex gap-1 shrink-0 text-[9px] font-bold">
+                                  <button onClick={() => setEditingAnnouncement({ id: a.id, text: a.text })} className="text-blue-500 hover:underline cursor-pointer">수정</button>
+                                  <span className="opacity-20">|</span>
+                                  <button onClick={() => deleteAnnouncement(a.id)} className="text-red-500 hover:underline cursor-pointer">삭제</button>
+                                </div>
+                              )}
+                            </div>
+                            <div className="mt-2 text-[9px]" style={{ color: C.faint }}>{dateStr}</div>
+                          </div>
+                        );
+                      })}
+
                       {/* Update Notifications */}
                       {UPDATE_NOTES.map((n) => {
                         const isNew = !userGuideSeen.includes(n.guide);
@@ -3989,34 +4022,6 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                             >
                               가이드 보기 ›
                             </button>
-                          </div>
-                        );
-                      })}
-
-                      {/* Admin Announcements */}
-                      {announcements.map((a) => {
-                        const dateStr = new Date(a.createdAt).toLocaleString("ko-KR", {
-                          year: "numeric",
-                          month: "2-digit",
-                          day: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit"
-                        });
-                        return (
-                          <div key={a.id} className="p-2.5 rounded-lg border flex flex-col justify-between" style={{ borderColor: C.border, background: "var(--bg-secondary)" }}>
-                            <div className="flex justify-between items-start gap-3">
-                              <div className="flex-1 text-[11px] font-medium leading-relaxed whitespace-pre-wrap break-all" style={{ color: C.text }}>
-                                {a.text}
-                              </div>
-                              {user === "admin" && (
-                                <div className="flex gap-1 shrink-0 text-[9px] font-bold">
-                                  <button onClick={() => setEditingAnnouncement({ id: a.id, text: a.text })} className="text-blue-500 hover:underline cursor-pointer">수정</button>
-                                  <span className="opacity-20">|</span>
-                                  <button onClick={() => deleteAnnouncement(a.id)} className="text-red-500 hover:underline cursor-pointer">삭제</button>
-                                </div>
-                              )}
-                            </div>
-                            <div className="mt-2 text-[9px]" style={{ color: C.faint }}>{dateStr}</div>
                           </div>
                         );
                       })}
@@ -4109,6 +4114,34 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     )}
                     {/* Content List */}
                     <div className="sc overflow-y-auto flex-1 space-y-3 pr-1 text-left no-scrollbar">
+                      {/* Admin Announcements */}
+                      {announcements.map((a) => {
+                        const dateStr = new Date(a.createdAt).toLocaleString("ko-KR", {
+                          year: "numeric",
+                          month: "2-digit",
+                          day: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit"
+                        });
+                        return (
+                          <div key={a.id} className="p-2.5 rounded-lg border flex flex-col justify-between" style={{ borderColor: C.border, background: "var(--bg-secondary)" }}>
+                            <div className="flex justify-between items-start gap-3">
+                              <div className="flex-1 text-[11px] font-medium leading-relaxed whitespace-pre-wrap break-all" style={{ color: C.text }}>
+                                {a.text}
+                              </div>
+                              {user === "admin" && (
+                                <div className="flex gap-1 shrink-0 text-[9px] font-bold">
+                                  <button onClick={() => setEditingAnnouncement({ id: a.id, text: a.text })} className="text-blue-500 hover:underline cursor-pointer">수정</button>
+                                  <span className="opacity-20">|</span>
+                                  <button onClick={() => deleteAnnouncement(a.id)} className="text-red-500 hover:underline cursor-pointer">삭제</button>
+                                </div>
+                              )}
+                            </div>
+                            <div className="mt-2 text-[9px]" style={{ color: C.faint }}>{dateStr}</div>
+                          </div>
+                        );
+                      })}
+
                       {/* Update Notifications */}
                       {UPDATE_NOTES.map((n) => {
                         const isNew = !userGuideSeen.includes(n.guide);
@@ -4143,34 +4176,6 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                             >
                               가이드 보기 ›
                             </button>
-                          </div>
-                        );
-                      })}
-
-                      {/* Admin Announcements */}
-                      {announcements.map((a) => {
-                        const dateStr = new Date(a.createdAt).toLocaleString("ko-KR", {
-                          year: "numeric",
-                          month: "2-digit",
-                          day: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit"
-                        });
-                        return (
-                          <div key={a.id} className="p-2.5 rounded-lg border flex flex-col justify-between" style={{ borderColor: C.border, background: "var(--bg-secondary)" }}>
-                            <div className="flex justify-between items-start gap-3">
-                              <div className="flex-1 text-[11px] font-medium leading-relaxed whitespace-pre-wrap break-all" style={{ color: C.text }}>
-                                {a.text}
-                              </div>
-                              {user === "admin" && (
-                                <div className="flex gap-1 shrink-0 text-[9px] font-bold">
-                                  <button onClick={() => setEditingAnnouncement({ id: a.id, text: a.text })} className="text-blue-500 hover:underline cursor-pointer">수정</button>
-                                  <span className="opacity-20">|</span>
-                                  <button onClick={() => deleteAnnouncement(a.id)} className="text-red-500 hover:underline cursor-pointer">삭제</button>
-                                </div>
-                              )}
-                            </div>
-                            <div className="mt-2 text-[9px]" style={{ color: C.faint }}>{dateStr}</div>
                           </div>
                         );
                       })}

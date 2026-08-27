@@ -26,6 +26,15 @@ const ROOM_ACCOUNT_ID = 'm_room';
 const ROOM_ACCOUNT_NAME = '회의실';
 const ROOM_ACCOUNT_ROOM = 'big';
 
+// 공지사항은 등록하고 5분이 지나도 살아 있을 때만 전원에게 알립니다. 오타를 고치거나
+// 잘못 올려 바로 지운 공지 때문에 열몇 명에게 푸시가 나가는 일을 막는 유예 시간입니다.
+const ANNOUNCE_DELAY_MS = 5 * 60 * 1000;
+
+// 공지 수신 대상. 회의실 화면 / 게스트 / 클라이언트 계정은 제외합니다.
+const BROADCAST_TARGETS = MEMBERS
+  .map((m) => m.id)
+  .filter((id) => !['m_guest', 'm_client', 'm_room'].includes(id));
+
 // "이어서 다음 일정이 있어요" 로 안내할 최대 공백. 두 시간 뒤 일정을 "이어서" 라고
 // 부르면 지금 당장 비켜야 하는 것처럼 읽혀서 오해를 부릅니다.
 const NEXT_GAP_MINUTES = 30;
@@ -239,6 +248,23 @@ export default async function handler(req, res) {
       set.delete(ROOM_ACCOUNT_NAME);
     });
 
+    // 등록 5분이 지난 미발송 공지를 모읍니다. notified 필드가 아예 없는 옛 공지는
+    // '== false' 에 걸리지 않으므로, 예전 공지가 뒤늦게 전원에게 나갈 일은 없습니다.
+    const pendingAnnouncements = [];
+    try {
+      const annSnap = await db.collection('announcements').where('notified', '==', false).get();
+      const cutoff = Date.now() - ANNOUNCE_DELAY_MS;
+      annSnap.forEach((doc) => {
+        const data = doc.data() || {};
+        const text = String(data.text || '').trim();
+        if (!text) return;
+        if (typeof data.createdAt !== 'number' || data.createdAt > cutoff) return;
+        pendingAnnouncements.push({ ref: doc.ref, text });
+      });
+    } catch (e) {
+      console.error('announcement query error:', e);
+    }
+
     // The daily digest fires on the first run of the day inside the send window.
     let sendMorning = false;
     try {
@@ -252,7 +278,7 @@ export default async function handler(req, res) {
       console.error('digest state error:', e);
     }
 
-    if (!startingPeople.size && !endingPeople.size && !sendMorning && !roomAccountMessages.length) {
+    if (!startingPeople.size && !endingPeople.size && !sendMorning && !roomAccountMessages.length && !pendingAnnouncements.length) {
       return res.status(200).json({ success: true, message: 'No reminders due.', nowMin, meetings: meetings.length });
     }
 
@@ -292,6 +318,20 @@ export default async function handler(req, res) {
       jobs.push(post({ ...msg, attendees: [ROOM_ACCOUNT_ID] }));
     });
 
+    if (pendingAnnouncements.length > 0) {
+      // 보내기 전에 먼저 표시합니다. 다음 회차가 겹쳐 돌아도 같은 공지가 두 번 나가지 않습니다.
+      await Promise.all(pendingAnnouncements.map((a) => a.ref.update({ notified: true })))
+        .catch((e) => console.error('announcement flag write error:', e));
+
+      pendingAnnouncements.forEach((a) => {
+        jobs.push(post({
+          title: '📢 공지사항이 업데이트됐어요',
+          body: a.text.length > 120 ? `${a.text.slice(0, 120)}...` : a.text,
+          attendees: BROADCAST_TARGETS,
+        }));
+      });
+    }
+
     if (sendMorning) {
       jobs.push(post({
         title: '📅 오늘 예정된 일정이 있어요',
@@ -308,6 +348,7 @@ export default async function handler(req, res) {
       starting: startingPeople.size,
       ending: endingPeople.size,
       roomAccount: roomAccountMessages.length,
+      announcements: pendingAnnouncements.length,
       digest: sendMorning,
       results,
     });
