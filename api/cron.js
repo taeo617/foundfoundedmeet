@@ -8,16 +8,27 @@ import { sendWindow } from './sendWindow.js';
  * scheduler (cron-job.org), because Vercel's Hobby plan only allows one cron
  * run per day.
  *
- *   시작 5분 전   회의가 곧 시작됩니다
- *   종료 5분 전   자리를 비워주세요
- *   오늘 일정      그날 첫 발송 가능 시각에 한 번
+ *   시작 5분 전   회의가 곧 시작됩니다        → 참석자 + 등록자
+ *   종료 5분 전   자리를 비워주세요            → 참석자 + 등록자
+ *   종료 5분 전   (큰 회의실 한정)             → 회의실 계정, 다음 일정까지 안내
+ *   오늘 일정      그날 첫 발송 가능 시각에 한 번 → 그날 일정이 있는 사람 전원
  *
- * Every reservation carries a flag once notified, so a scheduler that fires
+ * Every meeting carries a flag once notified, so a scheduler that fires
  * twice - or a run that overlaps the next one - cannot send the same reminder
  * again.
  */
 
 const LEAD_MINUTES = 5;
+
+// 회의실 계정은 큰 회의실에 걸어둔 화면 전용입니다. 종료 5분 전 알림 하나만 받고
+// 시작 알림 / 오늘 일정 요약 / 예약 등록·변경 알림은 받지 않습니다.
+const ROOM_ACCOUNT_ID = 'm_room';
+const ROOM_ACCOUNT_NAME = '회의실';
+const ROOM_ACCOUNT_ROOM = 'big';
+
+// "이어서 다음 일정이 있어요" 로 안내할 최대 공백. 두 시간 뒤 일정을 "이어서" 라고
+// 부르면 지금 당장 비켜야 하는 것처럼 읽혀서 오해를 부릅니다.
+const NEXT_GAP_MINUTES = 30;
 
 function getDb() {
   if (!getApps().length) {
@@ -46,6 +57,7 @@ function getDb() {
 
 const pad = (n) => String(n).padStart(2, '0');
 const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
+const toHHMM = (min) => `${pad(Math.floor((min % 1440) / 60))}:${pad(min % 60)}`;
 const keyOf = (d) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 
 const ROOM_NAMES = {
@@ -73,6 +85,67 @@ function collectPeople(set, data) {
   addIdentifiers(set, data.owner);
   addIdentifiers(set, data.who);
   addIdentifiers(set, data.userId);
+}
+
+/*
+ * 예약 한 건은 30분짜리 슬롯 문서 여러 개로 쪼개져 저장되고, groupId 로 묶여 있습니다.
+ * 슬롯을 그대로 두고 판단하면 두 시간짜리 회의에 시작 알림이 네 번, 종료 알림이 네 번
+ * 나갑니다. 그래서 알림을 판단하기 전에 groupId 로 다시 하나의 회의로 합칩니다.
+ *
+ * 대표 문서는 가장 이른 슬롯입니다. 알림 발송 플래그도 이 문서에만 씁니다.
+ */
+export function groupIntoMeetings(snapshot) {
+  const meetings = new Map();
+
+  snapshot.forEach((doc) => {
+    const data = doc.data() || {};
+    if (data.status === 'cancelled') return;
+    if (!data.start || !data.end) return;
+
+    const key = data.groupId || doc.id;
+    const startMin = toMin(data.start);
+    let endMin = toMin(data.end);
+    // 자정에 끝나는 슬롯은 end 가 "00:00" 으로 저장되어 0 이 됩니다.
+    if (endMin <= startMin) endMin += 1440;
+
+    const existing = meetings.get(key);
+    if (!existing) {
+      meetings.set(key, {
+        key,
+        data,
+        ref: doc.ref,
+        startMin,
+        endMin,
+        roomId: data.roomId || data.resourceId || null,
+        title: data.title || '일정',
+      });
+      return;
+    }
+
+    if (startMin < existing.startMin) {
+      existing.startMin = startMin;
+      existing.data = data;
+      existing.ref = doc.ref;
+      existing.roomId = data.roomId || data.resourceId || existing.roomId;
+      existing.title = data.title || existing.title;
+    }
+    if (endMin > existing.endMin) existing.endMin = endMin;
+  });
+
+  return Array.from(meetings.values());
+}
+
+// 같은 공간에서 이 회의가 끝난 직후에 시작하는 회의. 공백이 NEXT_GAP_MINUTES 를
+// 넘으면 "이어서" 가 아니므로 없는 것으로 봅니다.
+export function findNextMeeting(meetings, roomId, endMin, excludeKey) {
+  if (!roomId) return null;
+  const candidates = meetings
+    .filter((m) => m.roomId === roomId && m.key !== excludeKey && m.startMin >= endMin)
+    .sort((a, b) => a.startMin - b.startMin);
+  const next = candidates[0];
+  if (!next) return null;
+  if (next.startMin - endMin > NEXT_GAP_MINUTES) return null;
+  return next;
 }
 
 export default async function handler(req, res) {
@@ -119,6 +192,7 @@ export default async function handler(req, res) {
 
     const resRef = db.collection('reservations');
     const snapshot = await resRef.where('date', '==', todayStr).get();
+    const meetings = groupIntoMeetings(snapshot);
 
     const startingPeople = new Set();
     const endingPeople = new Set();
@@ -126,27 +200,43 @@ export default async function handler(req, res) {
     const startingLabels = [];
     const endingLabels = [];
     const flagWrites = [];
+    // 회의실 계정은 회의마다 다음 일정 안내가 달라지므로 한 건씩 따로 보냅니다.
+    const roomAccountMessages = [];
 
-    snapshot.forEach((doc) => {
-      const data = doc.data() || {};
-      if (data.status === 'cancelled') return;
-      if (!data.start || !data.end) return;
-
+    meetings.forEach((meeting) => {
+      const data = meeting.data;
       collectPeople(morningPeople, data);
 
-      const startDelta = toMin(data.start) - nowMin;
+      const startDelta = meeting.startMin - nowMin;
       if (startDelta >= 0 && startDelta <= LEAD_MINUTES && !data.notifiedStart) {
         collectPeople(startingPeople, data);
-        startingLabels.push(`[${roomName(data.roomId || data.resourceId)}] ${data.title || '일정'}`);
-        flagWrites.push(doc.ref.update({ notifiedStart: true }));
+        startingLabels.push(`[${roomName(meeting.roomId)}] ${meeting.title}`);
+        flagWrites.push(meeting.ref.update({ notifiedStart: true }));
       }
 
-      const endDelta = toMin(data.end) - nowMin;
+      const endDelta = meeting.endMin - nowMin;
       if (endDelta >= 0 && endDelta <= LEAD_MINUTES && !data.notifiedEnd) {
         collectPeople(endingPeople, data);
-        endingLabels.push(roomName(data.roomId || data.resourceId));
-        flagWrites.push(doc.ref.update({ notifiedEnd: true }));
+        endingLabels.push(roomName(meeting.roomId));
+        flagWrites.push(meeting.ref.update({ notifiedEnd: true }));
+
+        if (meeting.roomId === ROOM_ACCOUNT_ROOM) {
+          const next = findNextMeeting(meetings, meeting.roomId, meeting.endMin, meeting.key);
+          roomAccountMessages.push({
+            title: `⏰ ${roomName(meeting.roomId)} 종료 5분 전`,
+            body: next
+              ? `5분 후 종료됩니다. 이어서 ${toHHMM(next.startMin)}부터 '${next.title}' 일정이 예정되어 있어요.`
+              : '5분 후 종료됩니다.',
+          });
+        }
       }
+    });
+
+    // 회의실 계정은 위에서 만든 전용 알림만 받습니다. 참석자 명단에 섞여 들어왔더라도
+    // 시작 / 종료 / 오늘 일정 알림에서는 빼둡니다.
+    [startingPeople, endingPeople, morningPeople].forEach((set) => {
+      set.delete(ROOM_ACCOUNT_ID);
+      set.delete(ROOM_ACCOUNT_NAME);
     });
 
     // The daily digest fires on the first run of the day inside the send window.
@@ -162,8 +252,8 @@ export default async function handler(req, res) {
       console.error('digest state error:', e);
     }
 
-    if (!startingPeople.size && !endingPeople.size && !sendMorning) {
-      return res.status(200).json({ success: true, message: 'No reminders due.', nowMin });
+    if (!startingPeople.size && !endingPeople.size && !sendMorning && !roomAccountMessages.length) {
+      return res.status(200).json({ success: true, message: 'No reminders due.', nowMin, meetings: meetings.length });
     }
 
     // Claim the flags before sending so a duplicate run cannot resend.
@@ -198,6 +288,10 @@ export default async function handler(req, res) {
       }));
     }
 
+    roomAccountMessages.forEach((msg) => {
+      jobs.push(post({ ...msg, attendees: [ROOM_ACCOUNT_ID] }));
+    });
+
     if (sendMorning) {
       jobs.push(post({
         title: '📅 오늘 예정된 일정이 있어요',
@@ -210,8 +304,10 @@ export default async function handler(req, res) {
     res.status(200).json({
       success: true,
       nowMin,
+      meetings: meetings.length,
       starting: startingPeople.size,
       ending: endingPeople.size,
+      roomAccount: roomAccountMessages.length,
       digest: sendMorning,
       results,
     });
