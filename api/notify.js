@@ -115,6 +115,21 @@ export default async function handler(req, res) {
       }
 
       if (db) {
+        // 스케줄러가 살아 있는지 - 마지막으로 /api/cron 이 호출된 시각
+        try {
+          const st = await db.collection('_cronState').doc('daily').get();
+          const data = st.exists ? st.data() : {};
+          const last = data.lastRunAt && data.lastRunAt.toMillis ? data.lastRunAt.toMillis() : null;
+          payload.diag.scheduler = {
+            lastRunAt: last ? new Date(last).toISOString() : null,
+            minutesAgo: last ? Math.round((Date.now() - last) / 60000) : null,
+            lastDigestDate: data.lastDigestDate || null,
+            alive: last ? (Date.now() - last) < 15 * 60 * 1000 : false,
+          };
+        } catch (e) {
+          payload.diag.scheduler = { error: String(e && e.message).slice(0, 120) };
+        }
+
         try {
           const snap = await db.collection('users').limit(50).get();
           payload.diag.userDocCount = snap.size;

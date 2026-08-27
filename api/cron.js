@@ -1,5 +1,5 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { MEMBERS } from './flowTeamKeys.js';
 import { sendWindow } from './sendWindow.js';
 
@@ -93,14 +93,24 @@ export default async function handler(req, res) {
   }
 
   try {
-    const win = sendWindow();
-    if (!win.open) {
-      return res.status(200).json({ success: true, skipped: win.reason, message: win.message });
-    }
-
     const db = getDb();
     if (!db) {
       return res.status(200).json({ success: false, message: 'Server DB Admin not initialized.' });
+    }
+
+    // Heartbeat. Recorded on every call - including calls skipped for quiet hours -
+    // so it is always possible to tell whether the scheduler is actually alive.
+    // Without this, a scheduler that quietly stopped looks identical to a quiet day.
+    const stateRef = db.collection('_cronState').doc('daily');
+    try {
+      await stateRef.set({ lastRunAt: FieldValue.serverTimestamp() }, { merge: true });
+    } catch (e) {
+      console.error('heartbeat write failed:', e);
+    }
+
+    const win = sendWindow();
+    if (!win.open) {
+      return res.status(200).json({ success: true, skipped: win.reason, message: win.message });
     }
 
     const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
@@ -140,7 +150,6 @@ export default async function handler(req, res) {
     });
 
     // The daily digest fires on the first run of the day inside the send window.
-    const stateRef = db.collection('_cronState').doc('daily');
     let sendMorning = false;
     try {
       const stateSnap = await stateRef.get();
