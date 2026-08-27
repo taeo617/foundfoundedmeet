@@ -3998,9 +3998,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                           <div key={a.id} className="p-3 rounded-xl border flex flex-col justify-between" style={{ borderColor: C.border, background: "var(--bg-secondary)" }}>
                             <div className="flex justify-between items-start gap-3">
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5 font-bold text-[13px] mb-1" style={{ color: C.text }}>
+                                <div className="font-bold text-[13px] mb-1 leading-snug break-all" style={{ color: C.text }}>
                                   <span className="anntag">공지</span>
-                                  {a.title && <span className="break-all">{a.title}</span>}
+                                  {a.title}
                                 </div>
                                 {annBlocks(a.text).map((b, bi) => b.type === "list" ? (
                                   <ul key={bi} className="chglist">
@@ -4169,9 +4169,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                           <div key={a.id} className="p-3 rounded-xl border flex flex-col justify-between" style={{ borderColor: C.border, background: "var(--bg-secondary)" }}>
                             <div className="flex justify-between items-start gap-3">
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5 font-bold text-[13px] mb-1" style={{ color: C.text }}>
+                                <div className="font-bold text-[13px] mb-1 leading-snug break-all" style={{ color: C.text }}>
                                   <span className="anntag">공지</span>
-                                  {a.title && <span className="break-all">{a.title}</span>}
+                                  {a.title}
                                 </div>
                                 {annBlocks(a.text).map((b, bi) => b.type === "list" ? (
                                   <ul key={bi} className="chglist">

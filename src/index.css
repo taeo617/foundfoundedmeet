@@ -627,6 +627,8 @@ body.onb-open .ov { z-index: 320 !important; }
   border-radius: 99px !important;
   vertical-align: middle !important;
   margin-right: 4px !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
 }
 .ngo {
   margin-top: 8px !important;
