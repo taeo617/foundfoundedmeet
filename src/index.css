@@ -243,8 +243,8 @@ body, header, section, .sheet, .cell, input, select, button {
   overflow: hidden;
   opacity: 1;
   visibility: visible;
-  transition: opacity 0.5s cubic-bezier(0.25, 1, 0.5, 1),
-              visibility 0.5s;
+  transition: opacity 0.35s cubic-bezier(0.25, 1, 0.5, 1),
+              visibility 0.35s;
 }
 
 .splash-container.fade-out {
@@ -317,20 +317,21 @@ body, header, section, .sheet, .cell, input, select, button {
   to { opacity: 1; }
 }
 
-/* 타자기 효과 딜레이 설정 (1.5배 단축) */
-.del-1 { animation-delay: 0.06s; }
-.del-2 { animation-delay: 0.12s; }
-.del-3 { animation-delay: 0.18s; }
-.del-4 { animation-delay: 0.24s; }
-.del-5 { animation-delay: 0.30s; }
-.del-6 { animation-delay: 0.36s; }
-.del-7 { animation-delay: 0.44s; }
-.del-8 { animation-delay: 0.50s; }
-.del-9 { animation-delay: 0.56s; }
-.del-10 { animation-delay: 0.62s; }
-.del-11 { animation-delay: 0.68s; }
-.del-12 { animation-delay: 0.74s; }
-.del-13 { animation-delay: 0.80s; }
+/* 타자기 효과 딜레이. 마지막 글자가 0.53초에 찍히고, JS가 0.9초에 페이드를 시작합니다.
+   둘 중 하나만 바꾸면 글자가 다 나오기 전에 사라지거나 빈 화면이 길어집니다. */
+.del-1 { animation-delay: 0.04s; }
+.del-2 { animation-delay: 0.08s; }
+.del-3 { animation-delay: 0.12s; }
+.del-4 { animation-delay: 0.16s; }
+.del-5 { animation-delay: 0.20s; }
+.del-6 { animation-delay: 0.24s; }
+.del-7 { animation-delay: 0.29s; }
+.del-8 { animation-delay: 0.33s; }
+.del-9 { animation-delay: 0.37s; }
+.del-10 { animation-delay: 0.41s; }
+.del-11 { animation-delay: 0.45s; }
+.del-12 { animation-delay: 0.49s; }
+.del-13 { animation-delay: 0.53s; }
 
 /* Hide scrollbar for Chrome, Safari/* hide scrollbars */
 .no-scrollbar::-webkit-scrollbar {

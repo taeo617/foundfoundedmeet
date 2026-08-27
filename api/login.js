@@ -173,6 +173,16 @@ async function login(req, res) {
     req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || 'unknown'
   ).split(',')[0].trim();
 
+  // 잠금 검사와 계정 상태 조회는 서로 무관하므로 동시에 던집니다.
+  // 순차로 돌리면 콜드스타트에 왕복 한 번이 그대로 더해집니다.
+  const lower0 = rawName.toLowerCase();
+  const memberForStatus = (lower0 === 'admin' || lower0 === 'guest')
+    ? null
+    : MEMBERS.find((m) => m.name === rawName);
+  const statusPromise = memberForStatus
+    ? db.collection('users').doc(memberForStatus.id).get().catch(() => null)
+    : Promise.resolve(null);
+
   const gate = await throttle(db, ip);
   if (gate.blocked) {
     return res.status(429).json({
@@ -220,10 +230,10 @@ async function login(req, res) {
       return res.status(401).json({ error: 'unknown_member', message: '등록되지 않은 멤버 이름입니다.' });
     }
     // The Firestore user document is the source of truth for suspension/deletion,
-    // so a blocked account cannot log in by editing the client.
+    // so a blocked account cannot log in by editing the client. (already in flight)
     try {
-      const snap = await db.collection('users').doc(member.id).get();
-      const data = snap.exists ? snap.data() : {};
+      const snap = await statusPromise;
+      const data = snap && snap.exists ? snap.data() : {};
       const suspended = data.active === false || data.deleted === true || member.inactive === true;
       if (suspended) {
         return res.status(403).json({ error: 'account_disabled', message: '해당 계정은 사용할 수 없습니다. 관리자에게 문의해주세요.' });

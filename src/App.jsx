@@ -657,17 +657,24 @@ function Dashboard({ month, setMonth, roomF, setRoomF, now, reservations, onSele
 /* ===================== splash screen ===================== */
 function SplashScreen({ onComplete }) {
   const [fade, setFade] = useState(false);
+  // 호출부가 인라인 화살표 함수를 넘기기 때문에 App이 리렌더될 때마다 onComplete의
+  // 정체성이 바뀝니다. 이걸 의존성에 두면 타이머가 매번 처음부터 다시 시작되어
+  // 스플래시가 영영 끝나지 않습니다. ref로 최신 콜백만 들고 의존성은 비웁니다.
+  const doneRef = useRef(onComplete);
+  doneRef.current = onComplete;
 
   useEffect(() => {
-    // 로고와 자막이 나온 후 약 1.5초 대기 후 진입 (총 2350ms)
+    let fadeTimer;
+    // 마지막 글자가 0.53초에 찍힙니다. 0.9초까지 잠깐 머문 뒤 페이드아웃 —
+    // 전체 1.25초. 페이드 350ms는 index.css의 transition 값과 반드시 같아야 합니다.
     const timer = setTimeout(() => {
       setFade(true);
-      setTimeout(() => {
-        onComplete();
-      }, 500); // CSS opacity transition duration
-    }, 2350);
-    return () => clearTimeout(timer);
-  }, [onComplete]);
+      fadeTimer = setTimeout(() => {
+        doneRef.current();
+      }, 350);
+    }, 900);
+    return () => { clearTimeout(timer); clearTimeout(fadeTimer); };
+  }, []);
 
   return (
     <div className={`splash-container ${fade ? "fade-out" : ""}`}>
@@ -1189,7 +1196,9 @@ export default function App() {
         return;
       }
       try {
-        const result = await fbUser.getIdTokenResult(true);
+        // 방금 발급받은 토큰이라 강제 갱신할 이유가 없습니다. true를 주면 구글까지
+        // 왕복이 한 번 더 생겨 로그인 체감 속도만 느려집니다.
+        const result = await fbUser.getIdTokenResult();
         const claimName = result?.claims?.name;
         if (!claimName) {
           // A session without our claims (a leftover anonymous one, say) is not a
