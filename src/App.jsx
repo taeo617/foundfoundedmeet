@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useRef, forwardRef } from "react";
 import { collection, query, where, Timestamp, onSnapshot, doc, getDoc, setDoc, addDoc, deleteDoc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, runTransaction, writeBatch, deleteField } from "firebase/firestore";
 import { db, auth, isFirebaseConfigured } from "./firebase";
 import HistorySearch from "./screens/HistorySearch";
-import AdminDashboard from "./screens/AdminDashboard";
 import OnboardingGuide from "./screens/OnboardingGuide";
 import MyPage from "./screens/MyPage";
 import { signInWithCustomToken, signOut } from "firebase/auth";
@@ -10,7 +9,7 @@ import {
   Calendar, CalendarDays, Clock, Users, Monitor, Video, Plus, X, Check,
   CheckCircle2, Repeat, AlertCircle, ChevronLeft, ChevronRight, ChevronDown, Trash2, Play, Square,
   Building2, List, LogOut, Lock, User, UserPlus, GripVertical, LogIn,
-  LayoutDashboard, HelpCircle, Sun, Moon, Download, FileText, Bell, Grid, ArrowUp, BarChart3,
+  LayoutDashboard, HelpCircle, Sun, Moon, Download, FileText, Bell, Grid, ArrowUp,
 } from "lucide-react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
@@ -25,8 +24,8 @@ import {
 import { sendWindow } from "./utils/sendWindow";
 // Both collections are append-only logs that grow forever. Listening to them whole
 // means every page load re-reads the entire history, which is what exhausts the daily
-// Firestore read quota. Only the recent window is ever rendered - AdminDashboard looks
-// back 3 months, everything else looks at today.
+// Firestore read quota. Only the recent window is ever rendered - 사용 기록이 가장 멀리
+// 거슬러 올라가고, 나머지 화면은 오늘 근처만 봅니다.
 const RESERVATION_WINDOW_DAYS = 180;
 const SESSION_WINDOW_DAYS = 120;
 const windowStartDate = (days) => {
@@ -3803,7 +3802,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
 
   const NAV = user 
     ? (user === "admin" 
-       ? [["book", "예약", CalendarDays], ["history", "사용 기록", List], ["admin", "멤버 관리", Users], ["stats", "관리자 통계", BarChart3]]
+       ? [["book", "예약", CalendarDays], ["history", "사용 기록", List], ["admin", "멤버 관리", Users]]
        : [["book", "예약", CalendarDays], ["history", "사용 기록", List]])
     : [["book", "예약", CalendarDays]];
 
@@ -4393,9 +4392,6 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             handleDeleteMember={handleDeleteMember}
             Avatar={(props) => <Avatar {...props} dbProfiles={dbProfiles} />}
           />
-        )}
-        {section === "stats" && user === "admin" && (
-          <AdminDashboard sessions={sessions} reservations={reservations} now={now} resources={ROOMS} />
         )}
       </main>
 
