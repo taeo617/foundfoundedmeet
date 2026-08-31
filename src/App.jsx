@@ -1752,36 +1752,50 @@ export default function App() {
   }, [reservations, now]);
 
   // 노쇼 방지 (Auto-Cancel)
+  //
+  // 예전 코드에는 두 가지 문제가 있었습니다.
+  //  1) `!sessions.length` 로 통째로 잠들어 있다가, 누군가 처음 체크인하는 순간 깨어나
+  //     그때까지 쌓인 예약을 한꺼번에 훑어 취소했습니다.
+  //  2) "시작 후 10분 경과" 만 보고 종료 여부를 보지 않아, 이미 끝난 몇 시간 전 예약까지
+  //     취소 대상이 됐습니다.
+  // 그래서 아직 진행 중인 예약만, 그것도 유예 시간 안에서만 취소합니다.
   useEffect(() => {
-    if (!resources.length || !reservations.length || !sessions.length) return;
-    
-    const interval = setInterval(() => {
+    if (!resources.length || !reservations.length) return;
+
+    const sweep = () => {
       const currentTime = new Date();
       reservations.forEach(r => {
         if (r.status !== 'booked') return;
-        
+
         const resPolicy = resources.find(res => res.id === (r.resourceId || 'meeting-room'))?.policy;
         if (!resPolicy || !resPolicy.autoCancelMinutes) return;
-        
+
         const [y, m, d] = r.date.split('-').map(Number);
-        const [hh, mm] = r.start.split(':').map(Number);
-        const startDt = new Date(y, m - 1, d, hh, mm);
-        
+        const [sh, sm] = r.start.split(':').map(Number);
+        const [eh, em] = r.end.split(':').map(Number);
+        const startDt = new Date(y, m - 1, d, sh, sm);
+        let endDt = new Date(y, m - 1, d, eh, em);
+        if (endDt <= startDt) endDt = new Date(endDt.getTime() + 24 * 60 * 60 * 1000);
+
+        // 이미 끝난 예약은 건드리지 않습니다. 지난 일정은 기록이지 노쇼가 아닙니다.
+        if (currentTime >= endDt) return;
+
         const elapsedMins = (currentTime - startDt) / (1000 * 60);
-        if (elapsedMins > resPolicy.autoCancelMinutes) {
-          const hasSession = sessions.some(s => s.reservationId === r.id);
-          if (!hasSession) {
-            if (r._slots) {
-              const batch = writeBatch(db);
-              r._slots.forEach(slotId => batch.update(doc(db, "reservations", slotId), { status: 'cancelled' }));
-              batch.commit().catch(console.error);
-            } else {
-              updateDoc(doc(db, "reservations", r.id), { status: 'cancelled' }).catch(console.error);
-            }
-          }
+        if (elapsedMins <= resPolicy.autoCancelMinutes) return;
+
+        if (sessions.some(s => s.reservationId === r.id)) return;
+
+        if (r._slots) {
+          const batch = writeBatch(db);
+          r._slots.forEach(slotId => batch.update(doc(db, "reservations", slotId), { status: 'cancelled' }));
+          batch.commit().catch(console.error);
+        } else {
+          updateDoc(doc(db, "reservations", r.id), { status: 'cancelled' }).catch(console.error);
         }
       });
-    }, 60000);
+    };
+
+    const interval = setInterval(sweep, 60000);
     return () => clearInterval(interval);
   }, [resources, reservations, sessions]);
 
