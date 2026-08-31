@@ -43,6 +43,19 @@ const nid = () => `r_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
 
 // 공지 본문을 문단과 불릿으로 나눕니다. "- " 로 시작하는 줄만 불릿이 되고,
 // 나머지는 문단 그대로 둡니다. 연속된 같은 종류는 하나로 묶습니다.
+// 이미 끝난 일정인지. 지난 예약의 제목을 고치거나 정리하는 일이 흔한데, 그때마다
+// 참석자 전원에게 "일정이 변경됐어요" 가 나가면 알림 피로만 쌓입니다.
+export function isPastReservation(dateKey, startHHMM, endHHMM, at = new Date()) {
+  if (!dateKey || !startHHMM || !endHHMM) return false;
+  const todayKey = keyOf(at);
+  if (dateKey < todayKey) return true;
+  if (dateKey > todayKey) return false;
+  const startMin = toMin(startHHMM);
+  let endMin = toMin(endHHMM);
+  if (endMin <= startMin) endMin += 1440;   // 자정을 넘겨 끝나는 일정
+  return (at.getHours() * 60 + at.getMinutes()) >= endMin;
+}
+
 // 리마인더 발송 플래그를 슬롯에 미리 찍습니다. true = "이미 처리됨, 보내지 않음".
 //
 // 두 가지를 막습니다.
@@ -1717,6 +1730,27 @@ export default function App() {
     return allReservations.filter(r => r.status !== 'cancelled' && !r.title?.includes('Test Concurrency'));
   }, [allReservations]);
 
+  // 지금 워크룸 자리를 차지하고 있는 인원.
+  //
+  // 예전에는 상태 카드가 "체크인했고 아직 체크아웃 안 한 세션" 만 셌습니다. 그래서
+  // 예약이 세 건 돌아가고 있어도 아무도 체크인을 안 했으면 0/3 으로 보였고, 네 번째
+  // 사람이 정원을 넘겨 예약할 수 있었습니다. 자리를 잡아둔 시점부터 차 있는 것으로
+  // 봐야 맞습니다. 타임라인 머리글이 쓰던 기준과도 이제 일치합니다.
+  const workroomActiveCount = useMemo(() => {
+    const todayKey = keyOf(now);
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const occupied = new Set();
+    reservations.forEach((r) => {
+      if (r.roomId !== 'workroom' && r.resourceId !== 'workroom') return;
+      if (r.date !== todayKey) return;
+      const startM = toMin(r.start);
+      let endM = toMin(r.end);
+      if (endM <= startM) endM += 1440;          // 자정을 넘겨 끝나는 예약
+      if (nowMinutes >= startM && nowMinutes < endM) occupied.add(r.groupId || r.id);
+    });
+    return occupied.size;
+  }, [reservations, now]);
+
   // 노쇼 방지 (Auto-Cancel)
   useEffect(() => {
     if (!resources.length || !reservations.length || !sessions.length) return;
@@ -2833,7 +2867,10 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       showToast(isEdit ? "예약을 수정했어요." : "예약이 완료됐어요.");
       
       // Push Notifications
-      if (user !== "admin") {
+      // 이미 끝난 시간대의 예약을 손볼 때는 알리지 않습니다. 시간을 앞으로 옮긴
+      // 경우에는 f 가 새 시각이므로 정상적으로 알림이 나갑니다.
+      const alreadyOver = isPastReservation(f.date, f.start, f.end);
+      if (user !== "admin" && !alreadyOver) {
         const resIdToUse = effectiveRoomId || f.resourceId || f.roomId;
         const resInfo = resources.find(r => r.id === resIdToUse) || {};
         const targetRoomName = resInfo.name || ROOMS.find(r => r.id === resIdToUse)?.name || '회의실';
@@ -3118,7 +3155,11 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
   const addTemp = (id) => setTemp((p) => (id && !p.includes(id) ? [...p, id] : p));
   function donePicker() { setForm((f) => ({ ...f, attendees: [...temp] })); setErrs((e) => ({ ...e, att: undefined })); setPickerOpen(false); }
 
-  const onBlockClick = (r) => (canEdit(r) ? openEdit(r) : setDetail(r));
+  // 예약을 누르면 언제나 상세를 먼저 엽니다. 예전에는 수정 권한이 있으면 상세를
+  // 건너뛰고 곧장 수정 창으로 보냈는데, 그 바람에 본인 예약에서는 댓글도 참석 확인도
+  // 체크인(사용 시작) 버튼도 볼 방법이 없었습니다. 수정은 상세 창의 "수정" 버튼으로
+  // 들어갑니다.
+  const onBlockClick = (r) => setDetail(r);
 
   /* ----- timeline renderers ----- */
    const renderMobileDashboard = (isDesktopSplit = false) => {
@@ -3350,22 +3391,41 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           
           if (policy?.capacity > 1) {
             // 다인용 자원 (Workroom)
-            const activeCount = sessions.filter(s => 
-              s.resourceId === resInfo.id && 
-              !s.checkOutAt &&
-              reservations.some(r => r.id === s.reservationId && r.date === keyOf(now))
-            ).length;
+            const activeCount = workroomActiveCount;
             const isFull = activeCount >= policy.capacity;
-            
+            // 색은 "누가 쓰고 있는가" 로 정합니다. 만석일 때만 빨갛게 하면 한 명이
+            // 쓰고 있어도 초록으로 보여서 비어 있는 것처럼 읽힙니다. 남은 자리 수는
+            // 제목 문구가 그대로 알려줍니다.
+            const isOccupied = activeCount > 0;
+
+            // 체크인(사용 시작)은 원래 예약 상세 창 맨 아래에만 있었습니다. 그런데 본인
+            // 예약을 누르면 "예약 수정" 창이 열려서 그 버튼에 닿을 방법이 없었습니다.
+            // 워크룸에서 체크인은 10분 노쇼 자동 취소를 막는 유일한 행동이라, 화면에서
+            // 가장 눈에 띄는 이 카드로 올립니다.
+            const myWorkroomNow = reservations.find((r) => {
+              if (r.roomId !== 'workroom' && r.resourceId !== 'workroom') return false;
+              if (r.date !== keyOf(now)) return false;
+              const meId = getMeId();
+              const mine = r.owner === user || (meId && r.attendees && r.attendees.includes(meId));
+              if (!mine) return false;
+              const startM = toMin(r.start);
+              let endM = toMin(r.end);
+              if (endM <= startM) endM += 1440;
+              return nowMin >= startM && nowMin < endM;
+            });
+            const myLiveSession = myWorkroomNow
+              ? sessions.find((s) => s.reservationId === myWorkroomNow.id && !s.checkOutAt)
+              : null;
+
             return (
-              <div className="status-card mb-6 rounded-[14px] p-4 text-white relative overflow-hidden" style={{ background: isFull ? "var(--mob-busy-bg)" : "var(--mob-free-bg)", margin: "6px 0", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
+              <div className="status-card mb-6 rounded-[14px] p-4 text-white relative overflow-hidden" style={{ background: isOccupied ? "var(--mob-busy-bg)" : "var(--mob-free-bg)", margin: "6px 0", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
                 <div className="flex items-center gap-2 mb-2 relative z-10">
-                  <span className={`w-2.5 h-2.5 rounded-full ${isFull ? "glow-dot-busy" : "glow-dot-free"}`} />
-                  <span className="text-[18px] font-bold" style={{ color: isFull ? "var(--mob-busy-text)" : "var(--mob-free-text)" }}>
+                  <span className={`w-2.5 h-2.5 rounded-full ${isOccupied ? "glow-dot-busy" : "glow-dot-free"}`} />
+                  <span className="text-[18px] font-bold" style={{ color: isOccupied ? "var(--mob-busy-text)" : "var(--mob-free-text)" }}>
                     {isFull ? "지금 만석입니다" : `${policy.capacity - activeCount}자리 남았습니다`}
                   </span>
                 </div>
-                <div className="text-[13px] font-medium mb-3" style={{ color: isFull ? "var(--mob-busy-text)" : "var(--mob-free-text)", opacity: 0.8 }}>
+                <div className="text-[13px] font-medium mb-3" style={{ color: isOccupied ? "var(--mob-busy-text)" : "var(--mob-free-text)", opacity: 0.8 }}>
                   정원 {policy.capacity}명 · 지금 {activeCount}명 이용 중
                 </div>
                 
@@ -3377,17 +3437,42 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 </div>
                 
                 <div className="relative z-10 mt-5">
-                  <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => {
-                    if (isFull) {
-                      showToast("알림이 설정되었습니다.");
-                    } else {
-                      tryCreate(roomId, defStart(), selKey);
-                    }
-                  }}>
-                    {isFull ? "자리 나면 알림 받기" : "+ 지금 바로 예약하기"}
-                  </button>
+                  {myWorkroomNow ? (
+                    // 내 예약이 진행 중이면 "예약하기" 는 뜰 이유가 없습니다. 지금 필요한 건
+                    // 체크인(또는 사용 종료) 과 시간 조정 두 가지뿐입니다.
+                    <div className="flex gap-2">
+                      <button
+                        className="flex-[2] py-2.5 rounded-[10px] text-[13px] font-bold bg-black/25 text-white"
+                        onClick={() => myLiveSession ? handleEndSession(myLiveSession) : handleStartSession(myWorkroomNow)}
+                      >
+                        {myLiveSession ? "■ 사용 종료" : "✓ 체크인"}
+                      </button>
+                      <button
+                        className="flex-1 py-2.5 rounded-[10px] text-[13px] font-bold bg-white/20 text-white"
+                        onClick={() => { setRoomId(myWorkroomNow.roomId || 'workroom'); openEdit(myWorkroomNow); }}
+                      >
+                        예약 수정
+                      </button>
+                    </div>
+                  ) : (
+                    <button className="w-full py-2.5 rounded-[10px] text-[13px] font-bold bg-black/20 text-white" onClick={() => {
+                      if (isFull) {
+                        showToast("알림이 설정되었습니다.");
+                      } else {
+                        tryCreate(roomId, defStart(), selKey);
+                      }
+                    }}>
+                      {isFull ? "자리 나면 알림 받기" : "+ 지금 바로 예약하기"}
+                    </button>
+                  )}
                 </div>
-                <div className="text-center text-[12px] mt-2 opacity-80" style={{ color: isFull ? "var(--mob-busy-text)" : "var(--mob-free-text)" }}>예약 시간이 10분 지나면 자동으로 취소됩니다</div>
+                <div className="text-center text-[12px] mt-2 opacity-80" style={{ color: isOccupied ? "var(--mob-busy-text)" : "var(--mob-free-text)" }}>
+                  {myLiveSession
+                    ? "사용을 마치면 종료를 눌러주세요"
+                    : myWorkroomNow
+                      ? "10분 안에 체크인하지 않으면 예약이 자동 취소됩니다"
+                      : "예약 시간이 10분 지나면 자동으로 취소됩니다"}
+                </div>
               </div>
             );
           } else {
@@ -4801,11 +4886,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                   }
 
                   if (isWorkroom) {
-                    const activeCount = sessions.filter(s => 
-                      s.resourceId === 'workroom' && 
-                      !s.checkOutAt &&
-                      reservations.some(r => r.id === s.reservationId && r.date === keyOf(now))
-                    ).length;
+                    const activeCount = workroomActiveCount;
                     const isFull = activeCount >= 3;
                     return (
                       <div className={`rounded-lg border p-3.5 text-xs font-semibold ${isFull ? 'border-red-400 bg-red-50 text-red-600' : ''}`} style={{ borderColor: isFull ? undefined : C.border, background: isFull ? undefined : "var(--bg-secondary)", color: isFull ? undefined : C.text }}>
