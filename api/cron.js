@@ -91,11 +91,25 @@ function addIdentifiers(set, value) {
   }
 }
 
-function collectPeople(set, data) {
-  if (Array.isArray(data.attendees)) data.attendees.forEach((a) => addIdentifiers(set, a));
-  addIdentifiers(set, data.owner);
-  addIdentifiers(set, data.who);
-  addIdentifiers(set, data.userId);
+// 이 회의의 알림을 받아야 할 사람.
+//
+// 참석자가 지정돼 있으면 참석자에게만 보냅니다. 예전에는 등록자도 항상 넣었는데,
+// 남을 위해 대신 예약해 주고 본인은 빠진 경우까지 "시작 5분 전" 을 받게 됩니다.
+// 참석자를 아무도 넣지 않은 예약만 등록자에게 보냅니다.
+function collectAudience(data) {
+  const set = new Set();
+  const attendees = Array.isArray(data.attendees) ? data.attendees.filter(Boolean) : [];
+  if (attendees.length) {
+    attendees.forEach((a) => addIdentifiers(set, a));
+  } else {
+    addIdentifiers(set, data.owner);
+    addIdentifiers(set, data.who);
+    addIdentifiers(set, data.userId);
+  }
+  // 회의실 계정은 전용 알림만 받습니다.
+  set.delete(ROOM_ACCOUNT_ID);
+  set.delete(ROOM_ACCOUNT_NAME);
+  return set;
 }
 
 /*
@@ -205,31 +219,44 @@ export default async function handler(req, res) {
     const snapshot = await resRef.where('date', '==', todayStr).get();
     const meetings = groupIntoMeetings(snapshot);
 
-    const startingPeople = new Set();
-    const endingPeople = new Set();
     const morningPeople = new Set();
-    const startingLabels = [];
-    const endingLabels = [];
     const flagWrites = [];
+    // 알림은 회의 한 건당 하나씩 만듭니다.
+    //
+    // 예전에는 그 시각에 시작하는 모든 회의의 사람을 Set 하나에 합치고, 제목도 전부
+    // 이어 붙여 한 번에 보냈습니다. 그래서 같은 시각에 다른 방에서 회의가 있으면
+    // 서로 남의 회의 알림을 받았습니다.
+    const reminderJobs = [];
     // 회의실 계정은 회의마다 다음 일정 안내가 달라지므로 한 건씩 따로 보냅니다.
     const roomAccountMessages = [];
 
     meetings.forEach((meeting) => {
       const data = meeting.data;
-      collectPeople(morningPeople, data);
+      const audience = collectAudience(data);
+      audience.forEach((v) => morningPeople.add(v));
 
       const startDelta = meeting.startMin - nowMin;
       if (startDelta > 0 && startDelta <= LEAD_MINUTES && !data.notifiedStart) {
-        collectPeople(startingPeople, data);
-        startingLabels.push(`[${roomName(meeting.roomId)}] ${meeting.title}`);
         flagWrites.push(meeting.ref.update({ notifiedStart: true }));
+        if (audience.size > 0) {
+          reminderJobs.push({
+            title: '🚀 일정 시작 5분 전이에요',
+            body: `[${roomName(meeting.roomId)}] ${meeting.title} 일정이 곧 시작됩니다. 준비해주세요!`,
+            attendees: Array.from(audience),
+          });
+        }
       }
 
       const endDelta = meeting.endMin - nowMin;
       if (endDelta > 0 && endDelta <= LEAD_MINUTES && !data.notifiedEnd) {
-        collectPeople(endingPeople, data);
-        endingLabels.push(roomName(meeting.roomId));
         flagWrites.push(meeting.ref.update({ notifiedEnd: true }));
+        if (audience.size > 0) {
+          reminderJobs.push({
+            title: '⏰ 일정 종료 5분 전이에요',
+            body: `[${roomName(meeting.roomId)}] ${meeting.title} 이용 시간이 곧 끝납니다. 마무리 부탁드려요 :)`,
+            attendees: Array.from(audience),
+          });
+        }
 
         if (meeting.roomId === ROOM_ACCOUNT_ROOM) {
           const next = findNextMeeting(meetings, meeting.roomId, meeting.endMin, meeting.key);
@@ -241,13 +268,6 @@ export default async function handler(req, res) {
           });
         }
       }
-    });
-
-    // 회의실 계정은 위에서 만든 전용 알림만 받습니다. 참석자 명단에 섞여 들어왔더라도
-    // 시작 / 종료 / 오늘 일정 알림에서는 빼둡니다.
-    [startingPeople, endingPeople, morningPeople].forEach((set) => {
-      set.delete(ROOM_ACCOUNT_ID);
-      set.delete(ROOM_ACCOUNT_NAME);
     });
 
     // 등록 5분이 지난 미발송 공지를 모읍니다. notified 필드가 아예 없는 옛 공지는
@@ -281,7 +301,7 @@ export default async function handler(req, res) {
       console.error('digest state error:', e);
     }
 
-    if (!startingPeople.size && !endingPeople.size && !sendMorning && !roomAccountMessages.length && !pendingAnnouncements.length) {
+    if (!reminderJobs.length && !sendMorning && !roomAccountMessages.length && !pendingAnnouncements.length) {
       return res.status(200).json({ success: true, message: 'No reminders due.', nowMin, meetings: meetings.length });
     }
 
@@ -301,21 +321,7 @@ export default async function handler(req, res) {
 
     const jobs = [];
 
-    if (startingPeople.size > 0) {
-      jobs.push(post({
-        title: '🚀 일정 시작 5분 전이에요',
-        body: `${startingLabels.join(', ')} 일정이 곧 시작됩니다. 준비해주세요!`,
-        attendees: Array.from(startingPeople),
-      }));
-    }
-
-    if (endingPeople.size > 0) {
-      jobs.push(post({
-        title: '⏰ 일정 종료 5분 전이에요',
-        body: `${endingLabels.join(', ')} 이용 시간이 곧 끝납니다. 마무리 부탁드려요 :)`,
-        attendees: Array.from(endingPeople),
-      }));
-    }
+    reminderJobs.forEach((job) => { jobs.push(post(job)); });
 
     roomAccountMessages.forEach((msg) => {
       jobs.push(post({ ...msg, attendees: [ROOM_ACCOUNT_ID] }));
@@ -354,8 +360,7 @@ export default async function handler(req, res) {
       success: true,
       nowMin,
       meetings: meetings.length,
-      starting: startingPeople.size,
-      ending: endingPeople.size,
+      reminders: reminderJobs.length,
       roomAccount: roomAccountMessages.length,
       announcements: pendingAnnouncements.length,
       digest: sendMorning,
