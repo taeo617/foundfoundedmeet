@@ -18,6 +18,8 @@ import { sendWindow } from './sendWindow.js';
  * again.
  */
 
+// 시작/종료 몇 분 전에 알릴지. 조건이 (0, LEAD] 인 것에 주의하세요. 정각(delta 0)을
+// 포함하면 이미 시작했거나 끝난 일정에 "5분 전" 이라고 알리게 됩니다.
 const LEAD_MINUTES = 5;
 
 // 회의실 계정은 큰 회의실에 걸어둔 화면 전용입니다. 종료 5분 전 알림 하나만 받고
@@ -217,14 +219,14 @@ export default async function handler(req, res) {
       collectPeople(morningPeople, data);
 
       const startDelta = meeting.startMin - nowMin;
-      if (startDelta >= 0 && startDelta <= LEAD_MINUTES && !data.notifiedStart) {
+      if (startDelta > 0 && startDelta <= LEAD_MINUTES && !data.notifiedStart) {
         collectPeople(startingPeople, data);
         startingLabels.push(`[${roomName(meeting.roomId)}] ${meeting.title}`);
         flagWrites.push(meeting.ref.update({ notifiedStart: true }));
       }
 
       const endDelta = meeting.endMin - nowMin;
-      if (endDelta >= 0 && endDelta <= LEAD_MINUTES && !data.notifiedEnd) {
+      if (endDelta > 0 && endDelta <= LEAD_MINUTES && !data.notifiedEnd) {
         collectPeople(endingPeople, data);
         endingLabels.push(roomName(meeting.roomId));
         flagWrites.push(meeting.ref.update({ notifiedEnd: true }));

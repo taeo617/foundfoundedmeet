@@ -43,6 +43,34 @@ const nid = () => `r_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
 
 // 공지 본문을 문단과 불릿으로 나눕니다. "- " 로 시작하는 줄만 불릿이 되고,
 // 나머지는 문단 그대로 둡니다. 연속된 같은 종류는 하나로 묶습니다.
+// 리마인더 발송 플래그를 슬롯에 미리 찍습니다. true = "이미 처리됨, 보내지 않음".
+//
+// 두 가지를 막습니다.
+//  1) 수정 폼이 옛 슬롯의 플래그를 통째로 복사해 오는 오염. 항상 새로 계산합니다.
+//  2) 지금부터 5분 안에 시작하거나 끝나는 일정에 "5분 전" 알림이 나가는 것.
+//     저장하면서 "예약됐어요 / 변경됐어요" 알림이 이미 나갔으니 중복이고,
+//     2분 뒤 끝나는 일정을 두고 "종료 5분 전" 이라고 하는 건 사실과도 다릅니다.
+export const REMINDER_LEAD_MIN = 5;
+export function stampReminderFlags(slot, at = new Date()) {
+  const todayKey = keyOf(at);
+  const nowMin = at.getHours() * 60 + at.getMinutes();
+
+  const tooLate = (minute) => {
+    if (!slot.date) return false;
+    if (slot.date < todayKey) return true;    // 이미 지난 날짜
+    if (slot.date > todayKey) return false;   // 앞으로의 날짜
+    return minute - nowMin <= REMINDER_LEAD_MIN;
+  };
+
+  const startMin = toMin(slot.start);
+  let endMin = toMin(slot.end);
+  if (endMin <= startMin) endMin += 1440;     // 자정을 넘겨 끝나는 슬롯
+
+  slot.notifiedStart = tooLate(startMin);
+  slot.notifiedEnd = tooLate(endMin);
+  return slot;
+}
+
 function annBlocks(text) {
   const blocks = [];
   String(text || '').split('\n').forEach((raw) => {
@@ -2737,6 +2765,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           delete slotData._slots;
           delete slotData._starts;
           delete slotData._ends;
+          stampReminderFlags(slotData);
           
           myBatchSet(doc(db, "reservations", slotId), slotData);
         }
@@ -2761,6 +2790,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               let slotId = `${pushed.roomId}_${dateStr}_${slotIndex}`;
               const slotData = { ...pushed, id: slotId, start: toHHMM(currentSlotStartMin), end: toHHMM(currentSlotEndMin) };
               delete slotData._slots; delete slotData._starts; delete slotData._ends;
+              stampReminderFlags(slotData);
               console.log('밀어낸 새 슬롯 생성 중:', slotId);
               myBatchSet(doc(db, "reservations", slotId), slotData);
             }
@@ -2811,7 +2841,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         let resourceTypeName = '회의실';
         if (resInfo.type === 'equipment' || targetRoomName.includes('프린터') || targetRoomName.includes('뱀부랩')) {
           resourceTypeName = '3D 프린터';
-        } else if (resIdToUse?.includes('workroom') || targetRoomName.includes('워크룸')) {
+        } else if (resIdToUse === 'workroom' || roomDef.group === 'workroom' || targetRoomName.includes('워크룸')) {
           resourceTypeName = '워크룸';
         }
 
@@ -2961,6 +2991,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               if (seatNum) slotId += `_${seatNum}`;
               const slotData = { ...r, id: slotId, start: toHHMM(currentSlotStartMin), end: toHHMM(currentSlotEndMin) };
               delete slotData._slots; delete slotData._starts; delete slotData._ends;
+              stampReminderFlags(slotData);
               batch.set(doc(db, "reservations", slotId), slotData);
             }
             await batch.commit();
@@ -3459,7 +3490,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                           let badge = isLive ? '출력 중' : (!isPast && !isLive) ? '예약됨' : '완료';
                           
                           return (
-                            <button key={r.id} className={`blk ${cls} ${h < 38 ? 's1' : h < 74 ? 's2' : ''}`} style={{ top: `${top}px`, height: `${h}px`, left: '3px', right: '3px' }} onClick={() => !r.isMock && onBlockClick(r)}>
+                            <button key={r.id} className={`blk ${cls} ${h < 34 ? 's1' : h < 70 ? 's2' : h < 92 ? 's3' : ''}`} style={{ top: `${top}px`, height: `${h}px`, left: '3px', right: '3px' }} onClick={() => !r.isMock && onBlockClick(r)}>
                               <b>{isLive && <span className="livedot"></span>}<span>{r.title || ownerName}{isMine ? ' · 내 예약' : ''}</span></b>
                               <small>{r.start} ~ {r.end}</small>
                               <small>{ownerName ? `${ownerName}님` : ''}</small>
@@ -3548,7 +3579,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                         const left = it.col * w;
                         
                         return (
-                          <button key={r.id} className={`blk ${cls} ${h < 38 ? 's1' : h < 74 ? 's2' : ''}`} style={{ top: `${top}px`, height: `${h}px`, left: `calc(${left}% + 3px)`, width: `calc(${w}% - 6px)` }} onClick={() => onBlockClick(r)}>
+                          <button key={r.id} className={`blk ${cls} ${h < 34 ? 's1' : h < 70 ? 's2' : h < 92 ? 's3' : ''}`} style={{ top: `${top}px`, height: `${h}px`, left: `calc(${left}% + 3px)`, width: `calc(${w}% - 6px)` }} onClick={() => onBlockClick(r)}>
                             <b>{isLive && <span className="livedot"></span>}<span>{r.title || ownerName}{isMine ? ' · 내 예약' : ''}</span></b>
                             <small>{r.start} ~ {r.end}</small>
                             <small>{ownerName ? `${ownerName}님` : ''}</small>
@@ -4872,7 +4903,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 <button onClick={() => setForm(null)} className="lift flex-1 rounded-lg border py-3 text-sm font-medium" style={{ borderColor: C.border, color: C.muted }}>취소</button>
                 <button 
                   onClick={() => {
-                    if (isPrinter || isWorkroom) {
+                    // 주의사항은 새로 잡을 때만 받습니다. 이미 동의하고 잡은 예약의
+                    // 시간만 고치는데 세 개를 다시 체크하게 하는 건 번거롭기만 합니다.
+                    if ((isPrinter || isWorkroom) && !form.id) {
                       setConfirmModalData(form);
                       setCheckedNotices({});
                     } else {

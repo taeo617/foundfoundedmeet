@@ -383,10 +383,20 @@ body, header, section, .sheet, .cell, input, select, button {
 .blk small{font-size:11.5px;opacity:.8;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .blk .badge{font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px;background:#0000000f;width:fit-content;margin-top:3px}
 [data-theme="dark"] .blk .badge{background:#ffffff17}
-.blk.s2 .badge{display:none}
+/* 블록 높이에 맞춰 내용을 접습니다. 1시간이 78px 이므로 30분 예약은 39px 뿐인데,
+   제목·시간·예약자를 세로로 쌓으면 약 68px 이 필요해 그대로 두면 잘립니다.
+   s1  ~33px  : 제목만
+   s2  ~69px  : 제목과 시간을 한 줄로 (예약자·배지 숨김)
+   s3  ~91px  : 세로로 쌓되 배지만 숨김
+   그 이상     : 전부 표시 */
 .blk.s1{padding:4px 9px;justify-content:center;gap:0}
 .blk.s1 small,.blk.s1 .badge{display:none}
 .blk.s1 b{font-size:11.5px}
+.blk.s2{padding:5px 9px;flex-direction:row;align-items:center;gap:6px}
+.blk.s2 b{font-size:12px;flex:0 1 auto;min-width:0}
+.blk.s2 small{font-size:11px;opacity:.75;flex:none}
+.blk.s2 small + small,.blk.s2 .badge{display:none}
+.blk.s3 .badge{display:none}
 .blk--done{background:var(--free-bg);border-color:var(--free-ln);color:var(--free)}
 .blk--live{background:var(--busy);border-color:var(--busy);color:#fff}
 .blk--live::after{content:'';position:absolute;left:0;right:0;bottom:0;height:18px;background:linear-gradient(180deg,transparent,#ffffff59)}
