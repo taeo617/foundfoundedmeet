@@ -2492,33 +2492,44 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
       return;
     }
 
+    await finishSession(sessionId);
+  };
+
+  // 실제 종료 처리. 확인 모달을 거친 뒤에만 불립니다.
+  //
+  // 예전에는 모달의 "확인했어요, 종료하기" 가 handleEndSession 을 다시 불렀습니다.
+  // 그런데 handleEndSession 은 워크룸·프린터면 모달을 열고 곧장 반환하는 함수라,
+  // checkOutAt 을 기록하는 줄에 영영 닿지 못했습니다. 창은 닫히는데 종료는 안 되는
+  // 상태였습니다. 그래서 "여는 쪽" 과 "끝내는 쪽" 을 갈라놓았습니다.
+  const finishSession = async (sessionId, report = null) => {
+    if (!sessionId) return;
     if (isFirebaseConfigured) {
-      await updateDoc(doc(db, "sessions", sessionId), {
-        checkOutAt: serverTimestamp(),
-        autoClosed: false
-      });
-      showToast("사용을 종료했습니다.");
-      setDetail(null);
+      try {
+        await updateDoc(doc(db, "sessions", sessionId), {
+          checkOutAt: serverTimestamp(),
+          autoClosed: false,
+          ...(report ? { report } : {})
+        });
+      } catch (err) {
+        console.error("사용 종료 실패:", err);
+        showToast("사용 종료 중 오류가 발생했습니다.");
+        return;
+      }
+    } else {
+      setSessions(prev => prev.map(x => x.id === sessionId ? { ...x, checkOutAt: new Date() } : x));
     }
+    showToast(report ? "리포트 제출과 함께 사용이 종료되었습니다." : "사용을 종료했습니다.");
+    setReportModalSession(null);
+    setDetail(null);
   };
 
   const submitSessionReport = async () => {
     if (!reportModalSession) return;
-    const sessionId = reportModalSession.id;
-    if (isFirebaseConfigured) {
-      await updateDoc(doc(db, "sessions", sessionId), {
-        checkOutAt: serverTimestamp(),
-        autoClosed: false,
-        report: {
-          result: reportForm.result || 'success',
-          filamentG: Number(reportForm.filamentG) || 0,
-          note: reportForm.note || ''
-        }
-      });
-      showToast("리포트 제출과 함께 사용이 종료되었습니다.");
-      setReportModalSession(null);
-      setDetail(null);
-    }
+    await finishSession(reportModalSession.id, {
+      result: reportForm.result || 'success',
+      filamentG: Number(reportForm.filamentG) || 0,
+      note: reportForm.note || ''
+    });
   };
 
   function overlaps(rid, date, s, e, ignore) {
@@ -5677,14 +5688,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                 <button
                   type="button"
                   disabled={!allChecked}
-                  onClick={() => {
-                    if (isPr && (s.resourceId || true)) {
-                      submitSessionReport();
-                    } else {
-                      handleEndSession(s.id);
-                      setReportModalSession(null);
-                    }
-                  }}
+                  onClick={() => { if (isPr) submitSessionReport(); else finishSession(s.id); }}
                   className="px-4 py-2.5 rounded-lg text-white text-xs font-bold transition-all"
                   style={{
                     background: allChecked ? "#E53E3E" : "#a0aec0",
