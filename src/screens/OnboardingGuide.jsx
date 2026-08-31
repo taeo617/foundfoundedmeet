@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef, useCallback } from 'react';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../firebase';
 import { C } from '../constants';
 
 export const FEATURES = ['meeting', 'workroom', 'printer'];
 const GUIDE_VERSION = '2026-07';
-const DAY = 24 * 60 * 60 * 1000;
 
 const ONB_ALL = [
   { group: 'intro', tab: 'book', sel: null, step: '환영합니다', title: '예약 시스템이 새로워졌어요', body: '회의실 · 워크룸 · 3D 프린터를 한 곳에서 예약합니다. 1분만에 핵심만 짚어드릴게요.' },
@@ -49,59 +48,10 @@ const OnboardingGuide = forwardRef(({ meId, currentRes, setRes, currentTab, setT
     startOnboarding
   }));
 
-  const checkInitialGuide = useCallback(async () => {
-    if (!meId) return;
-
-    let f = null;
-    if (isFirebaseConfigured) {
-      try {
-        const docSnap = await getDoc(doc(db, "users", meId));
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          f = {
-            seen: data.guideSeen || [],
-            ver: data.guideVer,
-            lastSeenAt: data.lastSeenAt ? (data.lastSeenAt.toDate ? data.lastSeenAt.toDate().getTime() : data.lastSeenAt) : null,
-            dismissedUntil: data.dismissedUntil || null
-          };
-        }
-      } catch (err) {
-        console.error("Failed to read guide state from Firestore:", err);
-      }
-    } else {
-      try {
-        f = JSON.parse(localStorage.getItem(`rsv_guide_${meId}`) || 'null');
-      } catch (e) { }
-    }
-
-    const now = Date.now();
-    let show = false;
-    let groups = null;
-
-    if (f && f.dismissedUntil && now < f.dismissedUntil) {
-      show = false;
-    } else if (!f || !f.seen || !f.seen.length) {
-      show = true;
-    } else if (f.ver !== GUIDE_VERSION) {
-      show = true;
-    } else {
-      const newOnes = FEATURES.filter(x => !f.seen.includes(x));
-      if (newOnes.length > 0) {
-        show = true;
-        groups = newOnes;
-      } else if (f.lastSeenAt && (now - f.lastSeenAt > DAY)) {
-        show = true;
-      }
-    }
-
-    if (show) {
-      setTimeout(() => startOnboarding(groups), 450);
-    }
-  }, [meId, startOnboarding]);
-
-  useEffect(() => {
-    checkInitialGuide();
-  }, [checkInitialGuide]);
+  // 자동 안내는 없앴습니다. 예전에는 첫 접속 / 가이드 버전 변경 / 새 기능 추가에 더해
+  // "마지막으로 본 지 하루 지남" 조건까지 있어서, 다 본 사람에게도 다음 날 또 떴습니다.
+  // 지금은 종 아이콘의 "가이드 보기" 로 직접 열 때만 시작합니다. 앱을 열 때마다 돌던
+  // users 문서 조회도 함께 사라져 Firestore 읽기가 그만큼 줄었습니다.
 
   const markGuideSeen = async () => {
     if (!meId) return;
