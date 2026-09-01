@@ -141,6 +141,34 @@ export default async function handler(req, res) {
             const v = d.data() || {};
             return { id: d.id, count: (Array.isArray(v.webPushSubscriptions) ? v.webPushSubscriptions.length : 0) + (v.webPushSubscription ? 1 : 0) };
           });
+
+          // 같은 기기(푸시 주소) 가 여러 계정 문서에 걸쳐 있는지. 한 브라우저의 주소는
+          // 한 사람 것이어야 하는데, 로그아웃이 구독을 지우지 않아 그 기기에서 로그인한
+          // 모든 계정에 주소가 쌓입니다. 그러면 남의 알림이 내 기기에서 울립니다.
+          // 주소 자체는 노출하지 않고 짧은 해시로만 보여줍니다.
+          const owners = new Map();
+          snap.docs.forEach(d => {
+            const v = d.data() || {};
+            const subs = [];
+            if (v.webPushSubscription) subs.push(v.webPushSubscription);
+            if (Array.isArray(v.webPushSubscriptions)) subs.push(...v.webPushSubscriptions);
+            const seen = new Set();
+            subs.forEach(sub => {
+              let parsed = sub;
+              if (typeof parsed === 'string') { try { parsed = JSON.parse(parsed); } catch (e) { return; } }
+              if (!parsed || !parsed.endpoint) return;
+              if (seen.has(parsed.endpoint)) return;
+              seen.add(parsed.endpoint);
+              const tag = crypto.createHash('sha256').update(parsed.endpoint).digest('hex').slice(0, 8)
+                + (parsed.endpoint.includes('apple') ? ' (Apple)' : ' (FCM)');
+              if (!owners.has(tag)) owners.set(tag, []);
+              owners.get(tag).push(d.id);
+            });
+          });
+          payload.diag.deviceCount = owners.size;
+          payload.diag.sharedDevices = Array.from(owners.entries())
+            .filter(([, ids]) => ids.length > 1)
+            .map(([tag, ids]) => ({ device: tag, accounts: ids.sort() }));
         } catch (e) {
           payload.diag.readError = String(e?.message || e).slice(0, 200);
         }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, forwardRef } from "react";
-import { collection, query, where, Timestamp, onSnapshot, doc, getDoc, setDoc, addDoc, deleteDoc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, runTransaction, writeBatch, deleteField } from "firebase/firestore";
+import { collection, query, where, Timestamp, onSnapshot, doc, getDoc, getDocs, setDoc, addDoc, deleteDoc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, runTransaction, writeBatch, deleteField } from "firebase/firestore";
 import { db, auth, isFirebaseConfigured } from "./firebase";
 import HistorySearch from "./screens/HistorySearch";
 import OnboardingGuide from "./screens/OnboardingGuide";
@@ -116,6 +116,49 @@ function urlBase64ToUint8Array(base64String) {
   return outputArray;
 }
 
+// 한 브라우저의 푸시 주소는 한 사람 것이어야 합니다.
+//
+// 예전에는 로그아웃이 구독을 지우지 않았고, 구독 저장도 현재 계정에 추가만 했습니다.
+// 그래서 한 기기에서 여러 계정으로 로그인하면 그 기기 주소가 계정마다 쌓였고,
+// 남에게 가야 할 알림이 이 기기에서 울렸습니다. 참석자 명단과는 무관한 문제입니다.
+const subEndpoint = (x) => {
+  try { const v = typeof x === 'string' ? JSON.parse(x) : x; return v && v.endpoint ? v.endpoint : null; }
+  catch (e) { return null; }
+};
+
+async function detachEndpointFromUser(userId, endpoint) {
+  if (!isFirebaseConfigured || !userId || !endpoint) return false;
+  const snap = await getDoc(doc(db, "users", userId));
+  if (!snap.exists()) return false;
+  const v = snap.data() || {};
+  const list = Array.isArray(v.webPushSubscriptions) ? v.webPushSubscriptions : [];
+  const kept = list.filter((x) => subEndpoint(x) !== endpoint);
+  const primaryHit = subEndpoint(v.webPushSubscription) === endpoint;
+  if (kept.length === list.length && !primaryHit) return false;
+  const patch = { webPushSubscriptions: kept };
+  if (primaryHit) patch.webPushSubscription = deleteField();
+  await setDoc(doc(db, "users", userId), patch, { merge: true });
+  return true;
+}
+
+// 지금 로그인한 계정 말고 다른 계정에 이 기기 주소가 남아 있으면 떼어냅니다.
+async function detachEndpointFromOthers(endpoint, keepUserId) {
+  if (!isFirebaseConfigured || !endpoint) return;
+  try {
+    const snap = await getDocs(collection(db, "users"));
+    for (const d of snap.docs) {
+      if (d.id === keepUserId) continue;
+      const v = d.data() || {};
+      const subs = [...(Array.isArray(v.webPushSubscriptions) ? v.webPushSubscriptions : []), v.webPushSubscription];
+      if (!subs.some((x) => subEndpoint(x) === endpoint)) continue;
+      await detachEndpointFromUser(d.id, endpoint);
+      console.log('다른 계정에서 이 기기 구독을 정리했습니다:', d.id);
+    }
+  } catch (e) {
+    console.warn('다른 계정의 기기 구독 정리 실패:', e);
+  }
+}
+
 async function subscribeToWebPush(userId) {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) return false;
   try {
@@ -212,6 +255,8 @@ async function subscribeToWebPush(userId) {
           }
         };
         await saveSubWithRetry();
+        // 이 기기는 지금 이 사람 것입니다. 예전 로그인 흔적을 다른 계정에서 지웁니다.
+        await detachEndpointFromOthers(subJson.endpoint, userId);
       }
       return true;
     }
@@ -2407,6 +2452,18 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
     }
   }
   const handleLogout = async () => {
+    // 이 기기 구독을 내 계정에서 떼어냅니다. 안 그러면 다음 사람이 이 브라우저로
+    // 로그인해도 내 알림이 계속 이 기기로 옵니다.
+    try {
+      const meId = getMeId();
+      if (isFirebaseConfigured && meId && 'serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) await detachEndpointFromUser(meId, sub.endpoint);
+      }
+    } catch (e) {
+      console.warn('로그아웃 시 기기 구독 해제 실패:', e);
+    }
     try {
       if (auth) await signOut(auth);
     } catch (e) {
