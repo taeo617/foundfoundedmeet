@@ -216,7 +216,21 @@ export default async function handler(req, res) {
     const nowMin = kst.getUTCHours() * 60 + kst.getUTCMinutes();
 
     const resRef = db.collection('reservations');
-    const snapshot = await resRef.where('date', '==', todayStr).get();
+    // 취소된 슬롯은 groupIntoMeetings 가 어차피 버립니다. 서버에서 먼저 걸러야
+    // 읽기로 과금되지 않습니다. (date, status) 복합 인덱스가 필요하므로
+    // firestore.indexes.json 을 함께 배포해야 합니다.
+    // 인덱스가 아직 배포되지 않았으면 필터 쿼리가 FAILED_PRECONDITION 으로 떨어집니다.
+    // 그 경우 알림이 통째로 멈추지 않도록 예전 쿼리로 되돌아갑니다.
+    let snapshot;
+    try {
+      snapshot = await resRef
+        .where('date', '==', todayStr)
+        .where('status', '==', 'booked')
+        .get();
+    } catch (e) {
+      console.error('booked-filtered query failed, falling back:', e && e.message);
+      snapshot = await resRef.where('date', '==', todayStr).get();
+    }
     const meetings = groupIntoMeetings(snapshot);
 
     const morningPeople = new Set();

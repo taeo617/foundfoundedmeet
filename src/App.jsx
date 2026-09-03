@@ -26,8 +26,29 @@ import { sendWindow } from "./utils/sendWindow";
 // means every page load re-reads the entire history, which is what exhausts the daily
 // Firestore read quota. Only the recent window is ever rendered - 사용 기록이 가장 멀리
 // 거슬러 올라가고, 나머지 화면은 오늘 근처만 봅니다.
-const RESERVATION_WINDOW_DAYS = 180;
-const SESSION_WINDOW_DAYS = 120;
+// Firestore SDK 는 resource-exhausted / 네트워크 단절 같은 에러를 "재시도 가능"으로
+// 분류해서 commit Promise 를 resolve 도 reject 도 하지 않고 무한 대기시킵니다.
+// 그러면 호출부의 catch 가 영영 실행되지 않아 저장 버튼이 "처리 중…" 에서 멈춥니다.
+// 에러 처리가 빠진 게 아니라 에러가 도달하지 않는 구조라, 타임아웃으로 잘라 줍니다.
+const COMMIT_TIMEOUT_MS = 15000;
+const withTimeout = (promise, ms = COMMIT_TIMEOUT_MS) => {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const err = new Error('서버 응답이 지연되고 있어요. 잠시 후 다시 시도해주세요.');
+      err.code = 'client-timeout';
+      reject(err);
+    }, ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+};
+
+// 창을 더 줄이고 싶은 유혹이 있지만, 실제로 쓰이는 이력 화면(src/screens/HistorySearch.jsx)과
+// 대시보드 월별 이동이 이 리스너 state 를 그대로 받아 쓰기 때문에 창 = 조회 가능 범위입니다.
+// (src/HistorySearch.jsx 의 페이지네이션 버전은 어디서도 import 되지 않는 죽은 코드입니다.)
+// 60일이면 지난달 대시보드와 최근 이력이 살아 있으면서 읽기량은 1/3로 줄어듭니다.
+const RESERVATION_WINDOW_DAYS = 60;
+const SESSION_WINDOW_DAYS = 60;
 const windowStartDate = (days) => {
   const d = new Date();
   d.setDate(d.getDate() - days);
@@ -1798,21 +1819,52 @@ export default function App() {
 
   // 노쇼 방지 (Auto-Cancel)
   //
-  // 예전 코드에는 두 가지 문제가 있었습니다.
+  // 예전 코드에는 세 가지 문제가 있었습니다.
   //  1) `!sessions.length` 로 통째로 잠들어 있다가, 누군가 처음 체크인하는 순간 깨어나
   //     그때까지 쌓인 예약을 한꺼번에 훑어 취소했습니다.
   //  2) "시작 후 10분 경과" 만 보고 종료 여부를 보지 않아, 이미 끝난 몇 시간 전 예약까지
   //     취소 대상이 됐습니다.
-  // 그래서 아직 진행 중인 예약만, 그것도 유예 시간 안에서만 취소합니다.
-  useEffect(() => {
-    if (!resources.length || !reservations.length) return;
+  //  3) 🔴 의존성 배열에 `reservations` 가 들어 있어서
+  //     쓰기 → 리스너 발화 → state 변경 → useEffect 재실행 → 인터벌 재생성 → 쓰기
+  //     의 무한 루프가 만들어졌습니다. 2026-08-31 저녁 두 시간 만에 읽기 6만·쓰기 2만을
+  //     태워 Firestore 일일 할당량을 소진시킨 원인이 이것입니다.
+  //
+  // 그래서 지금은 (a) 진행 중인 예약만, (b) 유예 시간 안에서만, (c) 인터벌은 마운트 시
+  // 한 번만 만들고 최신 값은 ref 로 읽으며, (d) 한 번 취소를 보낸 문서는 다시 쓰지 않습니다.
 
+  // 최신 state 를 인터벌 안에서 읽기 위한 ref. 이 값을 쓰면 state 가 바뀌어도
+  // useEffect 가 재실행되지 않으므로 루프 고리가 끊어집니다.
+  const reservationsRef = useRef(reservations);
+  const sessionsRef = useRef(sessions);
+  const resourcesRef = useRef(resources);
+  useEffect(() => { reservationsRef.current = reservations; }, [reservations]);
+  useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
+  useEffect(() => { resourcesRef.current = resources; }, [resources]);
+
+  // 이미 취소 쓰기를 보낸 예약 id. 리스너가 cancelled 를 돌려주기 전에 다음 스윕이
+  // 같은 문서를 또 쓰는 것을 막는 2차 방어선입니다.
+  const autoCancelledRef = useRef(new Set());
+
+  useEffect(() => {
     const sweep = () => {
+      const resourcesNow = resourcesRef.current || [];
+      const reservationsNow = reservationsRef.current || [];
+      const sessionsNow = sessionsRef.current || [];
+      if (!resourcesNow.length || !reservationsNow.length) return;
+
       const currentTime = new Date();
-      reservations.forEach(r => {
+      reservationsNow.forEach(r => {
         if (r.status !== 'booked') return;
 
-        const resPolicy = resources.find(res => res.id === (r.resourceId || 'meeting-room'))?.policy;
+        // 이번 세션에서 이미 취소를 보낸 예약은 건너뜁니다.
+        if (autoCancelledRef.current.has(r.id)) return;
+
+        // 노쇼 자동취소는 체크인할 수단이 있는 워크룸에만 적용합니다.
+        // 회의실·프린터에는 "사용 시작" 버튼이 없어 체크인이 불가능하므로,
+        // 여기서 걸러내지 않으면 정상 예약이 전부 취소됩니다.
+        if (r.roomId !== 'workroom' && r.resourceId !== 'workroom') return;
+
+        const resPolicy = resourcesNow.find(res => res.id === (r.resourceId || 'meeting-room'))?.policy;
         if (!resPolicy || !resPolicy.autoCancelMinutes) return;
 
         const [y, m, d] = r.date.split('-').map(Number);
@@ -1828,21 +1880,31 @@ export default function App() {
         const elapsedMins = (currentTime - startDt) / (1000 * 60);
         if (elapsedMins <= resPolicy.autoCancelMinutes) return;
 
-        if (sessions.some(s => s.reservationId === r.id)) return;
+        if (sessionsNow.some(s => s.reservationId === r.id)) return;
+
+        autoCancelledRef.current.add(r.id);
 
         if (r._slots) {
           const batch = writeBatch(db);
           r._slots.forEach(slotId => batch.update(doc(db, "reservations", slotId), { status: 'cancelled' }));
-          batch.commit().catch(console.error);
+          batch.commit().catch(err => {
+            // 실패한 건은 다시 시도할 수 있도록 표시를 되돌립니다.
+            autoCancelledRef.current.delete(r.id);
+            console.error(err);
+          });
         } else {
-          updateDoc(doc(db, "reservations", r.id), { status: 'cancelled' }).catch(console.error);
+          updateDoc(doc(db, "reservations", r.id), { status: 'cancelled' }).catch(err => {
+            autoCancelledRef.current.delete(r.id);
+            console.error(err);
+          });
         }
       });
     };
 
+    // 인터벌은 마운트 시 1회만 만듭니다. 의존성 배열은 반드시 비워 두어야 합니다.
     const interval = setInterval(sweep, 60000);
     return () => clearInterval(interval);
-  }, [resources, reservations, sessions]);
+  }, []);
 
   
   useEffect(() => {
@@ -2924,7 +2986,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         console.log('BATCH:', ops);
         try {
           console.log('배치 쓰기(commit) 시작');
-          await batch.commit();
+          await withTimeout(batch.commit());
           console.log('배치 쓰기 성공!');
         } catch (commitErr) {
           console.error('Batch Commit Error Code:', commitErr.code);
@@ -3003,7 +3065,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           if (target._slots) {
             const batch = writeBatch(db);
             target._slots.forEach(slotId => batch.update(doc(db, "reservations", slotId), { status: 'cancelled' }));
-            await batch.commit();
+            await withTimeout(batch.commit());
           } else {
             await updateDoc(doc(db, "reservations", id), { status: 'cancelled' });
           }
@@ -3051,7 +3113,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           if (r._slots) {
             const batch = writeBatch(db);
             r._slots.forEach(slotId => batch.update(doc(db, "reservations", slotId), { end: toHHMM(newEnd) }));
-            await batch.commit();
+            await withTimeout(batch.commit());
           } else {
             await updateDoc(doc(db, "reservations", r.id), { end: toHHMM(newEnd) });
           }
@@ -3113,7 +3175,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               stampReminderFlags(slotData);
               batch.set(doc(db, "reservations", slotId), slotData);
             }
-            await batch.commit();
+            await withTimeout(batch.commit());
           } else {
             await updateDoc(doc(db, "reservations", r.id), { end: toHHMM(newEndM) });
           }
@@ -3157,7 +3219,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
           if (r._slots) {
             const batch = writeBatch(db);
             r._slots.forEach(slotId => batch.update(doc(db, "reservations", slotId), { checkedIn: newCheckedIn }));
-            await batch.commit();
+            await withTimeout(batch.commit());
           } else {
             await updateDoc(doc(db, "reservations", r.id), { checkedIn: newCheckedIn });
           }
@@ -5343,6 +5405,10 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             {/* 🟢 사용 시작/종료 버튼 */}
             {(() => {
               if (!user) return null;
+              // 체크인(사용 시작/종료)은 워크룸에서만 씁니다. 회의실은 예약만으로 충분하고,
+              // 버튼이 있으면 오히려 "안 누르면 취소되나?" 하는 혼란만 생깁니다.
+              const isWorkroomDetail = detail.resourceId === 'workroom' || detail.roomId === 'workroom';
+              if (!isWorkroomDetail) return null;
               const isAttendeeOrOwner = detail.owner === user || (detail.attendees && detail.attendees.includes(MEMBERS.find(m => m.name === user)?.id));
               if (!isAttendeeOrOwner) return null;
 
