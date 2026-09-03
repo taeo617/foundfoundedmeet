@@ -180,8 +180,17 @@ async function detachEndpointFromOthers(endpoint, keepUserId) {
   }
 }
 
-async function subscribeToWebPush(userId) {
+// 이 페이지 세션에서 푸시 구독을 이미 동기화한 계정. 이 가드가 없으면 아래 구조로
+// 무한 쓰기 루프가 됩니다:
+//   users/{me} 쓰기 → users 리스너 발화 → setMembersList(새 배열)
+//   → membersList 를 의존성으로 가진 useEffect 재실행 → subscribeToWebPush → 다시 쓰기
+// 스윕 루프와 달리 60초 간격조차 없어서 네트워크 왕복 속도로 돕니다.
+// 사용자가 명시적으로 알림을 켤 때는 force=true 로 우회합니다.
+const pushSyncedFor = new Set();
+
+async function subscribeToWebPush(userId, force = false) {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) return false;
+  if (!force && userId && pushSyncedFor.has(userId)) return true;
   try {
     await navigator.serviceWorker.register('/service-worker.js');
     
@@ -277,7 +286,9 @@ async function subscribeToWebPush(userId) {
         };
         await saveSubWithRetry();
         // 이 기기는 지금 이 사람 것입니다. 예전 로그인 흔적을 다른 계정에서 지웁니다.
+        // getDocs(users) 로 컬렉션 전체를 읽으므로, 위 가드 덕분에 세션당 1회만 돕니다.
         await detachEndpointFromOthers(subJson.endpoint, userId);
+        pushSyncedFor.add(userId);
       }
       return true;
     }
@@ -1938,11 +1949,13 @@ export default function App() {
             }
             return Promise.resolve();
           });
+          // 플래그를 Promise 결과에 매달면 안 됩니다. 할당량이 소진된 상태에서는
+          // commit 이 resolve 도 reject 도 되지 않아 플래그가 영영 안 찍히고,
+          // 그러면 페이지를 열 때마다 로컬 예약 전체를 다시 씁니다.
+          // 쓰기는 이미 SDK 큐(IndexedDB)에 들어갔으므로 지금 표시해도 안전합니다.
+          localStorage.setItem("firestore_migrated_v3", "true");
           Promise.all(promises)
-            .then(() => {
-              localStorage.setItem("firestore_migrated_v3", "true");
-              console.log("Local data successfully migrated to Firestore!");
-            })
+            .then(() => console.log("Local data successfully migrated to Firestore!"))
             .catch((err) => {
               console.error("Failed to migrate some local records:", err);
             });
@@ -4614,7 +4627,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
             Avatar={(props) => <Avatar {...props} dbProfiles={dbProfiles} />}
             onOpenProfileMenu={() => setShowProfileMenu(true)}
             handleLogout={handleLogout}
-            onSubscribePush={subscribeToWebPush}
+            onSubscribePush={(id) => subscribeToWebPush(id, true)}
             onSendPushNotification={sendPushNotification}
           />
         )}
