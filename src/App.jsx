@@ -1516,9 +1516,12 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem("suspended_members", JSON.stringify(suspendedIds));
-    MEMBERS.forEach(m => {
-      m.inactive = suspendedIds.includes(m.id);
-    });
+    // MEMBERS 는 constants.js 의 공유 상수입니다. 예전에는 여기서
+    //   MEMBERS.forEach(m => { m.inactive = suspendedIds.includes(m.id); })
+    // 로 상수를 직접 변형했는데, 그러면 한 번 정지시킨 멤버의 inactive 가 상수 객체에
+    // 영구히 박혀 membersList 로 복사되고, 관리자가 Firestore 에서 active:true 로
+    // 되돌려도 화면에 다시 나타나지 않았습니다. 정지 상태는 active 하나로만 표현합니다.
+    // (constants.js 의 inactive 는 명부상 비활성 멤버를 뜻하는 정적 값으로 남겨둡니다.)
   }, [suspendedIds]);
 
   useEffect(() => {
@@ -5193,7 +5196,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                     </button>
                     <button 
                       onClick={() => {
-                        const normalMembers = MEMBERS.filter(m => !m.inactive && (m.group === "director" || m.group === "staff"));
+                        const normalMembers = (membersList || MEMBERS).filter(m => m.active !== false && (m.group === "director" || m.group === "staff"));
                         const allSelected = normalMembers.every(m => temp.includes(m.id));
                         if (allSelected) {
                           setTemp(temp.filter(id => !normalMembers.some(nm => nm.id === id)));
@@ -5205,7 +5208,7 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
                       className="hover:underline text-[11px] px-1 py-0.5 rounded"
                       style={{ color: C.ink }}
                     >
-                      {MEMBERS.filter(m => !m.inactive && (m.group === "director" || m.group === "staff")).every(m => temp.includes(m.id)) ? "전체 해제" : "전체 선택"}
+                      {(membersList || MEMBERS).filter(m => m.active !== false && (m.group === "director" || m.group === "staff")).every(m => temp.includes(m.id)) ? "전체 해제" : "전체 선택"}
                     </button>
                   </div>
                 </div>
@@ -5228,7 +5231,10 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
               {/* roster */}
               <div className="sc order-2 flex-1 overflow-y-auto p-3 md:order-1">
                 {[["director", "디렉터"], ["staff", "임직원"]].map(([g, label]) => {
-                  const rows = (membersList || MEMBERS).filter((m) => m.group === g && m.active !== false && !m.inactive);
+                  // active 하나만 봅니다. membersList 를 만들 때 이미 정적 inactive 와
+                  // 정지 목록이 active 에 반영되고, Firestore 의 active 가 그걸 덮어씁니다.
+                  // 여기서 inactive 를 또 보면 서버에서 복구해도 화면에 안 돌아옵니다.
+                  const rows = (membersList || MEMBERS).filter((m) => m.group === g && m.active !== false);
                   return (
                     <div key={g} className="mb-2">
                       <div className="px-1.5 py-1 text-xs font-medium" style={{ color: C.muted }}>{label} ({rows.length})</div>
