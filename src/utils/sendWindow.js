@@ -1,8 +1,8 @@
 /*
  * When the service is allowed to send notifications.
  *
- *   화~금  09:00 – 21:00
- *   월요일  12:00 – 21:00   (월요일 오전은 늦게 시작하는 팀 사정)
+ *   화~금  09:00 – 20:00
+ *   월요일  12:00 – 20:00   (월요일 오전은 늦게 시작하는 팀 사정)
  *   토·일   전면 무음
  *
  * Anything raised outside this window is dropped, not queued - including the
@@ -13,7 +13,7 @@
  */
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-const CLOSE_HOUR = 21;
+const CLOSE_HOUR = 20;
 const OPEN_HOUR_DEFAULT = 9;
 const OPEN_HOUR_MONDAY = 12;
 
