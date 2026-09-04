@@ -49,9 +49,21 @@ const withTimeout = (promise, ms = COMMIT_TIMEOUT_MS) => {
 // 60일이면 지난달 대시보드와 최근 이력이 살아 있으면서 읽기량은 1/3로 줄어듭니다.
 const RESERVATION_WINDOW_DAYS = 60;
 const SESSION_WINDOW_DAYS = 60;
+// 조회 창의 시작점은 반드시 "달의 1일"로 내림합니다. 이게 읽기 비용의 핵심입니다.
+//
+// 예전에는 `오늘 - N일` 이었는데, 그러면 날짜가 바뀔 때마다 쿼리 조건이 달라져서
+// Firestore 가 매일 **새 쿼리**로 취급합니다. 새 쿼리는 영속 캐시(IndexedDB)의
+// resume token 을 쓸 수 없어 창 안의 문서 전체를 서버에서 다시 받아옵니다.
+// 예약이 30분 슬롯 문서로 쪼개져 저장되므로 60일이면 수천 건이고, 이걸 접속한
+// 사람 수만큼 매일 반복해서 읽고 있었습니다. 8/31 월요일 읽기 11만(쓰기는 474건)이
+// 정확히 이 비용입니다 — 루프가 아니라 "월요일 아침에 11명이 앱을 연 값"이었습니다.
+//
+// 시작점을 달의 1일로 고정하면 한 달 동안 쿼리가 동일하므로 캐시가 그대로 살고,
+// 서버는 마지막 접속 이후 바뀐 문서만 보냅니다.
 const windowStartDate = (days) => {
   const d = new Date();
   d.setDate(d.getDate() - days);
+  d.setDate(1);
   d.setHours(0, 0, 0, 0);
   return d;
 };
@@ -257,6 +269,30 @@ async function subscribeToWebPush(userId, force = false) {
       // Save subscription to user document in Firestore with retry logic
       if (isFirebaseConfigured && userId) {
         const subJson = JSON.parse(JSON.stringify(subscription));
+
+        // 이 기기의 endpoint 가 이미 내 문서에 있으면 쓰지 않습니다 (읽기 1건으로 쓰기와
+        // 그 쓰기가 만드는 users 리스너 팬아웃을 통째로 아낍니다).
+        //
+        // 이 검사가 없을 때 생기던 문제: 같은 사람이 폰과 노트북에 앱을 동시에 켜두면
+        // 두 기기가 `webPushSubscription`(대표 구독 1개)을 서로 자기 것으로 덮어쓰기를
+        // 반복합니다. 매 번 users 문서가 실제로 바뀌므로 리스너가 전원에게 발화하고,
+        // 전원이 useEffect 를 다시 돌려 또 setDoc 을 합니다. 9/3 17시에 연결 5~7개로
+        // 한 시간에 쓰기 2만이 나온 게 이 핑퐁입니다. api/notify.js 는 배열
+        // `webPushSubscriptions` 만 있어도 발송하므로 대표 필드를 매번 덮어쓸 이유가 없습니다.
+        let alreadyStored = false;
+        try {
+          const mine = await getDoc(doc(db, "users", userId));
+          const v = mine.exists() ? (mine.data() || {}) : {};
+          const list = Array.isArray(v.webPushSubscriptions) ? v.webPushSubscriptions : [];
+          alreadyStored = !staleSubJson && list.some((x) => subEndpoint(x) === subJson.endpoint);
+        } catch (e) {
+          // 읽기가 실패하면 예전처럼 저장을 시도합니다.
+        }
+        if (alreadyStored) {
+          pushSyncedFor.add(userId);
+          return true;
+        }
+
         const saveSubWithRetry = async (attempts = 3) => {
           for (let attempt = 1; attempt <= attempts; attempt++) {
             try {
