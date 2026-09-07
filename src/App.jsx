@@ -46,9 +46,9 @@ const withTimeout = (promise, ms = COMMIT_TIMEOUT_MS) => {
 // 창을 더 줄이고 싶은 유혹이 있지만, 실제로 쓰이는 이력 화면(src/screens/HistorySearch.jsx)과
 // 대시보드 월별 이동이 이 리스너 state 를 그대로 받아 쓰기 때문에 창 = 조회 가능 범위입니다.
 // (src/HistorySearch.jsx 의 페이지네이션 버전은 어디서도 import 되지 않는 죽은 코드입니다.)
-// 60일이면 지난달 대시보드와 최근 이력이 살아 있으면서 읽기량은 1/3로 줄어듭니다.
-const RESERVATION_WINDOW_DAYS = 60;
-const SESSION_WINDOW_DAYS = 60;
+// 30일(=이전 달 1일부터)이면 지난달 대시보드와 최근 이력이 살아 있으면서 초기 읽기량이 60일 대비 절반 수준으로 줄어듭니다.
+const RESERVATION_WINDOW_DAYS = 30;
+const SESSION_WINDOW_DAYS = 30;
 // 조회 창의 시작점은 반드시 "달의 1일"로 내림합니다. 이게 읽기 비용의 핵심입니다.
 //
 // 예전에는 `오늘 - N일` 이었는데, 그러면 날짜가 바뀔 때마다 쿼리 조건이 달라져서
