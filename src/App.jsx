@@ -841,14 +841,14 @@ function SplashScreen({ onComplete }) {
 
   useEffect(() => {
     let fadeTimer;
-    // 마지막 글자가 0.53초에 찍힙니다. 0.9초까지 잠깐 머문 뒤 페이드아웃 —
-    // 전체 1.25초. 페이드 350ms는 index.css의 transition 값과 반드시 같아야 합니다.
+    // 로고가 0.6초에 다 떠오릅니다. 1.2초까지 머문 뒤 페이드아웃 — 전체 1.55초.
+    // 페이드 350ms는 index.css의 .splash-container transition 값과 반드시 같아야 합니다.
     const timer = setTimeout(() => {
       setFade(true);
       fadeTimer = setTimeout(() => {
         doneRef.current();
       }, 350);
-    }, 900);
+    }, 1200);
     return () => { clearTimeout(timer); clearTimeout(fadeTimer); };
   }, []);
 

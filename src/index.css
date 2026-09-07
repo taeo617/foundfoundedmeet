@@ -298,14 +298,14 @@ body, header, section, .sheet, .cell, input, select, button {
 }
 
 /* 스플래시 로고. 예전 타자기 글자 애니메이션을 이미지 로고로 바꿨습니다.
-   JS 가 0.9초에 페이드아웃을 시작하므로, 로고는 0.45초 안에 다 나타나야 합니다. */
+   JS 가 1.2초에 페이드아웃을 시작하므로, 로고는 그 전에 다 나타나야 합니다. */
 .splash-logo-img {
   height: clamp(22px, 6vw, 36px);
   width: auto;
   max-width: 82vw;
   opacity: 0;
   transform: translateY(6px);
-  animation: splash-logo-in 0.45s cubic-bezier(0.25, 1, 0.5, 1) 0.05s forwards;
+  animation: splash-logo-in 0.55s cubic-bezier(0.25, 1, 0.5, 1) 0.05s forwards;
 }
 
 @keyframes splash-logo-in {
