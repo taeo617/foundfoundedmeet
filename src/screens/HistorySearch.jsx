@@ -85,17 +85,24 @@ export default function HistorySearch({ user, sessions, reservations, ROOMS, MEM
       const { dateStr, startTime, endTime, durationStr, st } = parseSessionTime(s);
 
       const relatedResIdx = list.findIndex(r => r.source === 'reservation' && r.raw.id === s.reservationId);
-      if (relatedResIdx !== -1) {
-         list.splice(relatedResIdx, 1);
-      }
+
+      // 매칭되는 예약이 없는 세션은 표시하지 않습니다.
+      // 예약 저장이 실패한 채(할당량 소진 등) 체크인만 서버에 올라간 "유령" 기록이고,
+      // 사용자 입장에선 예약 내역에 없는 것이 사용 기록에 뜨는 셈이라 혼란만 줍니다.
+      if (relatedResIdx === -1) return;
+
+      // 세션 문서엔 title 이 없습니다. 예전엔 여기서 예약 항목을 빼고 세션을 넣으면서
+      // 제목을 s.title 에서 읽어, 정상 체크인도 전부 "제목 없음"으로 보였습니다.
+      // 예약의 제목·참석자를 세션 항목으로 넘깁니다.
+      const [related] = list.splice(relatedResIdx, 1);
 
       list.push({
         id: `ses_${s.id}`,
         source: 'session',
         resourceId: s.resourceId,
-        title: s.title || "제목 없음",
+        title: related.title || s.title || "제목 없음",
         owner: (MEMBERS.find(m => m.id === s.userId || m.name === s.userId)?.name || s.userId || "사용자"),
-        attendees: s.attendees || [],
+        attendees: (related.attendees && related.attendees.length ? related.attendees : (s.attendees || [])),
         startTime,
         endTime,
         durationStr,
