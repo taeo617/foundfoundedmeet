@@ -1,11 +1,11 @@
 {
-  "name": "파파 예약 서비스",
-  "short_name": "파파 예약",
+  "name": "FAFA 예약서비스",
+  "short_name": "FAFA 예약서비스",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#1a1a1a",
-  "description": "foundfounded 내부 파파 예약 서비스 — 회의실·워크룸·3D 프린터",
+  "description": "foundfounded 내부 FAFA 예약서비스 — 회의실·워크룸·3D 프린터",
   "icons": [
     {
       "src": "/icons/papa-192.png",
