@@ -2643,6 +2643,9 @@ const [dayEventsDate, setDayEventsDate] = useState(null);
         userId: user,
         reservationId: res.id,
         checkInAt: serverTimestamp(),
+        // /api/close-sessions 가 `autoClosed == false` 로 미종료 세션을 찾습니다.
+        // 이 필드가 없으면 Firestore 쿼리에 안 걸려서 영원히 "진행 중"으로 남습니다.
+        autoClosed: false,
         source: 'button'
       });
       // Show it immediately - the range-filtered listener cannot match it until the
