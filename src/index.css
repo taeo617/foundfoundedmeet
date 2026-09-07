@@ -297,27 +297,27 @@ body, header, section, .sheet, .cell, input, select, button {
   font-family: "Pretendard Variable", sans-serif;
 }
 
-.splash-char {
+/* 스플래시 로고. 예전 타자기 글자 애니메이션을 이미지 로고로 바꿨습니다.
+   JS 가 0.9초에 페이드아웃을 시작하므로, 로고는 0.45초 안에 다 나타나야 합니다. */
+.splash-logo-img {
+  height: clamp(22px, 6vw, 36px);
+  width: auto;
+  max-width: 82vw;
   opacity: 0;
-  display: inline;
-  animation: type-char 0.001s forwards;
+  transform: translateY(6px);
+  animation: splash-logo-in 0.45s cubic-bezier(0.25, 1, 0.5, 1) 0.05s forwards;
 }
 
-.splash-char.w600 {
-  font-weight: 600;
-  color: #ffffff;
+@keyframes splash-logo-in {
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.splash-char.w800 {
-  font-weight: 800;
-  color: #ffffff;
+/* 헤더 워드마크 — 검정 로고를 다크 모드에서 흰색으로 */
+.dark .wordmark-img {
+  filter: invert(1);
 }
 
-@keyframes type-char {
-  to { opacity: 1; }
-}
-
-/* 타자기 효과 딜레이. 마지막 글자가 0.53초에 찍히고, JS가 0.9초에 페이드를 시작합니다.
+/* (미사용 — 스플래시가 이미지 로고로 바뀜) 타자기 효과 딜레이. 마지막 글자가 0.53초에 찍히고, JS가 0.9초에 페이드를 시작합니다.
    둘 중 하나만 바꾸면 글자가 다 나오기 전에 사라지거나 빈 화면이 길어집니다. */
 .del-1 { animation-delay: 0.04s; }
 .del-2 { animation-delay: 0.08s; }

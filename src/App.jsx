@@ -473,12 +473,17 @@ function StatusPill({ kind, text }) {
   return <span className="inline-flex items-center gap-1.5 rounded-[4px] px-2 py-0.5 text-[11px] font-medium" style={{ background: m.bg, color: m.fg }}><span className="h-1.5 w-1.5 rounded-full" style={{ background: m.dot }} /> {text}</span>;
 }
 function Wordmark({ size = 18 }) {
+  // 텍스트 워드마크 대신 public/logo.png 를 씁니다. size 는 예전 font-size 값을
+  // 그대로 받아, 글자 높이(어센더~베이스라인)에 맞춰 이미지 높이로 환산합니다.
+  // 다크 모드는 index.css 의 `.dark .wordmark-img { filter: invert(1) }` 가 처리합니다.
   return (
-    <span style={{ fontFamily: '"Pretendard Variable", sans-serif', fontSize: size, color: C.ink, lineHeight: 1, letterSpacing: "-0.02em", display: "inline-flex", alignItems: "center", fontWeight: "normal" }}>
-      <span style={{ fontWeight: 600, color: C.text }}>found</span>
-      <span style={{ fontWeight: 600, color: C.text, opacity: 0.8 }}>/</span>
-      <span style={{ fontWeight: 800 }}>Founded</span>
-    </span>
+    <img
+      src="/logo.png"
+      alt="found/Founded"
+      className="wordmark-img"
+      style={{ height: Math.round(size * 0.8), width: "auto", display: "block" }}
+      draggable={false}
+    />
   );
 }
 const defaultProfiles = {
@@ -851,7 +856,7 @@ function SplashScreen({ onComplete }) {
     <div className={`splash-container ${fade ? "fade-out" : ""}`}>
       <div className="splash-fallback flex flex-col items-center justify-center gap-2.5">
         <div className="splash-logo-container">
-          <span className="splash-char w600 del-1">f</span><span className="splash-char w600 del-2">o</span><span className="splash-char w600 del-3">u</span><span className="splash-char w600 del-4">n</span><span className="splash-char w600 del-5">d</span><span className="splash-char w600 del-6">/</span><span className="splash-char w800 del-7">F</span><span className="splash-char w800 del-8">o</span><span className="splash-char w800 del-9">u</span><span className="splash-char w800 del-10">n</span><span className="splash-char w800 del-11">d</span><span className="splash-char w800 del-12">e</span><span className="splash-char w800 del-13">d</span>
+          <img src="/logo-white.png" alt="found/Founded" className="splash-logo-img" draggable={false} />
         </div>
       </div>
     </div>
